@@ -25,15 +25,9 @@ input,button,select,textarea{font-family:inherit}
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
-<script>
-window.storage=(function(){var mem={};function ls(){try{return localStorage;}catch(e){return null;}}return{get:function(k){return Promise.resolve().then(function(){var s=ls(),v=s&&s.getItem(k);return v==null?null:{value:v};});},set:function(k,v){return Promise.resolve().then(function(){var s=ls();if(s)try{s.setItem(k,v);}catch(e){mem[k]=v;}else mem[k]=v;});},delete:function(k){return Promise.resolve().then(function(){var s=ls();if(s)try{s.removeItem(k);}catch(e){delete mem[k];}else delete mem[k];});}};})();
-</script>
-<script>
-var useState=React.useState,useEffect=React.useEffect,useCallback=React.useCallback;
-var LineChart=Recharts.LineChart,Line=Recharts.Line,XAxis=Recharts.XAxis,YAxis=Recharts.YAxis,Tooltip=Recharts.Tooltip,ResponsiveContainer=Recharts.ResponsiveContainer,BarChart=Recharts.BarChart,Bar=Recharts.Bar,CartesianGrid=Recharts.CartesianGrid;
-</script>
-<script>
-"use strict";
+<script>window.storage=(function(){var mem={};function ls(){try{return localStorage;}catch(e){return null;}}return{get:function(k){return Promise.resolve().then(function(){var s=ls(),v=s&&s.getItem(k);return v==null?null:{value:v};});},set:function(k,v){return Promise.resolve().then(function(){var s=ls();if(s)try{s.setItem(k,v);}catch(e){mem[k]=v;}else mem[k]=v;});},delete:function(k){return Promise.resolve().then(function(){var s=ls();if(s)try{s.removeItem(k);}catch(e){delete mem[k];}else delete mem[k];});}};})();</script>
+<script>var useState=React.useState,useEffect=React.useEffect,useCallback=React.useCallback;var LineChart=Recharts.LineChart,Line=Recharts.Line,XAxis=Recharts.XAxis,YAxis=Recharts.YAxis,Tooltip=Recharts.Tooltip,ResponsiveContainer=Recharts.ResponsiveContainer,BarChart=Recharts.BarChart,Bar=Recharts.Bar,CartesianGrid=Recharts.CartesianGrid;</script>
+<script>"use strict";
 const C = {
     bg: "#060806", surface: "#0E120E", surfaceAlt: "#141A14",
     border: "#1E2A1E", borderSoft: "#1A201A",
@@ -176,7 +170,7 @@ function SuiviMaison() {
     const [mode, setMode] = useState("log");
     const [saving, setSaving] = useState(false);
     const [selDate, setSelDate] = useState(isoToday());
-    const [chartExo, setChartExo] = useState("");
+    const [chartSel, setChartSel] = useState("A");
     useEffect(() => { load("maison-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
     const sm = maison.find(s => s.code === sel);
     const initF = useCallback(() => {
@@ -192,8 +186,7 @@ function SuiviMaison() {
             React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10 } }, "Chargement\u2026"));
     const doSave = async () => { setSaving(true); const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, seance: sel, exercices: sm.ex.map((ex, i) => ({ nom: ex.split("—")[0].trim(), reps: parseInt(form[i]?.reps) || 0, tours: parseInt(form[i]?.tours) || 0 })) }; const u = [...logs.filter(l => !(l.dateISO === selDate && l.seance === sel)), e]; await save("maison-logs", u); setLogs(u); setSaving(false); setMode("history"); };
     const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("maison-logs", u); setLogs(u); };
-    const allExos = [...new Set(logs.flatMap(l => l.exercices.map(e => e.nom)))];
-    const chartData = logs.filter(l => l.exercices.some(e => e.nom === chartExo && e.reps > 0)).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => { const ex = l.exercices.find(e => e.nom === chartExo); return { date: l.date, reps: ex?.reps || 0 }; });
+    const chartData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, reps: l.exercices.reduce((a, e) => a + (e.reps || 0), 0), tours: Math.round(l.exercices.reduce((a, e) => a + (e.tours || 0), 0) / Math.max(l.exercices.length, 1)) }));
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 8 } }, [["log", "📝 Saisie"], ["history", "📋 Historique"], ["charts", "📈 Graphiques"]].map(([k, l]) => React.createElement(Pill, { key: k, active: mode === k, onClick: () => setMode(k), color: C.amber }, l))),
         mode === "log" && React.createElement("div", null,
@@ -249,29 +242,46 @@ function SuiviMaison() {
                     "tours")))))))),
         mode === "charts" && React.createElement("div", null,
             React.createElement(Card, { style: { marginBottom: 8 } },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8 } }, "Exercice \u00E0 suivre"),
-                React.createElement("select", { value: chartExo, onChange: e => setChartExo(e.target.value), style: { ...inputStyle, width: "100%" } },
-                    React.createElement("option", { value: "" }, "\u2014 choisir \u2014"),
-                    allExos.map(n => React.createElement("option", { key: n, value: n }, n)))),
-            chartExo && chartData.length > 1 ? React.createElement(Card, null,
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amber } },
-                    "Progression reps \u2014 ",
-                    chartExo),
-                React.createElement(ResponsiveContainer, { width: "100%", height: 160 },
-                    React.createElement(LineChart, { data: chartData },
-                        React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.border }),
-                        React.createElement(XAxis, { dataKey: "date", tick: { fontSize: 9, fill: C.textDim } }),
-                        React.createElement(YAxis, { tick: { fontSize: 9, fill: C.textDim } }),
-                        React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11 } }),
-                        React.createElement(Line, { type: "monotone", dataKey: "reps", stroke: C.amber, strokeWidth: 2, dot: { r: 3, fill: C.amber } })))) : React.createElement(Card, null,
-                React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10, fontSize: 12 } }, "S\u00E9lectionne un exercice avec au moins 2 s\u00E9ances."))));
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8 } }, "S\u00E9ance \u00E0 analyser"),
+                React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap" } }, maison.map(s => React.createElement("button", { key: s.code, onClick: () => setChartSel(s.code), style: { padding: "6px 12px", borderRadius: 999, border: `2px solid ${chartSel === s.code ? C.amber : "transparent"}`, cursor: "pointer", fontSize: 11, fontWeight: 700, background: chartSel === s.code ? C.amber + "22" : C.surfaceAlt, color: chartSel === s.code ? C.amber : C.textMut } },
+                    "\uD83C\uDFE0 ",
+                    s.code,
+                    " \u00B7 ",
+                    s.jour.slice(0, 3))))),
+            chartData.length < 2 ? React.createElement(Card, null,
+                React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10, fontSize: 12 } },
+                    "Enregistre au moins 2 s\u00E9ances ",
+                    chartSel,
+                    " pour voir la progression.")) : React.createElement(React.Fragment, null,
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amber } },
+                        "\uD83D\uDCC8 Reps totaux \u2014 S\u00E9ance ",
+                        chartSel),
+                    React.createElement(ResponsiveContainer, { width: "100%", height: 170 },
+                        React.createElement(BarChart, { data: chartData },
+                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
+                            React.createElement(XAxis, { dataKey: "date", tick: { fontSize: 9, fill: C.textDim } }),
+                            React.createElement(YAxis, { tick: { fontSize: 9, fill: C.textDim } }),
+                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11 }, formatter: v => [v + " reps", "Total"] }),
+                            React.createElement(Bar, { dataKey: "reps", fill: C.amber, radius: [4, 4, 0, 0] })))),
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amberLight } },
+                        "\uD83D\uDD04 Tours moyens \u2014 S\u00E9ance ",
+                        chartSel),
+                    React.createElement(ResponsiveContainer, { width: "100%", height: 140 },
+                        React.createElement(LineChart, { data: chartData },
+                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
+                            React.createElement(XAxis, { dataKey: "date", tick: { fontSize: 9, fill: C.textDim } }),
+                            React.createElement(YAxis, { tick: { fontSize: 9, fill: C.textDim } }),
+                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11 }, formatter: v => [v + " tours", "Moy."] }),
+                            React.createElement(Line, { type: "monotone", dataKey: "tours", stroke: C.amberLight, strokeWidth: 2.5, dot: { fill: C.amberLight, r: 3 } })))))));
 }
 function SuiviSport() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sel, setSel] = useState("Push");
     const [form, setForm] = useState({});
-    const [chartExo, setChartExo] = useState("");
+    const [chartSel, setChartSel] = useState("Push");
     const [mode, setMode] = useState("log");
     const [saving, setSaving] = useState(false);
     const [selDate, setSelDate] = useState(isoToday());
@@ -283,9 +293,8 @@ function SuiviSport() {
     const doSave = async () => { setSaving(true); const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, seance: sel, exercices: se.exercices.map((ex, i) => ({ nom: ex.nom, weight: parseFloat(form[i]?.weight) || 0, reps: parseInt(form[i]?.reps) || 0, sets: parseInt(form[i]?.sets) || 0, restSets: parseInt(form[i]?.restSets) || 0, restExo: parseInt(form[i]?.restExo) || 0 })) }; const u = [...logs.filter(l => !(l.dateISO === selDate && l.seance === sel)), e]; await save("sport-logs", u); setLogs(u); setSaving(false); setMode("history"); };
     const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("sport-logs", u); setLogs(u); };
     const doReset = async () => { await save("sport-logs", []); setLogs([]); };
-    const allExos = [...new Set(logs.flatMap(l => l.exercices.map(e => e.nom)))];
-    const chartData = logs.filter(l => l.exercices.some(e => e.nom === chartExo && e.weight > 0)).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => { const ex = l.exercices.find(e => e.nom === chartExo); return { date: l.date, kg: ex?.weight || 0 }; });
-    const volData = [...logs].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).slice(-20).map(l => ({ date: l.date, vol: l.exercices.reduce((a, e) => a + e.weight * e.reps * e.sets, 0) }));
+    const seanceInfo = salleSeances.find(s => s.id === chartSel) || salleSeances[0];
+    const chartData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, vol: l.exercices.reduce((a, e) => a + e.weight * e.reps * e.sets, 0), charge: Math.max(...l.exercices.map(e => e.weight || 0)) }));
     if (loading)
         return React.createElement("div", { style: { color: C.textMut, padding: 20 } }, "Chargement\u2026");
     return React.createElement("div", null,
@@ -353,25 +362,43 @@ function SuiviSport() {
                         "s")))))),
             React.createElement("button", { onClick: doReset, style: { padding: "7px 14px", borderRadius: 10, border: `1px solid ${C.danger}44`, background: "transparent", color: C.danger, fontSize: 11, cursor: "pointer" } }, "R\u00E9initialiser"))),
         mode === "charts" && React.createElement("div", null,
-            React.createElement(Card, null,
-                React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, "\uD83D\uDCCA Volume par s\u00E9ance"),
-                volData.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "2 s\u00E9ances min.") : React.createElement(ResponsiveContainer, { width: "100%", height: 200 },
-                    React.createElement(BarChart, { data: volData },
-                        React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                        React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 } }),
-                        React.createElement(Bar, { dataKey: "vol", fill: C.amber, radius: [4, 4, 0, 0] })))),
-            React.createElement(Card, null,
-                React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, "\uD83C\uDFCB\uFE0F Progression par exercice"),
-                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 12 } }, allExos.map(e => React.createElement("button", { key: e, onClick: () => setChartExo(e), style: { padding: "4px 8px", borderRadius: 8, border: `1px solid ${chartExo === e ? C.amber : C.borderSoft}`, background: chartExo === e ? C.amber + "22" : C.surfaceAlt, color: chartExo === e ? C.amber : C.textDim, fontSize: 10, cursor: "pointer", fontWeight: 600 } }, e.split(" ").slice(0, 2).join(" ")))),
-                !chartExo ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "S\u00E9lectionne un exercice.") : chartData.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "Pas assez de donn\u00E9es.") : React.createElement(ResponsiveContainer, { width: "100%", height: 200 },
-                    React.createElement(LineChart, { data: chartData },
-                        React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                        React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 } }),
-                        React.createElement(Line, { type: "monotone", dataKey: "kg", stroke: C.amberLight, strokeWidth: 2.5, dot: { fill: C.amberLight, r: 3 }, name: "kg" }))))));
+            React.createElement(Card, { style: { marginBottom: 8 } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8 } }, "S\u00E9ance \u00E0 analyser"),
+                React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap" } }, salleSeances.map(s => React.createElement("button", { key: s.id, onClick: () => setChartSel(s.id), style: { padding: "6px 11px", borderRadius: 999, border: `2px solid ${chartSel === s.id ? s.couleur : "transparent"}`, cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", background: chartSel === s.id ? s.couleur + "22" : C.surfaceAlt, color: chartSel === s.id ? s.couleur : C.textMut } },
+                    s.emoji,
+                    " ",
+                    s.id)))),
+            chartData.length < 2 ? React.createElement(Card, null,
+                React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10, fontSize: 12 } },
+                    "Enregistre au moins 2 s\u00E9ances ",
+                    chartSel,
+                    " pour voir la progression.")) : React.createElement(React.Fragment, null,
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: seanceInfo.couleur } },
+                        "\uD83D\uDCCA Volume total \u2014 ",
+                        seanceInfo.emoji,
+                        " ",
+                        chartSel),
+                    React.createElement(ResponsiveContainer, { width: "100%", height: 180 },
+                        React.createElement(BarChart, { data: chartData },
+                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
+                            React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
+                            React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
+                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 }, formatter: v => [v + " kg·vol", "Volume"] }),
+                            React.createElement(Bar, { dataKey: "vol", fill: seanceInfo.couleur, radius: [4, 4, 0, 0] })))),
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amberLight } },
+                        "\uD83C\uDFCB\uFE0F Charge max \u2014 ",
+                        seanceInfo.emoji,
+                        " ",
+                        chartSel),
+                    React.createElement(ResponsiveContainer, { width: "100%", height: 150 },
+                        React.createElement(LineChart, { data: chartData },
+                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
+                            React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
+                            React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
+                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 }, formatter: v => [v + " kg", "Charge max"] }),
+                            React.createElement(Line, { type: "monotone", dataKey: "charge", stroke: C.amberLight, strokeWidth: 2.5, dot: { fill: C.amberLight, r: 3 } })))))));
 }
 /* ═══ SUIVI NUTRITION ═══ */
 function SuiviNutrition() {
@@ -1115,8 +1142,7 @@ function App() {
             React.createElement("span", { style: { fontSize: 9, fontWeight: 700, letterSpacing: .5, color: section === id ? color : C.textDim } }, label)))));
 }
 
-ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
-</script>
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));</script>
 <script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 </body>
 </html>
