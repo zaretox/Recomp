@@ -12,8 +12,7 @@
 <link rel="manifest" href="/manifest.json"/>
 <link rel="apple-touch-icon" href="/icon-192.png"/>
 <style>
-*{box-sizing:border-box}
-html,body,#root{height:100%;margin:0}
+*{box-sizing:border-box}html,body,#root{height:100%;margin:0}
 body{background:#060806;color:#E8EDE8;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
 input,button,select,textarea{font-family:inherit}
 #boot{position:fixed;inset:0;display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;color:#8A9A8A;font-size:14px;text-align:center;padding:24px}
@@ -168,6 +167,105 @@ function DateNav({ value, onChange, color }) {
             !isToday && React.createElement("button", { onClick: () => onChange(today), style: { padding: "7px 13px", borderRadius: 8, border: `1px solid ${color}44`, background: color + "15", color: color, fontSize: 11, fontWeight: 700, cursor: "pointer", whiteSpace: "nowrap" } }, "Aujourd'hui")));
 }
 /* ═══ SUIVI SPORT ═══ */
+/* ═══ SUIVI MAISON ═══ */
+function SuiviMaison() {
+    const [logs, setLogs] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [sel, setSel] = useState("A");
+    const [form, setForm] = useState({});
+    const [mode, setMode] = useState("log");
+    const [saving, setSaving] = useState(false);
+    const [selDate, setSelDate] = useState(isoToday());
+    const [chartExo, setChartExo] = useState("");
+    useEffect(() => { load("maison-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
+    const sm = maison.find(s => s.code === sel);
+    const initF = useCallback(() => {
+        const existing = logs.find(l => l.dateISO === selDate && l.seance === sel);
+        const fd = {};
+        if (sm)
+            sm.ex.forEach((_, i) => { const ex = existing?.exercices?.[i]; fd[i] = ex ? { reps: String(ex.reps || ""), tours: String(ex.tours || "") } : { reps: "", tours: "" }; });
+        setForm(fd);
+    }, [sm, logs, selDate, sel]);
+    useEffect(() => { initF(); }, [initF]);
+    if (loading)
+        return React.createElement(Card, null,
+            React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10 } }, "Chargement\u2026"));
+    const doSave = async () => { setSaving(true); const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, seance: sel, exercices: sm.ex.map((ex, i) => ({ nom: ex.split("—")[0].trim(), reps: parseInt(form[i]?.reps) || 0, tours: parseInt(form[i]?.tours) || 0 })) }; const u = [...logs.filter(l => !(l.dateISO === selDate && l.seance === sel)), e]; await save("maison-logs", u); setLogs(u); setSaving(false); setMode("history"); };
+    const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("maison-logs", u); setLogs(u); };
+    const allExos = [...new Set(logs.flatMap(l => l.exercices.map(e => e.nom)))];
+    const chartData = logs.filter(l => l.exercices.some(e => e.nom === chartExo && e.reps > 0)).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => { const ex = l.exercices.find(e => e.nom === chartExo); return { date: l.date, reps: ex?.reps || 0 }; });
+    return React.createElement("div", null,
+        React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 8 } }, [["log", "📝 Saisie"], ["history", "📋 Historique"], ["charts", "📈 Graphiques"]].map(([k, l]) => React.createElement(Pill, { key: k, active: mode === k, onClick: () => setMode(k), color: C.amber }, l))),
+        mode === "log" && React.createElement("div", null,
+            React.createElement(DateNav, { value: selDate, onChange: setSelDate, color: C.amber }),
+            logs.some(l => l.dateISO === selDate && l.seance === sel) && React.createElement("div", { style: { fontSize: 10, color: C.amberLight, marginBottom: 8, marginTop: -2 } },
+                "\u270E S\u00E9ance ",
+                sel,
+                " d\u00E9j\u00E0 enregistr\u00E9e ce jour \u2014 mise \u00E0 jour."),
+            React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 12, overflowX: "auto" } }, maison.map(s => React.createElement("button", { key: s.code, onClick: () => setSel(s.code), style: { padding: "6px 11px", borderRadius: 999, border: `2px solid ${sel === s.code ? C.amber : "transparent"}`, cursor: "pointer", fontSize: 11, fontWeight: 700, whiteSpace: "nowrap", background: sel === s.code ? C.amber + "22" : C.surfaceAlt, color: sel === s.code ? C.amber : C.textMut } },
+                "\uD83C\uDFE0 ",
+                s.code,
+                " \u00B7 ",
+                s.jour.slice(0, 3)))),
+            sm && React.createElement(Card, { border: C.amber + "33" },
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 2 } }, sm.titre),
+                React.createElement("div", { style: { fontSize: 11, color: C.amber, marginBottom: 12 } }, sm.format),
+                sm.ex.map((ex, i) => {
+                    const [nom, cible] = ex.split("—").map(s => s.trim());
+                    return React.createElement("div", { key: i, style: { borderTop: i ? `1px solid ${C.borderSoft}` : "none", paddingTop: i ? 10 : 0, marginTop: i ? 10 : 0 } },
+                        React.createElement("div", { style: { fontSize: 12, fontWeight: 600, marginBottom: 6, color: C.text } },
+                            nom,
+                            " ",
+                            React.createElement("span", { style: { color: C.textMut, fontWeight: 400 } },
+                                "\u00B7 cible : ",
+                                cible || "—")),
+                        React.createElement("div", { style: { display: "flex", gap: 8 } },
+                            React.createElement("div", { style: { flex: 1 } },
+                                React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginBottom: 4 } }, "Reps r\u00E9alis\u00E9s"),
+                                React.createElement("input", { type: "number", inputMode: "numeric", placeholder: "0", value: form[i]?.reps || "", onChange: e => setForm(p => ({ ...p, [i]: { ...p[i], reps: e.target.value } })), style: { ...inputStyle, width: "100%" } })),
+                            React.createElement("div", { style: { flex: 1 } },
+                                React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginBottom: 4 } }, "Tours compl\u00E9t\u00E9s"),
+                                React.createElement("input", { type: "number", inputMode: "numeric", placeholder: "0", value: form[i]?.tours || "", onChange: e => setForm(p => ({ ...p, [i]: { ...p[i], tours: e.target.value } })), style: { ...inputStyle, width: "100%" } }))));
+                }),
+                React.createElement("button", { onClick: doSave, disabled: saving, style: { width: "100%", padding: "11px 0", borderRadius: 12, border: "none", cursor: "pointer", background: C.amber, color: "#0A0700", fontSize: 13, fontWeight: 800, marginTop: 14, opacity: saving ? .6 : 1 } }, saving ? "Enregistrement…" : (logs.some(l => l.dateISO === selDate && l.seance === sel) ? "Mettre à jour la séance" : "Enregistrer la séance")))),
+        mode === "history" && React.createElement("div", null, !logs.length ? React.createElement(Card, null,
+            React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 10 } }, "Aucune s\u00E9ance.")) : React.createElement(React.Fragment, null, [...logs].reverse().slice(0, 30).map(l => React.createElement(Card, { key: l.id },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 } },
+                React.createElement("div", null,
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } },
+                        "\uD83C\uDFE0 S\u00E9ance ",
+                        l.seance),
+                    React.createElement("span", { style: { fontSize: 11, color: C.textMut, marginLeft: 8 } }, l.date)),
+                React.createElement("button", { onClick: () => doDel(l.id), style: { background: "none", border: "none", color: C.danger, cursor: "pointer", fontSize: 15 } }, "\u2715")),
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, l.exercices.filter(e => e.reps > 0).map((e, i) => React.createElement("span", { key: i, style: { fontSize: 10, background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 8, padding: "3px 7px", color: C.text } },
+                e.nom.split(" ").slice(0, 2).join(" "),
+                " ",
+                React.createElement("b", { style: { color: C.amberLight } },
+                    e.reps,
+                    "reps"),
+                e.tours > 0 && React.createElement("span", { style: { color: C.textDim } },
+                    " \u00D7",
+                    e.tours,
+                    "tours")))))))),
+        mode === "charts" && React.createElement("div", null,
+            React.createElement(Card, { style: { marginBottom: 8 } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8 } }, "Exercice \u00E0 suivre"),
+                React.createElement("select", { value: chartExo, onChange: e => setChartExo(e.target.value), style: { ...inputStyle, width: "100%" } },
+                    React.createElement("option", { value: "" }, "\u2014 choisir \u2014"),
+                    allExos.map(n => React.createElement("option", { key: n, value: n }, n)))),
+            chartExo && chartData.length > 1 ? React.createElement(Card, null,
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amber } },
+                    "Progression reps \u2014 ",
+                    chartExo),
+                React.createElement(ResponsiveContainer, { width: "100%", height: 160 },
+                    React.createElement(LineChart, { data: chartData },
+                        React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.border }),
+                        React.createElement(XAxis, { dataKey: "date", tick: { fontSize: 9, fill: C.textDim } }),
+                        React.createElement(YAxis, { tick: { fontSize: 9, fill: C.textDim } }),
+                        React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11 } }),
+                        React.createElement(Line, { type: "monotone", dataKey: "reps", stroke: C.amber, strokeWidth: 2, dot: { r: 3, fill: C.amber } })))) : React.createElement(Card, null,
+                React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10, fontSize: 12 } }, "S\u00E9lectionne un exercice avec au moins 2 s\u00E9ances."))));
+}
 function SuiviSport() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -489,6 +587,7 @@ function SportSection() {
     const [openS, setOpenS] = useState("A");
     const [actS, setActS] = useState("Push");
     const [actP, setActP] = useState(0);
+    const [suiviProg, setSuiviProg] = useState("maison");
     const se = salleSeances.find(s => s.id === actS);
     const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", "Salle"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["conseils", "Conseils"]];
     return React.createElement("div", null,
@@ -571,7 +670,10 @@ function SportSection() {
             React.createElement(Card, { border: C.green + "33", style: { background: "#0A1A0A" } },
                 React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 4 } }, "\uD83D\uDDD3\uFE0F Timeline"),
                 React.createElement("div", { style: { fontSize: 12, color: "#80C0A0", lineHeight: 1.7 } }, "Haut : 75-80% S8-10 \u00B7 Bas : 80% S12-16 \u00B7 Fin S12 : force/hypertrophie"))),
-        tab === "suivi" && React.createElement(SuiviSport, null),
+        tab === "suivi" && React.createElement("div", null,
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12, background: C.surfaceAlt, borderRadius: 12, padding: 4 } }, [["maison", "🏠 Maison"], ["salle", "🏋️ Salle"]].map(([k, l]) => React.createElement("button", { key: k, onClick: () => setSuiviProg(k), style: { flex: 1, padding: "8px 0", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 12, background: suiviProg === k ? C.amber + "22" : "transparent", color: suiviProg === k ? C.amber : C.textMut, borderBottom: suiviProg === k ? `2px solid ${C.amber}` : "2px solid transparent" } }, l))),
+            suiviProg === "maison" && React.createElement(SuiviMaison, null),
+            suiviProg === "salle" && React.createElement(SuiviSport, null)),
         tab === "conseils" && React.createElement("div", null, sportConseils.map(c => React.createElement(Card, { key: c.t, style: { borderLeft: `3px solid ${C.amber}`, borderRadius: "0 14px 14px 0" } },
             React.createElement("div", { style: { fontSize: 13, fontWeight: 700, color: C.amberLight, marginBottom: 4 } },
                 "\uD83D\uDCA1 ",
