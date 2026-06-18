@@ -23,10 +23,8 @@ input,button,select,textarea{font-family:inherit}
 <div id="root"><div id="boot"><div class="icon">💪</div><div>Chargement…</div></div></div>
 <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
 <script>window.storage=(function(){var mem={};function ls(){try{return localStorage;}catch(e){return null;}}return{get:function(k){return Promise.resolve().then(function(){var s=ls(),v=s&&s.getItem(k);return v==null?null:{value:v};});},set:function(k,v){return Promise.resolve().then(function(){var s=ls();if(s)try{s.setItem(k,v);}catch(e){mem[k]=v;}else mem[k]=v;});},delete:function(k){return Promise.resolve().then(function(){var s=ls();if(s)try{s.removeItem(k);}catch(e){delete mem[k];}else delete mem[k];});}};})();</script>
-<script>var useState=React.useState,useEffect=React.useEffect,useCallback=React.useCallback;var LineChart=Recharts.LineChart,Line=Recharts.Line,XAxis=Recharts.XAxis,YAxis=Recharts.YAxis,Tooltip=Recharts.Tooltip,ResponsiveContainer=Recharts.ResponsiveContainer,BarChart=Recharts.BarChart,Bar=Recharts.Bar,CartesianGrid=Recharts.CartesianGrid;</script>
+<script>var useState=React.useState,useEffect=React.useEffect,useCallback=React.useCallback;</script>
 <script>"use strict";
 const C = {
     bg: "#060806", surface: "#0E120E", surfaceAlt: "#141A14",
@@ -139,6 +137,59 @@ const swaps = [
 ];
 const budgetConseils = [{ t: "Enseigne = 1er levier", d: "Lidl/Aldi sont 15-20% moins chers que Carrefour City / Monoprix." }, { t: "Les 3 swaps qui comptent", d: "Poisson surgelé + cuisses poulet + riz à la place du quinoa = 75€ → 58€/sem." }, { t: "Surgelé ≠ moins bon", d: "Le poisson blanc et les fruits rouges surgelés ont le même profil nutritionnel que le frais." }, { t: "Batch cooking", d: "Cuisine en gros le dimanche : quinoa, patate douce, poulet. Tu gagnes du temps ET de l'argent." }];
 const TOTAL_SEM = 75, TOTAL_MOIS = 310, TOTAL_SEM_B = 58, TOTAL_MOIS_B = 250;
+/* ═══ SVG CHARTS NATIFS (remplace Recharts) ═══ */
+function ChartBar({ data, dataKey, color, unit = "", height = 150 }) {
+    if (!data || !data.length)
+        return null;
+    const vals = data.map(d => +(d[dataKey] || 0));
+    const max = Math.max(...vals, 1);
+    const n = data.length;
+    const bw = 88 / n;
+    const ch = height - 28;
+    return React.createElement("svg", { viewBox: `0 0 100 ${height}`, style: { width: "100%", height, display: "block" }, preserveAspectRatio: "none" },
+        [0.25, 0.5, 0.75, 1].map(f => React.createElement("line", { key: f, x1: 4, y1: ch * (1 - f), x2: 98, y2: ch * (1 - f), stroke: "#1E2A1E", strokeWidth: 0.4 })),
+        data.map((d, i) => {
+            const v = +(d[dataKey] || 0);
+            const bh = v / max * ch;
+            const x = 6 + i * bw;
+            return React.createElement("g", { key: i },
+                React.createElement("rect", { x: x, y: ch - bh, width: bw - 1.5, height: Math.max(bh, 0), fill: color, rx: 1.5, opacity: 0.88 }),
+                bh > 12 && React.createElement("text", { x: x + (bw - 1.5) / 2, y: ch - bh - 2, textAnchor: "middle", fontSize: 5, fill: color, fontWeight: "bold" },
+                    v,
+                    unit),
+                React.createElement("text", { x: x + (bw - 1.5) / 2, y: height - 2, textAnchor: "middle", fontSize: 4.5, fill: "#5A6A5A" }, (d.date || "").split("/").slice(0, 2).join("/")));
+        }));
+}
+function ChartLine({ data, dataKey, color, unit = "", height = 140 }) {
+    if (!data || data.length < 2)
+        return null;
+    const vals = data.map(d => +(d[dataKey] || 0));
+    const max = Math.max(...vals);
+    const min = Math.min(...vals);
+    const range = max - min || 1;
+    const n = data.length;
+    const ch = height - 28;
+    const toX = i => 6 + i * (88 / (n - 1));
+    const toY = v => ch * 0.9 - (v - min) / range * ch * 0.8 + 4;
+    const pts = data.map((d, i) => `${toX(i)},${toY(+(d[dataKey] || 0))}`).join(" ");
+    const fill = `${pts} ${toX(n - 1)},${ch + 4} 6,${ch + 4}`;
+    return React.createElement("svg", { viewBox: `0 0 100 ${height}`, style: { width: "100%", height, display: "block" }, preserveAspectRatio: "none" },
+        [0, 0.5, 1].map(f => React.createElement("line", { key: f, x1: 4, y1: toY(min + range * f), x2: 98, y2: toY(min + range * f), stroke: "#1E2A1E", strokeWidth: 0.4 })),
+        React.createElement("text", { x: 3, y: toY(max) - 1, fontSize: 5, fill: color },
+            max,
+            unit),
+        React.createElement("text", { x: 3, y: toY(min) + 7, fontSize: 5, fill: "#5A6A5A" },
+            min,
+            unit),
+        React.createElement("polygon", { points: fill, fill: color + "18" }),
+        React.createElement("polyline", { points: pts, fill: "none", stroke: color, strokeWidth: 1.5 }),
+        data.map((d, i) => {
+            const cx = toX(i), cy = toY(+(d[dataKey] || 0));
+            return React.createElement("g", { key: i },
+                React.createElement("circle", { cx: cx, cy: cy, r: 2, fill: color }),
+                React.createElement("text", { x: cx, y: height - 2, textAnchor: "middle", fontSize: 4.5, fill: "#5A6A5A" }, (d.date || "").split("/").slice(0, 2).join("/")));
+        }));
+}
 /* ═══ DATE HELPERS ═══ */
 const isoToday = () => new Date().toISOString().slice(0, 10);
 const shiftISO = (iso, d) => { const x = new Date(iso + "T12:00:00"); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
@@ -257,24 +308,12 @@ function SuiviMaison() {
                     React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amber } },
                         "\uD83D\uDCC8 Reps totaux \u2014 S\u00E9ance ",
                         chartSel),
-                    React.createElement(ResponsiveContainer, { width: "100%", height: 170 },
-                        React.createElement(BarChart, { data: chartData },
-                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                            React.createElement(XAxis, { dataKey: "date", tick: { fontSize: 9, fill: C.textDim } }),
-                            React.createElement(YAxis, { tick: { fontSize: 9, fill: C.textDim } }),
-                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11 }, formatter: v => [v + " reps", "Total"] }),
-                            React.createElement(Bar, { dataKey: "reps", fill: C.amber, radius: [4, 4, 0, 0] })))),
+                    React.createElement(ChartBar, { data: chartData, dataKey: "reps", color: C.amber, unit: " reps", height: 160 })),
                 React.createElement(Card, null,
                     React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amberLight } },
                         "\uD83D\uDD04 Tours moyens \u2014 S\u00E9ance ",
                         chartSel),
-                    React.createElement(ResponsiveContainer, { width: "100%", height: 140 },
-                        React.createElement(LineChart, { data: chartData },
-                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                            React.createElement(XAxis, { dataKey: "date", tick: { fontSize: 9, fill: C.textDim } }),
-                            React.createElement(YAxis, { tick: { fontSize: 9, fill: C.textDim } }),
-                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, fontSize: 11 }, formatter: v => [v + " tours", "Moy."] }),
-                            React.createElement(Line, { type: "monotone", dataKey: "tours", stroke: C.amberLight, strokeWidth: 2.5, dot: { fill: C.amberLight, r: 3 } })))))));
+                    React.createElement(ChartLine, { data: chartData, dataKey: "tours", color: C.amberLight, unit: " tours", height: 130 })))));
 }
 function SuiviSport() {
     const [logs, setLogs] = useState([]);
@@ -379,26 +418,14 @@ function SuiviSport() {
                         seanceInfo.emoji,
                         " ",
                         chartSel),
-                    React.createElement(ResponsiveContainer, { width: "100%", height: 180 },
-                        React.createElement(BarChart, { data: chartData },
-                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                            React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                            React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
-                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 }, formatter: v => [v + " kg·vol", "Volume"] }),
-                            React.createElement(Bar, { dataKey: "vol", fill: seanceInfo.couleur, radius: [4, 4, 0, 0] })))),
+                    React.createElement(ChartBar, { data: chartData, dataKey: "vol", color: seanceInfo.couleur, unit: "", height: 170 })),
                 React.createElement(Card, null,
                     React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: C.amberLight } },
                         "\uD83C\uDFCB\uFE0F Charge max \u2014 ",
                         seanceInfo.emoji,
                         " ",
                         chartSel),
-                    React.createElement(ResponsiveContainer, { width: "100%", height: 150 },
-                        React.createElement(LineChart, { data: chartData },
-                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                            React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                            React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
-                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 }, formatter: v => [v + " kg", "Charge max"] }),
-                            React.createElement(Line, { type: "monotone", dataKey: "charge", stroke: C.amberLight, strokeWidth: 2.5, dot: { fill: C.amberLight, r: 3 } })))))));
+                    React.createElement(ChartLine, { data: chartData, dataKey: "charge", color: C.amberLight, unit: "kg", height: 140 })))));
 }
 /* ═══ SUIVI NUTRITION ═══ */
 function SuiviNutrition() {
@@ -480,22 +507,10 @@ function SuiviNutrition() {
         mode === "charts" && React.createElement("div", null,
             React.createElement(Card, null,
                 React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, "\u2696\uFE0F Courbe de poids"),
-                weightData.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "2 pes\u00E9es min.") : React.createElement(ResponsiveContainer, { width: "100%", height: 200 },
-                    React.createElement(LineChart, { data: weightData },
-                        React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                        React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(YAxis, { domain: ["auto", "auto"], tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 } }),
-                        React.createElement(Line, { type: "monotone", dataKey: "kg", stroke: C.greenLight, strokeWidth: 2.5, dot: { fill: C.greenLight, r: 3 }, name: "kg" })))),
+                weightData.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "2 pes\u00E9es min.") : React.createElement(ChartLine, { data: weightData, dataKey: "kg", color: C.greenLight, unit: "kg", height: 180 })),
             React.createElement(Card, null,
                 React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 10 } }, "\uD83D\uDCCA Compliance 30j"),
-                compData.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "2 jours min.") : React.createElement(ResponsiveContainer, { width: "100%", height: 200 },
-                    React.createElement(BarChart, { data: compData },
-                        React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                        React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(YAxis, { domain: [0, 100], tick: { fill: C.textDim, fontSize: 9 } }),
-                        React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 } }),
-                        React.createElement(Bar, { dataKey: "pct", fill: C.green, radius: [4, 4, 0, 0], name: "%" }))))));
+                compData.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "2 jours min.") : React.createElement(ChartBar, { data: compData, dataKey: "pct", color: C.green, unit: "%", height: 180 }))));
 }
 /* ═══ SUIVI BUDGET ═══ */
 function SuiviBudget() {
@@ -600,13 +615,7 @@ function SuiviBudget() {
                     " ",
                     a?.nom.split(" ")[0]); })),
                 !chartProd ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "S\u00E9lectionne un produit.") : chartD.length < 2 ? React.createElement("div", { style: { color: C.textDim, fontSize: 12, padding: 16, textAlign: "center" } }, "2 achats min.") :
-                    React.createElement(ResponsiveContainer, { width: "100%", height: 200 },
-                        React.createElement(LineChart, { data: chartD },
-                            React.createElement(CartesianGrid, { strokeDasharray: "3 3", stroke: C.borderSoft }),
-                            React.createElement(XAxis, { dataKey: "date", tick: { fill: C.textDim, fontSize: 9 } }),
-                            React.createElement(YAxis, { tick: { fill: C.textDim, fontSize: 9 } }),
-                            React.createElement(Tooltip, { contentStyle: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text, fontSize: 11 } }),
-                            React.createElement(Line, { type: "monotone", dataKey: "eur", stroke: C.budgetLight, strokeWidth: 2.5, dot: { fill: C.budgetLight, r: 3 }, name: "\u20AC/kg" }))))));
+                    React.createElement(ChartLine, { data: chartD, dataKey: "eur", color: C.budgetLight, unit: "\u20AC/kg", height: 180 }))));
 }
 /* ═══ SPORT SECTION ═══ */
 function SportSection() {
@@ -615,6 +624,8 @@ function SportSection() {
     const [actS, setActS] = useState("Push");
     const [actP, setActP] = useState(0);
     const [suiviProg, setSuiviProg] = useState("maison");
+    const [sciCfg, setSciCfg] = useState({});
+    useEffect(() => { load("science-config", { weightOverrides: {}, caloricAdjust: 0, deload: false }).then(c => setSciCfg(c)); }, [tab]);
     const se = salleSeances.find(s => s.id === actS);
     const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", "Salle"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["conseils", "Conseils"]];
     return React.createElement("div", null,
@@ -671,22 +682,27 @@ function SportSection() {
                         se.id),
                     React.createElement("div", { style: { fontSize: 11, color: se.couleur, fontWeight: 700 } }, se.jour)),
                 React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 14 } }, se.focus),
-                se.exercices.map((ex, i) => React.createElement("div", { key: i, style: { padding: "10px 0", borderTop: i ? `1px solid ${C.borderSoft}` : "none" } },
+                se.exercices.map((ex, i) => { const sciKey = se.id + ":" + ex.nom; const sciW = sciCfg?.weightOverrides?.[sciKey]; return React.createElement("div", { key: i, style: { padding: "10px 0", borderTop: i ? `1px solid ${C.borderSoft}` : "none" } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 3 } },
                         React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "baseline" } },
                             React.createElement("span", { style: { color: se.couleur, fontWeight: 800, fontSize: 11 } }, String(i + 1).padStart(2, "0")),
                             React.createElement("span", { style: { fontSize: 13, fontWeight: 700 } }, ex.nom)),
                         React.createElement("span", { style: { fontSize: 11, color: C.amberLight, fontWeight: 700 } }, ex.detail)),
-                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginLeft: 19, marginTop: 3 } },
+                    React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginLeft: 19, marginTop: 3, flexWrap: "wrap" } },
                         React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: phases[actP].c, background: phases[actP].c + "18", padding: "2px 7px", borderRadius: 5 } }, phases[actP].sem),
-                        React.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, ex.charges[actP])),
+                        React.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, sciCfg?.deload ? Math.round(parseFloat(ex.charges[actP]) * 0.6 * 2) / 2 + "kg" : ex.charges[actP]),
+                        sciW && !sciCfg?.deload && React.createElement("span", { style: { fontSize: 10, fontWeight: 800, color: C.blue, background: C.blue + "18", padding: "2px 8px", borderRadius: 5 } },
+                            "\uD83D\uDD2C ",
+                            sciW,
+                            "kg"),
+                        sciCfg?.deload && React.createElement("span", { style: { fontSize: 10, color: "#818CF8", background: "#818CF815", padding: "2px 7px", borderRadius: 5 } }, "\uD83D\uDD04 D\u00E9charge")),
                     React.createElement("div", { style: { display: "flex", gap: 10, marginLeft: 19, marginTop: 4, flexWrap: "wrap" } }, ex.charges.map((ch, pi) => pi !== actP && React.createElement("span", { key: pi, style: { fontSize: 10, color: C.textDim } },
                         phases[pi].sem,
                         ": ",
                         ch))),
                     ex.note && React.createElement("div", { style: { marginLeft: 19, marginTop: 4, fontSize: 10.5, color: C.textMut, fontStyle: "italic" } },
                         "\u26A0 ",
-                        ex.note))))),
+                        ex.note)); }))),
         tab === "progression" && React.createElement("div", null,
             phases.map(p => React.createElement(Card, { key: p.ph, border: p.c + "40" },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between" } },
@@ -711,6 +727,9 @@ function SportSection() {
 function NutritionSection() {
     const [tab, setTab] = useState("resume");
     const [day, setDay] = useState("training");
+    const [sciCfg, setSciCfg] = useState({ caloricAdjust: 0 });
+    useEffect(() => { load("science-config", { caloricAdjust: 0 }).then(c => setSciCfg(c)); }, [tab]);
+    const kcalCible = macrosTarget.kcal + (sciCfg?.caloricAdjust || 0);
     const repas = day === "training" ? repasTraining : repasRest;
     const tot = repas.reduce((a, r) => ({ P: a.P + r.P, G: a.G + r.G, L: a.L + r.L, kcal: a.kcal + r.kcal }), { P: 0, G: 0, L: 0, kcal: 0 });
     const tabs = [["resume", "Résumé"], ["repas", "Repas"], ["aliments", "Aliments"], ["complements", "Compléments"], ["suivi", "📊 Suivi"], ["conseils", "Conseils"]];
@@ -722,10 +741,18 @@ function NutritionSection() {
                 planning.map(([h, t]) => React.createElement("div", { key: h, style: { display: "flex", gap: 10, fontSize: 12, lineHeight: 1.8 } },
                     React.createElement("span", { style: { color: C.greenLight, fontWeight: 700, minWidth: 58 } }, h),
                     React.createElement("span", { style: { color: C.textMut } }, t)))),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 } }, [{ l: "Métabo", v: 2314, c: C.prot }, { l: "Dépense", v: 3240, c: C.blue }, { l: "Objectif", v: 2750, c: C.green }].map(s => React.createElement(Card, { key: s.l, style: { marginBottom: 0 } },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 } }, [{ l: "Métabo", v: 2314, c: C.prot }, { l: "Dépense", v: 3240, c: C.blue }, { l: "Objectif", v: kcalCible, c: C.green }].map(s => React.createElement(Card, { key: s.l, style: { marginBottom: 0 } },
                 React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: s.c } }, s.v),
                 React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, "kcal"),
                 React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 2 } }, s.l)))),
+            (sciCfg?.caloricAdjust || 0) !== 0 && React.createElement("div", { style: { fontSize: 10, color: C.blue, background: C.blue + "12", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "5px 10px", marginBottom: 10 } },
+                "\uD83D\uDD2C Ajustement science actif : base 2 750 ",
+                sciCfg.caloricAdjust > 0 ? "+" : "",
+                sciCfg.caloricAdjust,
+                " kcal = ",
+                React.createElement("b", null,
+                    kcalCible,
+                    " kcal/j")),
             React.createElement(Card, null,
                 React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 10 } }, "\uD83C\uDFAF Macros \u00B7 d\u00E9ficit ~15%"),
                 [["Protéines", macrosTarget.p, C.prot], ["Glucides", macrosTarget.g, C.gluc], ["Lipides", macrosTarget.l, C.lip]].map(([n, v, c]) => React.createElement("div", { key: n, style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 8 } },
@@ -857,161 +884,221 @@ function BudgetSection() {
             React.createElement("div", { style: { fontSize: 12, color: C.textMut, lineHeight: 1.5 } }, c.d)))));
 }
 /* ═══ REVIEW DATA ═══ */
-const RV = { ok: { c: "#10B981", ic: "✅", lab: "Aligné" }, warn: { c: "#F59E0B", ic: "🟡", lab: "À affiner" }, bad: { c: "#EF4444", ic: "🔴", lab: "À revoir" } };
-const reviewItems = [
-    { id: "proteines", emoji: "🥩", titre: "Protéines — 250 g (~1,9 g/kg)", v: "ok",
-        prog: "250 g/jour soit 1,9 g/kg pour 130 kg. Sources : blancs d'œufs, poulet, poisson, fromage blanc 0 %, whey.",
-        sci: "Morton 2018 (méta 49 études, 1 863 participants) : les gains plafonnent vers 1,62 g/kg (IC 1,03–2,20). Phillips & Van Loon 2011 : athlètes > population générale, fourchette 1,6–2,2 g/kg. Moore 2009 : la MPS sature à ~20 g/repas — d'où la distribution en 7 repas. Areta 2013 : 4 × 20 g > 2 × 40 g ou 8 × 10 g pour la MPS sur 12 h. Schoenfeld & Aragon 2018 : 0,4 g/kg/repas comme dose plancher. Nutrients 2018 : rôle pivot de la leucine pour activer mTOR.",
-        conclusion: "Les 6 études convergent vers le même plafond biologique. Tes 250 g et ta distribution en 7 repas correspondent exactement à ce que la science recommande. C'est l'aspect le mieux soutenu de tout ton programme.",
-        verdict: "Cible et distribution optimales. Rien à changer.",
-        refs: ["Morton 2018 (BJSM — 49 études)", "Phillips & Van Loon 2011", "Moore 2009 (dose-réponse MPS)", "Areta 2013 (distribution 4×20g)", "Schoenfeld & Aragon 2018", "Nutrients 2018 (leucine/mTOR)"] },
-    { id: "deficit", emoji: "📉", titre: "Déficit calorique — ~15 %", v: "ok",
-        prog: "≈490 kcal sous la maintenance (TDEE 3 240 kcal).",
-        sci: "Garthe 2011 : perte lente préserve voire augmente la masse maigre, la perte rapide en fait perdre. Longland 2016 (40 hommes, déficit 40 %) : haute protéine + entraînement = +1,2 kg LBM et -4,8 kg graisse. Aragon ISSN 2017 : plus la masse grasse de départ est élevée, plus le déficit peut être maintenu sans risque. Roth 2022 : ≥10 séries/muscle/sem + haute protéine en restriction = rétention maximale. PMC 2025 (304 adultes) : musculation > aérobie pour préserver la LBM en déficit.",
-        conclusion: "Tu combines les deux facteurs protecteurs : déficit modéré + haute protéine. Ta masse grasse élevée t'offre un troisième avantage — elle sert de tampon énergétique pour soutenir la synthèse protéique même en déficit. Ton 15 % est scientifiquement au bon endroit.",
-        verdict: "Rythme idéal. Ne modifie pas.",
-        refs: ["Garthe 2011", "Longland 2016 (AJCN)", "Aragon 2017 (ISSN)", "Roth 2022 (Eur J Appl Physiol)", "PMC 2025 cohort 304 adults", "Phillips — revue athlètes"] },
-    { id: "recompo", emoji: "🔄", titre: "Recomposition corporelle", v: "ok",
-        prog: "Perdre du gras et gagner du muscle simultanément.",
-        sci: "Barakat 2020 : recompo documentée chez débutants, reprises après pause et masse grasse élevée. Longland 2016 : +1,2 kg LBM et -4,8 kg graisse simultanément en 4 semaines. Mettler 2010 : haute protéine en déficit → 5× moins de perte de LBM. Slater 2019 : un surplus n'est pas nécessaire pour l'hypertrophie sous conditions spécifiques. Helms 2014 : haute protéine maintient la LBM en restriction. Campbell 2018 : groupe haute protéine gagne plus de LBM en déficit.",
-        conclusion: "Tu coches deux des trois critères (reprise + masse grasse élevée). La recomposition n'est pas un mythe pour toi — c'est la stratégie scientifiquement la plus efficace dans ta situation actuelle.",
-        verdict: "Stratégie pleinement justifiée.",
-        refs: ["Barakat 2020 (SCJ)", "Longland 2016", "Mettler 2010", "Slater 2019 (Front Nutr)", "Helms 2014", "Campbell 2018 (IJSNEM)"] },
-    { id: "volume", emoji: "📊", titre: "Volume d'entraînement", v: "warn",
-        prog: "~9–13 séries/muscle/sem selon le groupe. Quadriceps 1×/sem.",
-        sci: "Schoenfeld 2017 (méta 15 études) : relation dose-réponse p=0,002 ; avantage net dès 10 séries/sem. Baz-Valle 2022 : bénéfices du volume modéré-élevé (12–20 séries). Pelland 2024 : +0,24 % de gain/série supplémentaire. Roth 2022 : ≥10 séries/muscle/sem en déficit = rétention maximale. Krieger 2010 : multi-séries → +40 % d'hypertrophie vs mono-série. Schoenfeld 2019 : dose-réponse confirmée chez les sujets entraînés.",
-        conclusion: "Ton programme est globalement bien calibré. Le seul point d'attention est le quadriceps (1×/sem par protection du genou) : assure-toi que le jour Legs apporte ≥10 séries pour rester au-dessus du seuil documenté.",
-        verdict: "Vérifier ≥10 séries quadriceps au jour Legs.",
-        refs: ["Schoenfeld 2017 (J Sports Sci)", "Baz-Valle 2022", "Pelland 2024", "Roth 2022", "Krieger 2010 (JSCR)", "Schoenfeld 2019 (MSSE)"] },
-    { id: "frequence", emoji: "🗓️", titre: "Fréquence PPL + Upper + Lower", v: "ok",
-        prog: "Pectoraux, dos et épaules travaillés 2×/sem. Quadriceps 1×/sem.",
-        sci: "Schoenfeld 2016 (méta 10 études) : 2×/sem > 1×/sem, effect size 0,49 vs 0,30. Schoenfeld 2019 (méta 25 études) : 2× et 3× équivalents à volume égal. Ralston 2018 : fréquence augmente les gains en force jusqu'à un plateau. Grgic 2018 : ≥2×/sem supérieur pour la force. Colquhoun 2018 : le volume total prime sur la fréquence seule. Pelland 2024 : fréquence avantageuse pour la force, neutre pour l'hypertrophie à volume équivalent.",
-        conclusion: "Ton split applique exactement ce que recommandent les méta-analyses. Si la contrainte du genou limite la fréquence quad, la solution est d'augmenter le volume sur la seule séance disponible plutôt que multiplier les séances à faible volume.",
-        verdict: "Structure cohérente. Quadriceps à réévaluer si le genou tolère.",
-        refs: ["Schoenfeld 2016 (Sports Med)", "Schoenfeld 2019 (méta 25 études)", "Ralston 2018", "Grgic 2018", "Colquhoun 2018", "Pelland 2024"] },
-    { id: "repos", emoji: "⏱️", titre: "Temps de repos entre séries", v: "warn",
-        prog: "Circuits maison : 60–90 s. Salle : suivi en cours via l'app.",
-        sci: "Schoenfeld 2016 (JSCR) : 3 min > 1 min pour la force et l'hypertrophie chez les entraînés (quad +11 % vs +7 %). McKendry : 1 min réduit la MPS myofibrillaire malgré une réponse hormonale identique. Grgic 2017 : revue systématique en faveur des repos longs chez les entraînés. Give it a rest 2024 (méta bayésienne) : tendance favorable aux repos longs sur composés lourds. Henselmans 2014 : repos long via volume-charge. medrxiv 2025 : repos < 60 s légèrement défavorable pour la force.",
-        conclusion: "Toutes les études pointent vers le même mécanisme : un repos trop court réduit la tension mécanique disponible sur la série suivante, qui est le principal moteur de l'hypertrophie. Ta fonction suivi-repos te permet précisément de vérifier ça à chaque séance.",
-        verdict: "Vise 2–3 min sur squat, développé et rowing.",
-        refs: ["Schoenfeld 2016 (JSCR)", "McKendry (MPS & repos)", "Grgic 2017 (Eur J Sport Sci)", "Give it a rest 2024", "Henselmans 2014", "medrxiv 2025"] },
-    { id: "creatine", emoji: "⚡", titre: "Créatine — 5 g/jour", v: "warn",
-        prog: "5 g/jour dans 300 ml eau au réveil, sans phase de charge.",
-        sci: "Kreider ISSN 2017 : supplément le plus efficace et le mieux documenté ; grands gabarits 5–10 g/j. Devries 2014 : Cr + musculation > musculation seule pour la LBM. Delpino 2022 (méta 50+ RCTs) : bénéfice sur LBM tous âges/sexes. Chilibeck 2017 : +1,37 kg LBM et +6,85 kg leg press vs placebo. Doma 2022 (23 études) : amélioration partielle de la récupération. Liu 2025 (RCTs) : effet significatif confirmé après ≥12 semaines.",
-        conclusion: "Six méta-analyses convergent — aucun débat à ce niveau. Ton protocole est correct. Le seul ajustement : à 130 kg tu as plus de masse musculaire à saturer, les études situent la dose optimale pour les grands gabarits entre 7 et 8 g/j.",
-        verdict: "Passe à ~7–8 g/j vu ton gabarit.",
-        refs: ["Kreider 2017 (ISSN)", "Devries 2014", "Delpino 2022 (50+ RCTs)", "Chilibeck 2017", "Doma 2022", "Liu 2025"] },
-    { id: "timing", emoji: "🥛", titre: "Timing protéique — shaker", v: "warn",
-        prog: "Shaker whey (~24 g) juste après la séance (~8h20).",
-        sci: "Schoenfeld/Aragon 2013 (méta) : le total quotidien est le prédicteur dominant, pas le timing. Aragon 2013 : fenêtre anabolique de 4–6 h (pas 30 min). Moore 2009 : la MPS sature à ~20 g/repas, l'urgence des 30 min est exagérée. Areta 2013 : la régularité des prises compte plus que leur proximité avec la séance. Morton 2018 : c'est le total (plateau à 1,62 g/kg) qui détermine les adaptations. Schoenfeld & Aragon 2018 : 0,4 g/kg/repas, distribués régulièrement.",
-        conclusion: "L'angoisse de rater la fenêtre n'est pas fondée. La vraie fenêtre est de 4 à 6 h. Ton shaker est un outil pratique qui t'aide à atteindre tes 250 g dans un emploi du temps contraint — pas une nécessité biologique urgente.",
-        verdict: "Garde le shaker pour la praticité, pas pour la fenêtre.",
-        refs: ["Schoenfeld/Aragon 2013 (JISSN)", "Aragon 2013 (fenêtre 4-6h)", "Moore 2009", "Areta 2013", "Morton 2018", "Schoenfeld & Aragon 2018"] },
-    { id: "memoire", emoji: "🧠", titre: "Mémoire musculaire (reprise)", v: "ok",
-        prog: "Anciens maxs squat 140 / développé 100 : la force revient plus vite.",
-        sci: "Seaborne 2018 : première démo de mémoire épigénétique humaine — gènes de croissance restent primed après désentraînement. Cumming 2024 : myonoyaux persistent après désentraînement + expression génique différentielle. Halonen 2024 : groupe entraînement périodique regagne ses pertes rapidement lors de la reprise. AJP-Cell 2023 : synergie myonoyaux + épigénétique documentée. Front Nutr 2025 : persistance de la mémoire et implications nutritionnelles. Petrella : satellites cells présentes dès le départ chez les anciens pratiquants.",
-        conclusion: "Ta base moléculaire de 3 ans d'entraînement existe encore. Tu ne repars pas de zéro — tu réveilles un système déjà formé. Mais cette mémoire fait aussi que tes muscles répondent vite à la charge avant que tes tendons aient eu le temps de se renforcer.",
-        verdict: "Avantage réel. Attention à l'écart force/tissus.",
-        refs: ["Seaborne 2018 (Sci Rep)", "Cumming 2024 (J Physiol)", "Halonen 2024", "AJP-Cell 2023", "Front Nutr 2025", "Petrella (J Appl Physiol)"] },
-    { id: "tendons", emoji: "🦵", titre: "Progression prudente & tendons", v: "ok",
-        prog: "45 % → 85 % sur 12 sem. Bas du corps : montée encore plus lente.",
-        sci: "Magnusson/Kjaer 2010 : adaptation structurelle du tendon plus lente que le muscle. Kjaer 2004 : rigidité tendineux mesurable seulement après 2–3 mois de charge soutenue. PMC4637912 : synthèse de collagène type I nécessite semaines à mois. Worthington 2026 : MPS rapide (heures) vs remodelage tendineux (mois) = fenêtre de vulnérabilité. PMC11282471 : collagen FSR augmente après exercice, mais adaptation structurelle est lente.",
-        conclusion: "L'asymétrie temporelle muscle/tendon est établie : la force revient vite (mémoire musculaire), mais le collagène tendineux n'a pas encore eu le temps de se renforcer. Ta progression conservatrice sur 12 semaines est une application directe et justifiée de ces données.",
-        verdict: "Logique parfaitement fondée scientifiquement.",
-        refs: ["Magnusson/Kjaer 2010", "Kjaer 2004 (J Appl Physiol)", "PMC4637912", "Worthington 2026", "PMC11282471"] },
-    { id: "genou", emoji: "🩹", titre: "Modifications du genou droit", v: "warn",
-        prog: "Squat amplitude réduite, pas de squat lourd sur Lower, abduction de hanche incluse.",
-        sci: "JOSPT 2018 (méta 14 essais, 673 participants) : hanche + genou > genou seul pour douleur fémoro-patellaire. PMC4540887 : rotateurs + abducteurs + quadriceps > quadriceps isolé. PMC4518569 : renfort hanche améliore la cinématique du fémur sous la rotule. Méta HKS 2024 : résultats JOSPT 2018 confirmés sur corpus plus large. PMC12533450 (2025) : bénéfice clinique significatif dès 4–8 sem. Note : quadriceps lourd isolé sur genou faible peut irriter l'articulation.",
-        conclusion: "La cause racine est biomécanique : des rotateurs externes de hanche faibles laissent le fémur tourner en dedans à chaque flexion du genou. Tes exercices actuels (abduction, hip thrust) vont dans le bon sens. L'ajout de rotateurs externes ciblés complète le puzzle.",
-        verdict: "Ajoute clamshells et marche élastique aux exercices hanche.",
-        refs: ["JOSPT 2018 (14 essais, 673 participants)", "PMC4540887", "PMC4518569", "Méta HKS 2024", "PMC12533450 (2025)", "Nakagawa — combinaison hanche+genou"] },
-    { id: "multivit", emoji: "💊", titre: "Alpha-Men (multivitamine)", v: "bad",
-        prog: "Multivitamine Alpha-Men quotidienne avec un repas gras.",
-        sci: "Revue micronutriments 2023 (MDPI) : alimentation équilibrée suffit, bénéfice seulement en carence. Revue suppléments élite 2025 (46 RCTs) : créatine, caféine, protéines → oui ; multivitamines génériques → pas d'evidence. Vojdani 2017 : fortes doses vit. C/E synthèse peuvent atténuer les adaptations à l'entraînement. Sports Perf. Bulletin : vitamine D et fer sont les carences les plus courantes. Aragon 2017 (ISSN) : aliments entiers supérieurs aux suppléments en biodisponibilité. EFSA 2021 : dosages génériques inadaptés à la biologie individuelle.",
-        conclusion: "Avec un plan centré sur les aliments bruts, les multivitamines génériques n'apportent pas de bénéfice mesurable — et peuvent même perturber certaines adaptations. La seule exception documentée est la vitamine D. Approche optimale : bilan sanguin, puis supplémentation ciblée uniquement si carence confirmée.",
-        verdict: "Facultatif. Cible vitamine D après bilan sanguin.",
-        refs: ["Revue micronutriments 2023 (MDPI)", "Revue suppléments élite 2025", "Vojdani 2017", "Sports Perf. Bulletin", "Aragon 2017 (ISSN)", "EFSA 2021"] },
-];
-function ReviewSection() {
-    const [tab, setTab] = useState("synthese");
-    const [open, setOpen] = useState(null);
-    const counts = { ok: reviewItems.filter(i => i.v === "ok").length, warn: reviewItems.filter(i => i.v === "warn").length, bad: reviewItems.filter(i => i.v === "bad").length };
-    const tabs = [["synthese", "Synthèse"], ["analyse", "🔬 Analyse"], ["amelio", "🎯 Actions"]];
+/* ═══ AJUSTEMENTS SCIENTIFIQUES ═══ */
+function ScienceSection() {
+    const [sportLogs, setSportLogs] = useState([]);
+    const [nutriLogs, setNutriLogs] = useState([]);
+    const [cfg, setCfg] = useState({ weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false });
+    const [loading, setLoading] = useState(true);
+    const [tab, setTab] = useState("bilan");
+    const [applying, setApplying] = useState("");
+    useEffect(() => { Promise.all([load("sport-logs", []), load("nutri-logs", []), load("science-config", { weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false })]).then(([s, n, c]) => { setSportLogs(s); setNutriLogs(n); setCfg(c); setLoading(false); }); }, []);
+    const saveCfg = async (nc) => { await save("science-config", nc); setCfg(nc); };
+    /* ── Analyse surcharge progressive ── */
+    const overloadRecs = salleSeances.flatMap(seance => {
+        const sessions = sportLogs.filter(l => l.seance === seance.id).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).slice(-4);
+        if (sessions.length < 2)
+            return [];
+        return seance.exercices.flatMap(ex => {
+            const ws = sessions.map(s => s.exercices.find(e => e.nom === ex.nom)?.weight || 0).filter(w => w > 0);
+            if (ws.length < 2)
+                return [];
+            const last = ws[ws.length - 1], prev = ws[ws.length - 2];
+            const key = seance.id + ":" + ex.nom;
+            const inc = /squat|leg press|hip thrust|rdl|roumain/i.test(ex.nom) ? 5 : 2.5;
+            const applied = cfg.weightOverrides[key] === last + inc;
+            if (last === prev)
+                return [{ seance: seance.id, emoji: seance.couleur, seanceEmoji: seance.emoji, exo: ex.nom, current: last, suggested: last + inc, key, stagnant: true, applied, count: ws.length }];
+            if (last > prev)
+                return [{ seance: seance.id, emoji: seance.couleur, seanceEmoji: seance.emoji, exo: ex.nom, current: last, previous: prev, key, progressing: true }];
+            return [];
+        });
+    });
+    /* ── Tendance poids ── */
+    const wEntries = nutriLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    let weightTrend = null;
+    if (wEntries.length >= 3) {
+        const r = wEntries.slice(-5);
+        const days = (new Date(r[r.length - 1].dateISO) - new Date(r[0].dateISO)) / (86400000) || 1;
+        const wChange = (r[r.length - 1].weight - r[0].weight) / days * 7;
+        weightTrend = { weekly: Math.round(wChange * 100) / 100, last: r[r.length - 1].weight, first: r[0].weight, n: r.length };
+    }
+    let caloricRec = null;
+    if (weightTrend) {
+        const wc = weightTrend.weekly;
+        if (wc < -0.5)
+            caloricRec = { delta: +200, reason: `Perte trop rapide (${wc} kg/sem) — risque de LBM`, color: "#F59E0B" };
+        else if (wc < -0.4)
+            caloricRec = { delta: +150, reason: `Perte légèrement trop rapide (${wc} kg/sem)`, color: "#FBBF24" };
+        else if (wc > 0.1)
+            caloricRec = { delta: -150, reason: `Prise de poids (${wc} kg/sem) — réduire`, color: "#EF4444" };
+        else if (wc > -0.05)
+            caloricRec = { delta: -100, reason: `Perte trop lente (${wc} kg/sem)`, color: "#F59E0B" };
+    }
+    /* ── Stats semaine ── */
+    const weekISO = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+    const wSport = sportLogs.filter(l => l.dateISO >= weekISO);
+    const wNutri = nutriLogs.filter(l => l.dateISO >= weekISO);
+    const avgComp = wNutri.length ? Math.round(wNutri.reduce((a, l) => a + l.compliance, 0) / wNutri.length) : null;
+    const activeCount = Object.keys(cfg.weightOverrides).length + (cfg.caloricAdjust !== 0 ? 1 : 0) + (cfg.deload ? 1 : 0) + (cfg.recovery ? 1 : 0);
+    if (loading)
+        return React.createElement(Card, null,
+            React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 20 } }, "Chargement des donn\u00E9es\u2026"));
     return React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement("button", { key: k, onClick: () => setTab(k), style: { padding: "7px 13px", borderRadius: 999, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", background: tab === k ? C.blue : C.surfaceAlt, color: tab === k ? "#fff" : C.textMut } }, l))),
-        tab === "synthese" && React.createElement("div", null,
-            React.createElement("div", { style: { background: C.surfaceAlt, border: `1px solid ${C.blue}22`, borderRadius: 14, padding: 14, marginBottom: 14 } },
-                React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.blueLight, marginBottom: 5 } }, "\u2139\uFE0F M\u00E9thode"),
-                React.createElement("div", { style: { fontSize: 12, color: C.textMut, lineHeight: 1.6 } }, "Repose sur des m\u00E9ta-analyses, revues syst\u00E9matiques et prises de position d'organismes scientifiques \u2014 le plus haut niveau de preuve. Chaque sujet est couvert par \u22655 \u00E9tudes ind\u00E9pendantes.")),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 14 } }, [["ok", counts.ok, "Aligné", "#10B981"], ["warn", counts.warn, "À affiner", "#F59E0B"], ["bad", counts.bad, "À revoir", "#EF4444"]].map(([k, n, lab, c]) => React.createElement("div", { key: k, style: { background: C.surface, borderTop: `3px solid ${c}`, borderRadius: 12, padding: "12px 8px", textAlign: "center" } },
-                React.createElement("div", { style: { fontSize: 24, fontWeight: 800, color: c } }, n),
-                React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 2 } }, lab)))),
-            React.createElement("div", { style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 14, marginBottom: 12 } },
-                React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.blueLight, marginBottom: 10 } },
-                    "Vue d'ensemble \u2014 ",
-                    reviewItems.length,
-                    " sujets analys\u00E9s"),
-                React.createElement("div", { style: { display: "flex", height: 12, borderRadius: 6, overflow: "hidden", marginBottom: 10 } },
-                    React.createElement("div", { style: { width: `${counts.ok / reviewItems.length * 100}%`, background: "#10B981" } }),
-                    React.createElement("div", { style: { width: `${counts.warn / reviewItems.length * 100}%`, background: "#F59E0B" } }),
-                    React.createElement("div", { style: { width: `${counts.bad / reviewItems.length * 100}%`, background: "#EF4444" } })),
-                React.createElement("div", { style: { fontSize: 12, color: C.textMut, lineHeight: 1.6 } },
-                    "La majorit\u00E9 est d\u00E9j\u00E0 ",
-                    React.createElement("span", { style: { color: "#10B981", fontWeight: 700 } }, "optimale"),
-                    ". Les ajustements sont des ",
-                    React.createElement("span", { style: { color: "#F59E0B", fontWeight: 700 } }, "affinages"),
-                    ". Un seul point ",
-                    React.createElement("span", { style: { color: "#EF4444", fontWeight: 700 } }, "\u00E0 revoir"),
-                    " (Alpha-Men).")),
-            React.createElement("div", { style: { background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden" } }, reviewItems.map((it, i) => React.createElement("div", { key: it.id, onClick: () => { setTab("analyse"); setOpen(it.id); }, style: { display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", cursor: "pointer", borderBottom: i < reviewItems.length - 1 ? `1px solid ${C.borderSoft}` : "none" } },
-                React.createElement("span", { style: { fontSize: 15 } }, it.emoji),
-                React.createElement("span", { style: { flex: 1, fontSize: 12, color: C.text } }, it.titre),
-                React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: RV[it.v].c } }, RV[it.v].ic))))),
-        tab === "analyse" && React.createElement("div", null, reviewItems.map(it => {
-            const isOpen = open === it.id;
-            return React.createElement("div", { key: it.id, style: { background: C.surface, border: `1px solid ${isOpen ? RV[it.v].c + "55" : C.border}`, borderRadius: 14, marginBottom: 10, overflow: "hidden" } },
-                React.createElement("div", { onClick: () => setOpen(isOpen ? null : it.id), style: { display: "flex", alignItems: "center", gap: 10, padding: 13, cursor: "pointer" } },
-                    React.createElement("span", { style: { fontSize: 16 } }, it.emoji),
-                    React.createElement("span", { style: { flex: 1, fontSize: 13, fontWeight: 700 } }, it.titre),
-                    React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: RV[it.v].c, background: RV[it.v].c + "1A", padding: "2px 7px", borderRadius: 6 } },
-                        RV[it.v].ic,
-                        " ",
-                        RV[it.v].lab),
-                    React.createElement("span", { style: { color: C.textDim, fontSize: 12 } }, isOpen ? "▲" : "▼")),
-                isOpen && React.createElement("div", { style: { padding: "0 13px 13px" } },
-                    React.createElement("div", { style: { marginBottom: 8 } },
-                        React.createElement("div", { style: { fontSize: 8, fontWeight: 700, color: C.textDim, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 } }, "Ton programme"),
-                        React.createElement("div", { style: { fontSize: 12, color: C.textMut, lineHeight: 1.5 } }, it.prog)),
-                    React.createElement("div", { style: { marginBottom: 8 } },
-                        React.createElement("div", { style: { fontSize: 8, fontWeight: 700, color: C.blueLight, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 } }, "Ce que disent les \u00E9tudes"),
-                        React.createElement("div", { style: { fontSize: 12, color: C.text, lineHeight: 1.55 } }, it.sci)),
-                    React.createElement("div", { style: { background: `${C.blue}12`, border: `1px solid ${C.blue}33`, borderRadius: 10, padding: "9px 11px", marginBottom: 10 } },
-                        React.createElement("div", { style: { fontSize: 8, fontWeight: 700, color: C.blueLight, textTransform: "uppercase", letterSpacing: .5, marginBottom: 4 } }, "\uD83D\uDCCC Conclusion de synth\u00E8se"),
-                        React.createElement("div", { style: { fontSize: 12.5, color: C.text, lineHeight: 1.6, fontWeight: 500 } }, it.conclusion)),
-                    React.createElement("div", { style: { background: RV[it.v].c + "12", borderLeft: `3px solid ${RV[it.v].c}`, borderRadius: "0 8px 8px 0", padding: "7px 11px", marginBottom: 10 } },
-                        React.createElement("div", { style: { fontSize: 12, color: C.text, fontWeight: 600 } },
-                            RV[it.v].ic,
+        React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 12, overflowX: "auto" } }, [["bilan", "📊 Bilan"], ["surcharge", "🏋️ Surcharge"], ["calories", "🥗 Calories"], ["config", "🔧 Config"]].map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.blue }, l))),
+        tab === "bilan" && React.createElement("div", null,
+            activeCount > 0 && React.createElement(Card, { border: C.blue + "44", style: { marginBottom: 12, background: "#080E18" } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } },
+                    "\uD83D\uDD2C Ajustements actifs (",
+                    activeCount,
+                    ")"),
+                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
+                    Object.entries(cfg.weightOverrides).map(([k, v]) => React.createElement("span", { key: k, style: { fontSize: 10, background: C.blue + "15", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "3px 8px", color: C.blueLight } },
+                        k.split(":")[1],
+                        " \u2192 ",
+                        React.createElement("b", null,
+                            v,
+                            "kg"))),
+                    cfg.caloricAdjust !== 0 && React.createElement("span", { style: { fontSize: 10, background: C.green + "15", border: `1px solid ${C.green}33`, borderRadius: 8, padding: "3px 8px", color: C.greenLight } },
+                        cfg.caloricAdjust > 0 ? "+" : "",
+                        cfg.caloricAdjust,
+                        " kcal/jour"),
+                    cfg.deload && React.createElement("span", { style: { fontSize: 10, background: "#818CF815", border: "1px solid #818CF833", borderRadius: 8, padding: "3px 8px", color: "#818CF8" } }, "D\u00E9charge active"),
+                    cfg.recovery && React.createElement("span", { style: { fontSize: 10, background: "#F59E0B15", border: "1px solid #F59E0B33", borderRadius: 8, padding: "3px 8px", color: "#FBBF24" } }, "Mode r\u00E9cup\u00E9ration"))),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } },
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "S\u00E9ances / 7j"),
+                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: wSport.length >= 4 ? C.green : wSport.length >= 2 ? "#F59E0B" : C.danger, margin: "4px 0 1px" } },
+                        wSport.length,
+                        React.createElement("span", { style: { fontSize: 12, color: C.textMut, fontWeight: 400 } }, "/5")),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, wSport.length >= 4 ? "✅ Objectif atteint" : wSport.length >= 2 ? "🟡 En cours" : "🔴 Peu de séances")),
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Compliance nutri"),
+                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: avgComp === null ? C.textMut : avgComp >= 85 ? C.green : avgComp >= 65 ? "#F59E0B" : C.danger, margin: "4px 0 1px" } }, avgComp !== null ? avgComp + "%" : "—"),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, avgComp === null ? "Pas de données" : avgComp >= 85 ? "✅ Excellente" : avgComp >= 65 ? "🟡 Correcte" : "🔴 Faible")),
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Poids actuel"),
+                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: C.amberLight, margin: "4px 0 1px" } }, weightTrend ? weightTrend.last + "kg" : "—"),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, weightTrend ? `Départ : ${weightTrend.first} kg` : "Pas de pesée")),
+                React.createElement(Card, null,
+                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Tendance / sem"),
+                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: weightTrend ? weightTrend.weekly < -0.05 && weightTrend.weekly > -0.5 ? C.green : C.danger : C.textMut, margin: "4px 0 1px" } }, weightTrend ? (weightTrend.weekly > 0 ? "+" : "") + weightTrend.weekly + " kg" : "—"),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, weightTrend ? "Cible : -0.1 à -0.4 kg/sem" : "En attente de pesées"))),
+            overloadRecs.filter(r => r.stagnant).length > 0 && React.createElement(Card, { border: "#F59E0B33" },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#FBBF24", marginBottom: 8 } },
+                    "\u26A0\uFE0F ",
+                    overloadRecs.filter(r => r.stagnant).length,
+                    " stagnation(s) d\u00E9tect\u00E9e(s)"),
+                React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Va dans l'onglet \uD83C\uDFCB\uFE0F Surcharge pour voir les recommandations.")),
+            caloricRec && React.createElement(Card, { border: caloricRec.color + "33" },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: caloricRec.color, marginBottom: 6 } }, "\u26A1 Ajustement calorique recommand\u00E9"),
+                React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Va dans l'onglet \uD83E\uDD57 Calories pour appliquer."))),
+        tab === "surcharge" && React.createElement("div", null, overloadRecs.length === 0 ? React.createElement(Card, null,
+            React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 14, fontSize: 12 } }, "Enregistre au moins 2 s\u00E9ances du m\u00EAme type pour voir les recommandations.")) : React.createElement(React.Fragment, null,
+            overloadRecs.filter(r => r.stagnant).length > 0 && React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 10 } }, "\uD83D\uDCA1 Principe : m\u00EAme charge 2 s\u00E9ances cons\u00E9cutives = signal pour augmenter."),
+            overloadRecs.filter(r => r.stagnant).map(r => React.createElement(Card, { key: r.key, border: r.applied ? "#10B98133" : "#F59E0B33" },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
+                    React.createElement("div", null,
+                        React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } },
+                            r.seanceEmoji,
                             " ",
-                            it.verdict)),
-                    React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, it.refs.map(r => React.createElement("span", { key: r, style: { fontSize: 9.5, color: C.textMut, background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 999, padding: "2px 8px" } }, r)))));
-        })),
-        tab === "amelio" && React.createElement("div", null,
-            React.createElement("div", { style: { fontSize: 12, color: C.textMut, marginBottom: 12 } }, "Class\u00E9es par impact. Les premi\u00E8res sont les plus rentables."),
+                            r.seance),
+                        React.createElement("span", { style: { fontSize: 11, color: C.textMut, marginLeft: 6 } }, r.exo)),
+                    r.applied && React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: "#10B981", background: "#10B98115", padding: "2px 7px", borderRadius: 99 } }, "\u2705 Appliqu\u00E9")),
+                React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", marginBottom: 10 } },
+                    React.createElement("div", { style: { textAlign: "center" } },
+                        React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, "Actuel"),
+                        React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.textMut } },
+                            r.current,
+                            React.createElement("span", { style: { fontSize: 11 } }, "kg"))),
+                    React.createElement("div", { style: { fontSize: 16, color: C.blue } }, "\u2192"),
+                    React.createElement("div", { style: { textAlign: "center" } },
+                        React.createElement("div", { style: { fontSize: 10, color: C.blue } }, "Sugg\u00E9r\u00E9"),
+                        React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.blue } },
+                            r.suggested,
+                            React.createElement("span", { style: { fontSize: 11 } }, "kg"))),
+                    React.createElement("div", { style: { flex: 1 } }),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textDim } },
+                        "Stagnant",
+                        React.createElement("br", null),
+                        r.count,
+                        " s\u00E9ances")),
+                !r.applied ? React.createElement("button", { disabled: applying === r.key, onClick: async () => { setApplying(r.key); const nc = { ...cfg, weightOverrides: { ...cfg.weightOverrides, [r.key]: r.suggested } }; await saveCfg(nc); setApplying(""); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", background: C.blue, color: "#fff", fontSize: 12, fontWeight: 700, opacity: applying === r.key ? .6 : 1 } }, applying === r.key ? "Application…" : "Appliquer +" + ((r.suggested - r.current)) + "kg →")
+                    : React.createElement("button", { onClick: async () => { const ov = { ...cfg.weightOverrides }; delete ov[r.key]; await saveCfg({ ...cfg, weightOverrides: ov }); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${C.textDim}44`, background: "transparent", color: C.textDim, fontSize: 11, cursor: "pointer" } }, "Annuler l'ajustement"))),
+            overloadRecs.filter(r => r.progressing).length > 0 && React.createElement("div", { style: { marginTop: 10 } },
+                React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 8 } }, "\u2705 En progression"),
+                overloadRecs.filter(r => r.progressing).map(r => React.createElement("div", { key: r.key, style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: "8px 12px", marginBottom: 6 } },
+                    React.createElement("span", { style: { fontSize: 12 } },
+                        r.seanceEmoji,
+                        " ",
+                        r.seance,
+                        " \u2014 ",
+                        r.exo),
+                    React.createElement("span", { style: { fontSize: 11, color: C.green, fontWeight: 700 } },
+                        r.previous,
+                        "\u2192",
+                        r.current,
+                        "kg \u2713")))))),
+        tab === "calories" && React.createElement("div", null,
+            React.createElement(Card, { border: C.blue + "33", style: { marginBottom: 10 } },
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 4 } }, "Cible actuelle"),
+                React.createElement("div", { style: { fontSize: 26, fontWeight: 800, color: C.amber } },
+                    macrosTarget.kcal + (cfg.caloricAdjust || 0),
+                    " ",
+                    React.createElement("span", { style: { fontSize: 13, color: C.textMut, fontWeight: 400 } }, "kcal/jour")),
+                cfg.caloricAdjust !== 0 && React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginTop: 2 } },
+                    "Base 2 750 kcal ",
+                    cfg.caloricAdjust > 0 ? "+" : "",
+                    cfg.caloricAdjust,
+                    " kcal (ajustement science)")),
+            !weightTrend ? React.createElement(Card, null,
+                React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 14, fontSize: 12 } }, "Enregistre au moins 3 pes\u00E9es dans le Suivi Nutrition pour g\u00E9n\u00E9rer une recommandation.")) : React.createElement(React.Fragment, null,
+                React.createElement(Card, { border: caloricRec ? caloricRec.color + "44" : C.green + "44" },
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 700, marginBottom: 8, color: caloricRec ? caloricRec.color : C.green } }, caloricRec ? "⚠️ Ajustement recommandé" : "✅ Rythme optimal"),
+                    React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, marginBottom: 10 } }, [["Pesées", weightTrend.n], ["Départ", weightTrend.first + "kg"], ["Actuel", weightTrend.last + "kg"]].map(([l, v]) => React.createElement("div", { key: l, style: { textAlign: "center" } },
+                        React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, l),
+                        React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, v)))),
+                    React.createElement("div", { style: { textAlign: "center", marginBottom: 10 } },
+                        React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, "Tendance hebdomadaire"),
+                        React.createElement("div", { style: { fontSize: 20, fontWeight: 800, color: caloricRec ? caloricRec.color : C.green } },
+                            weightTrend.weekly > 0 ? "+" : "",
+                            weightTrend.weekly,
+                            " kg/sem"),
+                        React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, "Cible recomp : -0.10 \u00E0 -0.40 kg/sem")),
+                    caloricRec ? React.createElement(React.Fragment, null,
+                        React.createElement("div", { style: { background: caloricRec.color + "12", border: `1px solid ${caloricRec.color}33`, borderRadius: 8, padding: "8px 10px", marginBottom: 10, fontSize: 11, color: C.text } }, caloricRec.reason),
+                        React.createElement("button", { onClick: async () => { const nc = { ...cfg, caloricAdjust: (cfg.caloricAdjust || 0) + caloricRec.delta }; await saveCfg(nc); }, style: { width: "100%", padding: "10px 0", borderRadius: 10, border: "none", cursor: "pointer", background: caloricRec.color, color: "#000", fontSize: 12, fontWeight: 800 } },
+                            "Appliquer ",
+                            caloricRec.delta > 0 ? "+" : "",
+                            caloricRec.delta,
+                            " kcal \u2192 ",
+                            macrosTarget.kcal + (cfg.caloricAdjust || 0) + caloricRec.delta,
+                            " kcal/j")) : React.createElement("div", { style: { fontSize: 11, color: C.green, textAlign: "center" } }, "Ton rythme de perte est dans la fen\u00EAtre id\u00E9ale pour la recomposition."),
+                    cfg.caloricAdjust !== 0 && React.createElement("button", { onClick: async () => saveCfg({ ...cfg, caloricAdjust: 0 }), style: { width: "100%", padding: "7px 0", borderRadius: 8, border: `1px solid ${C.textDim}33`, background: "transparent", color: C.textDim, fontSize: 10, cursor: "pointer", marginTop: 8 } }, "Remettre \u00E0 la base (2 750 kcal)")))),
+        tab === "config" && React.createElement("div", null,
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 12 } }, "Protocoles sp\u00E9ciaux modifiant l'affichage de l'app. \u00C0 activer selon la situation."),
             [
-                { n: 1, t: "Repos 2–3 min sur les gros composés", d: "Squat, développé, rowing. Préserve le volume-charge sur les séries suivantes. Vérifie dans le suivi sport.", c: C.blue },
-                { n: 2, t: "Renforcement hanche (genou droit)", d: "Ajoute clamshells + marche élastique aux exercices hanche existants. Levier #1 documenté pour le genou.", c: C.blue },
-                { n: 3, t: "Vérifier ≥10 séries quad au jour Legs", d: "Le quadriceps est à 1×/sem. Concentre le volume suffisant sur cette seule séance.", c: C.blueLight },
-                { n: 4, t: "Créatine 5 → 7–8 g/j", d: "Dose physiologiquement justifiée à 130 kg pour saturer la masse musculaire.", c: C.blueLight },
-                { n: 5, t: "Shaker = praticité, pas fenêtre", d: "La fenêtre anabolique fait 4–6 h. Le total quotidien prime.", c: C.blueLight },
-                { n: 6, t: "Alpha-Men → optionnel", d: "Cible vitamine D (± oméga-3) après bilan sanguin uniquement.", c: C.textMut },
-            ].map(a => React.createElement("div", { key: a.n, style: { background: C.surface, border: `1px solid ${a.c}33`, borderRadius: 14, padding: 12, marginBottom: 10, display: "flex", gap: 10 } },
-                React.createElement("div", { style: { width: 26, height: 26, borderRadius: 7, background: a.c + "22", color: a.c, display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 } }, a.n),
-                React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: 13, fontWeight: 700, marginBottom: 2 } }, a.t),
-                    React.createElement("div", { style: { fontSize: 11.5, color: C.textMut } }, a.d)))),
-            React.createElement("div", { style: { background: "#0A1A12", border: "1px solid #10B98133", borderRadius: 14, padding: 12, marginTop: 4 } },
-                React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "#10B981", marginBottom: 5 } }, "\u2705 \u00C0 conserver tel quel"),
-                React.createElement("div", { style: { fontSize: 11.5, color: "#80C0A0", lineHeight: 1.6 } }, "Prot\u00E9ines 1,9 g/kg \u00B7 d\u00E9ficit ~15 % \u00B7 recomposition \u00B7 fr\u00E9quence 2\u00D7/sem \u00B7 distribution 7 repas \u00B7 progression 45 %\u219285 %"))));
+                { k: "deload", icon: "🔄", title: "Semaine de décharge", desc: "Toutes les charges réduites de 40% sur le programme salle. À faire toutes les 4-6 semaines.", color: "#818CF8" },
+                { k: "recovery", icon: "🛌", title: "Mode récupération", desc: "Rappels de repos 3 min minimum, indicateur de récupération dans le bilan. En cas de fatigue accumulée.", color: "#F59E0B" },
+            ].map(p => React.createElement(Card, { key: p.k, border: cfg[p.k] ? p.color + "44" : C.borderSoft },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
+                    React.createElement("span", { style: { fontSize: 20 } }, p.icon),
+                    React.createElement("div", { style: { flex: 1 } },
+                        React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, p.title),
+                        React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 1 } }, p.desc)),
+                    React.createElement("button", { onClick: async () => saveCfg({ ...cfg, [p.k]: !cfg[p.k] }), style: { padding: "7px 14px", borderRadius: 99, border: `1.5px solid ${cfg[p.k] ? p.color : C.borderSoft}`, background: cfg[p.k] ? p.color + "22" : "transparent", color: cfg[p.k] ? p.color : C.textMut, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, cfg[p.k] ? "Actif" : "Inactif")))),
+            Object.keys(cfg.weightOverrides).length > 0 && React.createElement(Card, { border: C.blue + "33" },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } },
+                    "Surcharges appliqu\u00E9es (",
+                    Object.keys(cfg.weightOverrides).length,
+                    ")"),
+                Object.entries(cfg.weightOverrides).map(([k, v]) => React.createElement("div", { key: k, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderTop: `1px solid ${C.borderSoft}` } },
+                    React.createElement("span", { style: { fontSize: 11 } }, k),
+                    React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
+                        React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.blue } },
+                            v,
+                            "kg"),
+                        React.createElement("button", { onClick: async () => { const ov = { ...cfg.weightOverrides }; delete ov[k]; await saveCfg({ ...cfg, weightOverrides: ov }); }, style: { padding: "2px 7px", borderRadius: 6, border: `1px solid ${C.danger}44`, background: "transparent", color: C.danger, fontSize: 10, cursor: "pointer" } }, "\u2715")))))));
 }
 /* ═══ HOME SCREEN ═══ */
 function HomeScreen({ goTo }) {
@@ -1107,12 +1194,12 @@ function HomeScreen({ goTo }) {
             React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 10 } },
                 React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${C.blue}22, ${C.blue}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 } }, "\uD83D\uDD2C"),
                 React.createElement("div", null,
-                    React.createElement("div", { style: { fontSize: 16, fontWeight: 800 } }, "Revue Scientifique"),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, "12 sujets \u00B7 40+ \u00E9tudes \u00B7 m\u00E9ta-analyses"))),
-            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" } }, [["✅", reviewItems.filter(i => i.v === "ok").length, "#10B981"], ["🟡", reviewItems.filter(i => i.v === "warn").length, "#F59E0B"], ["🔴", reviewItems.filter(i => i.v === "bad").length, "#EF4444"]].map(([ic, n, c]) => React.createElement("span", { key: ic, style: { fontSize: 10, color: c, background: c + "15", padding: "2px 8px", borderRadius: 999 } },
+                    React.createElement("div", { style: { fontSize: 16, fontWeight: 800 } }, "Ajustements Scientifiques"),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, "Surcharge progressive \u00B7 Calories \u00B7 Protocoles"))),
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 6, flexWrap: "wrap" } }, [["🏋️", "Surcharge", "#818CF8"], ["🥗", "Calories", C.green], ["🔧", "Config", C.amber]].map(([ic, lb, c]) => React.createElement("span", { key: lb, style: { fontSize: 10, color: c, background: c + "15", padding: "2px 8px", borderRadius: 999 } },
                 ic,
                 " ",
-                n))),
+                lb))),
             React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 6, fontSize: 12, fontWeight: 700, color: C.blue } }, "Acc\u00E9der \u2192")),
         React.createElement(Card, { style: { marginTop: 6 } },
             React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.textMut, marginBottom: 8 } }, "\u23F0 Planning matin"),
@@ -1123,7 +1210,7 @@ function HomeScreen({ goTo }) {
 /* ═══ APP ═══ */
 function App() {
     const [section, setSection] = useState("home");
-    const hdr = { home: { c: C.amber, i: "💪", l: "ACCUEIL" }, sport: { c: C.amber, i: "🏋️", l: "PROGRAMME SPORT" }, nutrition: { c: C.green, i: "🥗", l: "PROGRAMME NUTRITION" }, budget: { c: C.budget, i: "💰", l: "BUDGET COURSES" }, review: { c: C.blue, i: "🔬", l: "REVUE SCIENTIFIQUE" } };
+    const hdr = { home: { c: C.amber, i: "💪", l: "ACCUEIL" }, sport: { c: C.amber, i: "🏋️", l: "PROGRAMME SPORT" }, nutrition: { c: C.green, i: "🥗", l: "PROGRAMME NUTRITION" }, budget: { c: C.budget, i: "💰", l: "BUDGET COURSES" }, review: { c: C.blue, i: "🔬", l: "AJUSTEMENTS SCIENTIFIQUES" } };
     return React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top, 0px)" } },
         section !== "home" && React.createElement("div", { style: { padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 } },
             React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${hdr[section].c}22, ${hdr[section].c}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 } }, hdr[section].i),
@@ -1135,7 +1222,7 @@ function App() {
             section === "sport" && React.createElement(SportSection, null),
             section === "nutrition" && React.createElement(NutritionSection, null),
             section === "budget" && React.createElement(BudgetSection, null),
-            section === "review" && React.createElement(ReviewSection, null)),
+            section === "review" && React.createElement(ScienceSection, null)),
         React.createElement("div", { style: { position: "fixed", bottom: 0, left: 0, right: 0, background: `${C.bg}F2`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "center", padding: "0 0 env(safe-area-inset-bottom, 8px)" } }, [["home", "🏠", "Accueil", C.text], ["sport", "🏋️", "Sport", C.amber], ["nutrition", "🥗", "Nutri", C.green], ["budget", "💰", "Budget", C.budget], ["review", "🔬", "Science", C.blue]].map(([id, icon, label, color]) => React.createElement("button", { key: id, onClick: () => setSection(id), style: { flex: 1, maxWidth: 90, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "10px 0 8px", border: "none", cursor: "pointer", background: "transparent", position: "relative" } },
             section === id && React.createElement("div", { style: { position: "absolute", top: -1, width: 40, height: 3, borderRadius: "0 0 4px 4px", background: color, boxShadow: `0 0 12px ${color}88` } }),
             React.createElement("span", { style: { fontSize: 20, filter: section === id ? "none" : "grayscale(1) opacity(0.4)" } }, icon),
