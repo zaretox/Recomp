@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="RECOMP"/>
+<meta name="theme-color" content="#060806"/>
+<title>RECOMP</title>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icon-192.png"/>
+<style>
+*{box-sizing:border-box}
+html,body,#root{height:100%}
+body{margin:0;background:#060806;color:#E8EDE8;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-tap-highlight-color:transparent;-webkit-font-smoothing:antialiased}
+input,button,select,textarea{font-family:inherit}
+#boot{position:fixed;inset:0;display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;color:#8A9A8A;font-size:14px}
+#boot .dot{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#F59E0B33,#10B98133);display:flex;align-items:center;justify-content:center;font-size:18px}
+</style>
+<script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+<script crossorigin src="https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body>
+<div id="root"><div id="boot"><div class="dot">💪</div>Chargement de RECOMP…</div></div>
+<script type="text/babel" data-presets="react">
+const {useState,useEffect,useCallback}=React;
+const {LineChart,Line,XAxis,YAxis,Tooltip,ResponsiveContainer,BarChart,Bar,CartesianGrid}=Recharts;
+
+/* Stockage : window.storage de Claude -> localStorage du navigateur (avec repli en mémoire) */
+window.storage=window.storage||(function(){
+  const mem={};
+  return {
+    async get(k){try{const v=window.localStorage.getItem(k);return v==null?null:{value:v};}catch(e){const v=mem[k];return v==null?null:{value:v};}},
+    async set(k,v){try{window.localStorage.setItem(k,v);}catch(e){mem[k]=v;}},
+    async delete(k){try{window.localStorage.removeItem(k);}catch(e){delete mem[k];}}
+  };
+})();
+
+/* ===================== APP RECOMP ===================== */
+
+const C = {
+  bg:"#060806",surface:"#0E120E",surfaceAlt:"#141A14",
+  border:"#1E2A1E",borderSoft:"#1A201A",
+  text:"#E8EDE8",textMut:"#8A9A8A",textDim:"#5A6A5A",
+  amber:"#F59E0B",amberLight:"#FBBF24",amberDim:"#92610A",
+  green:"#10B981",greenLight:"#34D399",greenDim:"#0A7B55",
+  prot:"#818CF8",gluc:"#FBBF24",lip:"#34D399",
+  danger:"#EF6B5C",blue:"#3B82F6",blueLight:"#60A5FA",pink:"#EC4899",purple:"#8B5CF6",
+  budget:"#8B5CF6",budgetLight:"#A78BFA",
+};
+async function load(k,fb){try{const r=await window.storage.get(k);return r?JSON.parse(r.value):fb;}catch{return fb;}}
+async function save(k,v){try{await window.storage.set(k,JSON.stringify(v));}catch(e){console.error(e);}}
+const inputStyle={width:"100%",padding:"9px 10px",borderRadius:8,border:`1px solid ${C.border}`,background:C.surfaceAlt,color:C.text,fontSize:14,boxSizing:"border-box"};
+function Pill({children,active,onClick,color}){return <button onClick={onClick} style={{padding:"7px 13px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap",background:active?(color||C.amber):C.surfaceAlt,color:active?(color?"#fff":"#1A1505"):C.textMut}}>{children}</button>;}
+function MacroBar({p,g,l}){const t=p*4+g*4+l*9;if(!t)return null;return <div style={{display:"flex",gap:2,height:5,borderRadius:3,overflow:"hidden",marginTop:8}}><div style={{width:Math.round(p*4/t*100)+"%",background:C.prot}}/><div style={{width:Math.round(g*4/t*100)+"%",background:C.gluc}}/><div style={{width:Math.round(l*9/t*100)+"%",background:C.lip}}/></div>;}
+function Card({children,style,border}){return <div style={{background:C.surface,border:`1px solid ${border||C.border}`,borderRadius:14,padding:14,marginBottom:10,...style}}>{children}</div>;}
+
+/* ═══ SPORT DATA ═══ */
+const profil=[{l:"Poids",v:"130 kg",s:"départ"},{l:"Objectif",v:"Recompo",s:"gras ↓ muscle ↑"},{l:"Fréquence",v:"5j/sem",s:"lever 6h45"},{l:"Anciens max",v:"140/100",s:"squat·bench"}];
+const regles=["Genou droit : ne jamais dépasser la pointe du pied.","Zéro saut les 4 premières semaines.","Douleur piquante = arrêt immédiat.","Bas du corps : progression plus lente (genou + pied droit).","Hydratation +++ et 7-8 h de sommeil."];
+const echauffement=["Marche sur place — 2 min","Rotations épaules — 20/sens","Rotations bassin — 15/sens","Cat-cow — 10 reps","Cercles chevilles — 15/pied"];
+const maison=[
+  {code:"A",jour:"Lundi",titre:"Bas du corps + cardio",format:"3 tours · 60-90s",ex:["Squat sur chaise — 12","Pont fessier — 15 (2s tenue)","Step-up lent — 8/jambe","Marche rapide — 60s","Wall sit — 20-30s","Shadow boxing — 60s"]},
+  {code:"B",jour:"Mercredi",titre:"Haut du corps + gainage",format:"3 tours · 60-90s",ex:["Pompes inclinées — 8-12","Rowing serviette — 12","Pompes diamant — 6-8","Planche genoux — 20-30s","Dead bug — 8/côté","Bird dog — 8/côté"]},
+  {code:"C",jour:"Vendredi",titre:"Cardio full body",format:"4 tours · 45s/30s",ex:["Marche genoux hauts","Pompes inclinées","Squat chaise","Shadow boxing","Gainage genoux","Step-touch"],note:"FC: parler oui, chanter non."},
+  {code:"D",jour:"Samedi",titre:"Full body force",format:"4 tours · 75s",ex:["Squat bulgare — 6/j","Pompes — 10-12","Hip thrust — 12","Planche — 30-40s","Superman — 10","Dips chaise — 8-10"]},
+];
+const etirements=["Ischios assis","Quadriceps debout","Fente basse","Mollet mur (priorité droite)","Posture enfant","Torsion allongée","Cercles chevilles (pied droit)"];
+const phases=[{ph:"Phase 1",sem:"S1-S3",pct:"45-55%",but:"Réadaptation",c:"#818CF8"},{ph:"Phase 2",sem:"S4-S6",pct:"55-65%",but:"Construction",c:C.blue},{ph:"Phase 3",sem:"S7-S9",pct:"65-75%",but:"Charges sérieuses",c:C.amber},{ph:"Phase 4",sem:"S10-S12",pct:"75-85%",but:"80% des max",c:C.green}];
+const salleSeances=[
+  {id:"Push",jour:"Lun",couleur:"#818CF8",emoji:"💪",focus:"Poitrine · Épaules · Triceps",exercices:[{nom:"DC barre",detail:"4×8-10",charges:["55-60kg","65-70kg","75-80kg","82-88kg"],note:"Max 100kg"},{nom:"DI haltères",detail:"3×10-12",charges:["20-22kg","24-26kg","28-30kg","32-34kg"],note:""},{nom:"Élévations lat.",detail:"3×12-15",charges:["8-10kg","10-12kg","12-14kg","14-16kg"],note:""},{nom:"DM haltères",detail:"3×10",charges:["16-18kg","20-22kg","22-24kg","24-26kg"],note:""},{nom:"Triceps poulie",detail:"3×12-15",charges:["légère","modérée","modérée+","lourde"],note:""},{nom:"Dips",detail:"3×8-10",charges:["assisté max","assisté mod","assisté léger","libre"],note:""}]},
+  {id:"Pull",jour:"Mar",couleur:C.purple,emoji:"🏋️",focus:"Dos · Biceps",exercices:[{nom:"Tractions/tirage",detail:"4×8-10",charges:["assisté max","assisté mod","assisté léger","libre"],note:""},{nom:"Rowing barre",detail:"4×8-10",charges:["50-60kg","60-70kg","70-80kg","80-90kg"],note:""},{nom:"Tirage poulie",detail:"3×10-12",charges:["légère","modérée","modérée+","lourde"],note:""},{nom:"Face pull",detail:"3×15",charges:["légère","modérée","modérée","modérée+"],note:"Posture"},{nom:"Curl biceps",detail:"3×10-12",charges:["12-14kg","14-16kg","16-18kg","18-20kg"],note:""},{nom:"Curl marteau",detail:"3×10",charges:["12-14kg","14-16kg","16-18kg","18-20kg"],note:""}]},
+  {id:"Legs",jour:"Mer",couleur:C.blue,emoji:"🦵",focus:"Quadri · Ischios · Fessiers",exercices:[{nom:"Squat barre",detail:"4×8-10",charges:["60-70kg","75-85kg","90-100kg","108-118kg"],note:"Max 140kg · genou"},{nom:"Leg press",detail:"4×10-12",charges:["120-140kg","150-170kg","170-200kg","200-230kg"],note:"Pied droit"},{nom:"Fente marchée",detail:"3×8/j",charges:["légère","modérée","modérée+","lourde"],note:"Amplitude réduite droite"},{nom:"Leg curl",detail:"3×12",charges:["légère","modérée","modérée+","lourde"],note:""},{nom:"Mollets debout",detail:"4×15-20",charges:["50-60kg","60-70kg","70-80kg","80-90kg"],note:"Pied droit"}]},
+  {id:"Upper",jour:"Jeu",couleur:C.pink,emoji:"🔄",focus:"Haut du corps · Angles variés",exercices:[{nom:"DC halt. neutre",detail:"4×10",charges:["22-24kg","26-28kg","30-32kg","34-36kg"],note:""},{nom:"Rowing 1 bras",detail:"4×10/côté",charges:["24-26kg","28-30kg","32-36kg","38-42kg"],note:""},{nom:"Oiseau halt.",detail:"3×12-15",charges:["8-10kg","10-12kg","12-14kg","14-16kg"],note:""},{nom:"Curl incliné",detail:"3×10",charges:["12-14kg","14-16kg","16-18kg","18-20kg"],note:""},{nom:"Ext. triceps",detail:"3×12",charges:["14-16kg","16-18kg","18-20kg","20-22kg"],note:""},{nom:"Gainage rotation",detail:"3×30-40s",charges:["—","—","—","—"],note:""}]},
+  {id:"Lower",jour:"Sam",couleur:C.green,emoji:"🍑",focus:"Fessiers · Ischios",exercices:[{nom:"Hip thrust",detail:"4×10-12",charges:["60-80kg","80-100kg","100-120kg","120-140kg"],note:"Descente contrôlée"},{nom:"RDL roumain",detail:"4×10",charges:["50-60kg","65-75kg","75-85kg","85-95kg"],note:"Tension ischios"},{nom:"Abduction hanche",detail:"3×15-20",charges:["légère","modérée","modérée+","lourde"],note:"Genou"},{nom:"Leg curl assis",detail:"3×12",charges:["légère","modérée","modérée+","lourde"],note:""},{nom:"Mollets assis",detail:"4×15-20",charges:["40-50kg","50-60kg","60-70kg","70-80kg"],note:""}]},
+];
+const sportConseils=[{t:"Articulations = rythme",d:"Tendons 3× plus lents que muscles. Genou/pied droit = facteurs limitants."},{t:"Mémoire musculaire",d:"Anciens niveaux reviennent vite mais les premières semaines réveillent les tendons."},{t:"Maison → salle",d:"S6-8 si genou et pied tiennent sans douleur piquante."},{t:"Balance ≠ vérité",d:"Miroir et mensurations comptent plus."}];
+
+/* ═══ NUTRITION DATA ═══ */
+const macrosTarget={p:250,g:240,l:88,kcal:2750};
+const planning=[["6h45","Réveil + eau + créatine"],["6h50","Banane"],["7h15","Séance (~1h)"],["~8h20","Shaker whey"],["9h00","Petit-déj labo"],["12h30","Déjeuner"],["16h00","Collation"],["19h30","Dîner"],["21h30","Collation soir"]];
+const mealIds=["pre","shaker","petitdej","dejeuner","collation","diner","soir"];
+const mealLabels={pre:"Pré-séance",shaker:"Shaker whey",petitdej:"Petit-déj labo",dejeuner:"Déjeuner",collation:"Collation",diner:"Dîner",soir:"Collation soir"};
+const mealTimes={pre:"6h50",shaker:"8h20",petitdej:"9h00",dejeuner:"12h30",collation:"16h00",diner:"19h30",soir:"21h30"};
+const mealIcons={pre:"🍌",shaker:"🥛",petitdej:"🍳",dejeuner:"🥗",collation:"🍎",diner:"🍽️",soir:"🌙"};
+const repasTraining=[
+  {m:"Pré-séance",h:"6h50",P:1,G:25,L:0,kcal:105,items:["1 banane mûre","5g créatine + eau"],note:"Banane suffit pour 1h."},
+  {m:"Shaker whey",h:"8h20",P:24,G:3,L:1,kcal:115,items:["1 dose whey 300ml eau"],note:null},
+  {m:"Petit-déj labo",h:"9h00",P:32,G:35,L:24,kcal:490,items:["4 blancs + 2 œufs brouillés","200g patate douce","Légumes verts","1cs huile olive","Alpha-Men"],note:null},
+  {m:"Déjeuner",h:"12h30",P:39,G:25,L:5,kcal:305,items:["Wrap 150g poulet","50g riz + 50g haricots rouges","Légumes crus","Sauce citron + herbes"],note:null},
+  {m:"Collation",h:"16h00",P:28,G:20,L:9,kcal:275,items:["200g fromage blanc 0%","1 pomme/poire","20g noix de cajou"],note:null},
+  {m:"Dîner",h:"19h30",P:50,G:46,L:16,kcal:530,items:["200g cabillaud/thon","200g quinoa","300g légumes rôtis","1cs huile olive"],note:null},
+  {m:"Collation soir",h:"21h30",P:24,G:6,L:2,kcal:145,items:["200g fromage blanc 0%","Cannelle"],note:null},
+];
+const repasRest=[
+  {m:"Petit-déjeuner",h:"8h00",P:30,G:45,L:12,kcal:400,items:["80g avoine","200g fromage blanc 0%","10g chia","Fruits rouges"],note:null},
+  {m:"Déjeuner",h:"12h30",P:45,G:40,L:14,kcal:470,items:["180g poulet/dinde","60g lentilles","Légumes verts","1cs huile colza"],note:null},
+  {m:"Collation",h:"16h00",P:26,G:18,L:8,kcal:250,items:["Whey ou fromage blanc","1 fruit","Amandes"],note:null},
+  {m:"Dîner",h:"19h30",P:48,G:30,L:18,kcal:470,items:["200g cabillaud/œufs","150g quinoa","Légumes rôtis","1cs huile olive"],note:null},
+  {m:"Collation soir",h:"21h30",P:24,G:6,L:2,kcal:145,items:["200g fromage blanc 0%"],note:null},
+];
+const alimentsCats={Protéines:["Blancs d'œufs","Poulet/dinde","Cabillaud/thon","Fromage blanc 0%","Whey","Lentilles"],Glucides:["Avoine","Patate douce","Quinoa","Riz","Haricots rouges","Fruits"],Lipides:["Huile olive","Huile colza","Chia","Noix de cajou","Amandes","Jaunes d'œufs"]};
+const retires=["Granola","Lait écrémé","Fromage gras","Beurre cacahuète indus.","Pain industriel","Sauces indus."];
+const complements=[{n:"Whey",emoji:"🥛",quand:"Post-séance ~8h20",d:"24g protéines, absorption rapide."},{n:"Créatine",emoji:"⚡",quand:"5g/jour tous les jours",d:"Saturation progressive, régularité prime."},{n:"Alpha-Men",emoji:"💊",quand:"Avec un repas gras",d:"Vitamines liposolubles mieux absorbées avec lipides."}];
+const nutritionConseils=[{t:"Prépare la veille",d:"Patate douce, œufs, quinoa cuits la veille."},{t:"250g protéines",d:"Whey + blancs + poulet + poisson + fromage blanc."},{t:"Hydratation",d:"500ml au réveil + 500ml-1L pendant la séance."},{t:"Poids ≠ vérité",d:"Mensurations et miroir comptent plus."}];
+
+/* ═══ BUDGET DATA ═══ */
+const budgetAliments=[
+  {id:"poulet",nom:"Poulet / dinde",emoji:"🍗",cat:"Protéines",q:"~1,1 kg/sem",prixKg:10,sem:11,budget:{nom:"Cuisses sans peau",prixKg:5.5,sem:6}},
+  {id:"poisson",nom:"Cabillaud / thon",emoji:"🐟",cat:"Protéines",q:"~1 kg/sem",prixKg:17,sem:17,budget:{nom:"Poisson blanc surgelé",prixKg:10,sem:10}},
+  {id:"oeufs",nom:"Œufs",emoji:"🥚",cat:"Protéines",q:"~24 + blancs",prixKg:null,sem:8,budget:null},
+  {id:"fromage_blanc",nom:"Fromage blanc 0%",emoji:"🥛",cat:"Protéines",q:"~2,4 kg/sem",prixKg:2,sem:5,budget:null},
+  {id:"lentilles",nom:"Lentilles + haricots",emoji:"🫘",cat:"Protéines",q:"~120g + 1 boîte",prixKg:null,sem:1.5,budget:null},
+  {id:"avoine",nom:"Flocons d'avoine",emoji:"🌾",cat:"Glucides",q:"~700g/sem",prixKg:2,sem:1.5,budget:null},
+  {id:"riz",nom:"Riz blanc",emoji:"🍚",cat:"Glucides",q:"~100g secs",prixKg:2,sem:0.5,budget:null},
+  {id:"quinoa",nom:"Quinoa",emoji:"🌿",cat:"Glucides",q:"~360g secs",prixKg:7,sem:3,budget:{nom:"Riz / pommes de terre",prixKg:2,sem:1}},
+  {id:"patate",nom:"Patate douce",emoji:"🍠",cat:"Glucides",q:"~1 kg/sem",prixKg:2.5,sem:2.5,budget:null},
+  {id:"bananes",nom:"Bananes",emoji:"🍌",cat:"Fruits",q:"~10/sem",prixKg:1.5,sem:2,budget:null},
+  {id:"pommes",nom:"Pommes / poires",emoji:"🍎",cat:"Fruits",q:"~7/sem",prixKg:2.5,sem:2.5,budget:null},
+  {id:"fruits_rouges",nom:"Fruits rouges",emoji:"🫐",cat:"Fruits",q:"~400g/sem",prixKg:6,sem:3,budget:{nom:"Surgelés",prixKg:3,sem:1.5}},
+  {id:"legumes",nom:"Légumes variés",emoji:"🥦",cat:"Légumes",q:"~3 kg/sem",prixKg:2.5,sem:8,budget:null},
+  {id:"huile",nom:"Huile olive + colza",emoji:"🫒",cat:"Lipides",q:"~150 ml/sem",prixKg:null,sem:2,budget:null},
+  {id:"chia",nom:"Graines de chia",emoji:"🌱",cat:"Lipides",q:"~70g/sem",prixKg:10,sem:1,budget:null},
+  {id:"oleagineux",nom:"Noix cajou + amandes",emoji:"🥜",cat:"Lipides",q:"~190g/sem",prixKg:15,sem:3,budget:{nom:"Cacahuètes nature",prixKg:5,sem:1}},
+  {id:"whey",nom:"Whey protéine",emoji:"💪",cat:"Compléments",q:"~150g/sem",prixKg:25,sem:4,budget:null},
+  {id:"creatine",nom:"Créatine",emoji:"⚡",cat:"Compléments",q:"~35g/sem",prixKg:null,sem:1,budget:null},
+  {id:"alpham",nom:"Alpha-Men",emoji:"💊",cat:"Compléments",q:"7 gélules",prixKg:null,sem:1.5,budget:null},
+  {id:"epices",nom:"Épices / condiments",emoji:"🧂",cat:"Divers",q:"amorti",prixKg:null,sem:1,budget:null},
+];
+const postes=[{nom:"Protéines",val:42.5,color:C.prot},{nom:"Légumes",val:8,color:C.green},{nom:"Glucides",val:7.5,color:C.gluc},{nom:"Fruits",val:7.5,color:C.pink},{nom:"Compléments",val:6.5,color:C.blue},{nom:"Lipides/épices",val:4,color:C.lip}];
+const swaps=[
+  {de:"Cabillaud frais",a:"Poisson blanc surgelé",saveSem:7,detail:"~17 €/kg → ~10 €/kg, même profil nutritionnel"},
+  {de:"Blanc de poulet",a:"Cuisses sans peau",saveSem:5,detail:"~10 €/kg → ~5,5 €/kg, un peu plus de lipides mais plus de goût"},
+  {de:"Quinoa",a:"Riz / pommes de terre",saveSem:2,detail:"~7 €/kg → ~2 €/kg, compenser protéines avec poulet/œufs"},
+  {de:"Fruits rouges frais",a:"Fruits rouges surgelés",saveSem:1.5,detail:"3× moins cher, zéro gaspillage"},
+  {de:"Noix de cajou",a:"Cacahuètes nature",saveSem:2,detail:"~15 €/kg → ~5 €/kg, profil lipidique proche"},
+];
+const budgetConseils=[{t:"Enseigne = 1er levier",d:"Lidl/Aldi sont 15-20% moins chers que Carrefour City / Monoprix."},{t:"Les 3 swaps qui comptent",d:"Poisson surgelé + cuisses poulet + riz à la place du quinoa = 75€ → 58€/sem."},{t:"Surgelé ≠ moins bon",d:"Le poisson blanc et les fruits rouges surgelés ont le même profil nutritionnel que le frais."},{t:"Batch cooking",d:"Cuisine en gros le dimanche : quinoa, patate douce, poulet. Tu gagnes du temps ET de l'argent."}];
+const TOTAL_SEM=75,TOTAL_MOIS=310,TOTAL_SEM_B=58,TOTAL_MOIS_B=250;
+
+/* ═══ DATE HELPERS ═══ */
+const isoToday=()=>new Date().toISOString().slice(0,10);
+const shiftISO=(iso,d)=>{const x=new Date(iso+"T12:00:00");x.setDate(x.getDate()+d);return x.toISOString().slice(0,10);};
+const fmtDateLong=iso=>new Date(iso+"T12:00:00").toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"});
+const fmtDateShort=iso=>new Date(iso+"T12:00:00").toLocaleDateString("fr-FR");
+function DateNav({value,onChange,color}){
+  const today=isoToday();const isToday=value===today;const future=value>=today;
+  const navBtn={width:38,height:38,borderRadius:10,border:`1px solid ${color}44`,background:color+"15",color:color,fontSize:15,fontWeight:800,cursor:"pointer",flexShrink:0};
+  return <Card style={{marginBottom:10,padding:"10px 12px"}} border={color+"33"}>
+    <div style={{display:"flex",alignItems:"center",gap:8}}>
+      <button onClick={()=>onChange(shiftISO(value,-1))} style={navBtn}>◀</button>
+      <div style={{flex:1,textAlign:"center"}}>
+        <div style={{fontSize:14,fontWeight:800,textTransform:"capitalize"}}>{fmtDateLong(value)}</div>
+        <div style={{fontSize:10,color:isToday?color:C.textDim,fontWeight:isToday?700:400}}>{isToday?"Aujourd'hui":new Date(value+"T12:00:00").toLocaleDateString("fr-FR",{year:"numeric"})}</div>
+      </div>
+      <button onClick={()=>!future&&onChange(shiftISO(value,1))} disabled={future} style={{...navBtn,opacity:future?.3:1,cursor:future?"default":"pointer"}}>▶</button>
+    </div>
+    <div style={{display:"flex",gap:8,marginTop:8,alignItems:"center"}}>
+      <input type="date" value={value} max={today} onChange={e=>e.target.value&&onChange(e.target.value)} style={{...inputStyle,fontSize:12,padding:"7px 9px",colorScheme:"dark",flex:1}}/>
+      {!isToday&&<button onClick={()=>onChange(today)} style={{padding:"7px 13px",borderRadius:8,border:`1px solid ${color}44`,background:color+"15",color:color,fontSize:11,fontWeight:700,cursor:"pointer",whiteSpace:"nowrap"}}>Aujourd'hui</button>}
+    </div>
+  </Card>;
+}
+
+/* ═══ SUIVI SPORT ═══ */
+function SuiviSport(){
+  const[logs,setLogs]=useState([]);const[loading,setLoading]=useState(true);const[sel,setSel]=useState("Push");const[form,setForm]=useState({});
+  const[chartExo,setChartExo]=useState("");const[mode,setMode]=useState("log");const[saving,setSaving]=useState(false);const[selDate,setSelDate]=useState(isoToday());
+  useEffect(()=>{load("sport-logs",[]).then(d=>{setLogs(d);setLoading(false)});},[]);
+  const se=salleSeances.find(s=>s.id===sel);
+  const initF=useCallback(()=>{const existing=logs.find(l=>l.dateISO===selDate&&l.seance===sel);const fd={};if(se)se.exercices.forEach((_,i)=>{const ex=existing?.exercices?.[i];fd[i]=ex?{weight:ex.weight?String(ex.weight):"",reps:ex.reps?String(ex.reps):"",sets:ex.sets?String(ex.sets):"",restSets:ex.restSets?String(ex.restSets):"",restExo:ex.restExo?String(ex.restExo):""}:{weight:"",reps:"",sets:"",restSets:"",restExo:""};});setForm(fd);},[se,logs,selDate,sel]);
+  useEffect(()=>{initF();},[initF]);
+  const doSave=async()=>{setSaving(true);const e={id:Date.now(),date:fmtDateShort(selDate),dateISO:selDate,seance:sel,exercices:se.exercices.map((ex,i)=>({nom:ex.nom,weight:parseFloat(form[i]?.weight)||0,reps:parseInt(form[i]?.reps)||0,sets:parseInt(form[i]?.sets)||0,restSets:parseInt(form[i]?.restSets)||0,restExo:parseInt(form[i]?.restExo)||0}))};const u=[...logs.filter(l=>!(l.dateISO===selDate&&l.seance===sel)),e];await save("sport-logs",u);setLogs(u);setSaving(false);setMode("history");};
+  const doDel=async id=>{const u=logs.filter(l=>l.id!==id);await save("sport-logs",u);setLogs(u);};
+  const doReset=async()=>{await save("sport-logs",[]);setLogs([]);};
+  const allExos=[...new Set(logs.flatMap(l=>l.exercices.map(e=>e.nom)))];
+  const chartData=logs.filter(l=>l.exercices.some(e=>e.nom===chartExo&&e.weight>0)).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>{const ex=l.exercices.find(e=>e.nom===chartExo);return{date:l.date,kg:ex?.weight||0};});
+  const volData=[...logs].sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).slice(-20).map(l=>({date:l.date,vol:l.exercices.reduce((a,e)=>a+e.weight*e.reps*e.sets,0)}));
+  if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
+  return <div>
+    <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>{[["log","📝 Log"],["history","📋 Historique"],["charts","📈 Graphiques"]].map(([k,l])=><Pill key={k} active={mode===k} onClick={()=>setMode(k)} color={C.amber}>{l}</Pill>)}</div>
+    {mode==="log"&&<div>
+      <DateNav value={selDate} onChange={setSelDate} color={C.amber}/>
+      {logs.some(l=>l.dateISO===selDate&&l.seance===sel)&&<div style={{fontSize:10,color:C.amberLight,marginBottom:8,marginTop:-2}}>✎ Séance {sel} déjà enregistrée ce jour — l'enregistrement la mettra à jour.</div>}
+      <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto"}}>{salleSeances.map(s=><button key={s.id} onClick={()=>setSel(s.id)} style={{padding:"6px 11px",borderRadius:999,border:`2px solid ${sel===s.id?s.couleur:"transparent"}`,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",background:sel===s.id?s.couleur+"22":C.surfaceAlt,color:sel===s.id?s.couleur:C.textMut}}>{s.emoji} {s.id}</button>)}</div>
+      <Card border={se.couleur+"44"}><div style={{fontSize:14,fontWeight:800,marginBottom:2}}>{se.emoji} {se.id}</div><div style={{fontSize:11,color:C.textMut,marginBottom:14}}>{se.focus}</div>
+        {se.exercices.map((ex,i)=><div key={i} style={{padding:"10px 0",borderTop:i?`1px solid ${C.borderSoft}`:"none"}}>
+          <div style={{fontSize:12.5,fontWeight:700,marginBottom:6}}>{ex.nom} <span style={{color:C.textDim,fontWeight:400}}>({ex.detail})</span></div>
+          <div style={{display:"flex",gap:6,marginBottom:6}}>{[["weight","Charge (kg)"],["sets","Séries"],["reps","Reps"]].map(([k,lb])=><div key={k} style={{flex:1}}><div style={{fontSize:9,color:C.textDim,marginBottom:2}}>{lb}</div><input type="number" value={form[i]?.[k]||""} onChange={e=>setForm(p=>({...p,[i]:{...p[i],[k]:e.target.value}}))} style={inputStyle} placeholder="—"/></div>)}</div>
+          <div style={{display:"flex",gap:6}}>{[["restSets","⏱ Repos séries (s)"],["restExo","⏱ Repos → exo (s)"]].map(([k,lb])=><div key={k} style={{flex:1}}><div style={{fontSize:9,color:C.amber,marginBottom:2}}>{lb}</div><input type="number" value={form[i]?.[k]||""} onChange={e=>setForm(p=>({...p,[i]:{...p[i],[k]:e.target.value}}))} style={{...inputStyle,border:`1px solid ${C.amber}33`,color:C.amberLight}} placeholder="90"/></div>)}</div>
+        </div>)}
+        <button onClick={doSave} disabled={saving} style={{width:"100%",marginTop:12,padding:"11px 0",borderRadius:12,border:"none",cursor:"pointer",background:C.amber,color:"#1A1505",fontSize:13,fontWeight:800,opacity:saving?.6:1}}>{saving?"Enregistrement…":(logs.some(l=>l.dateISO===selDate&&l.seance===sel)?"Mettre à jour la séance":"Enregistrer la séance")}</button>
+      </Card>
+    </div>}
+    {mode==="history"&&<div>{!logs.length?<Card><div style={{textAlign:"center",color:C.textMut,padding:10}}>Aucune séance.</div></Card>:<>{[...logs].reverse().slice(0,30).map(l=><Card key={l.id}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div><span style={{fontSize:13,fontWeight:800}}>{salleSeances.find(s=>s.id===l.seance)?.emoji} {l.seance}</span><span style={{fontSize:11,color:C.textMut,marginLeft:8}}>{l.date}</span></div><button onClick={()=>doDel(l.id)} style={{background:"none",border:"none",color:C.danger,cursor:"pointer",fontSize:15}}>✕</button></div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{l.exercices.filter(e=>e.weight>0).map((e,i)=><span key={i} style={{fontSize:10,background:C.surfaceAlt,border:`1px solid ${C.borderSoft}`,borderRadius:8,padding:"3px 7px",color:C.text}}>{e.nom.split(" ").slice(0,2).join(" ")} <b style={{color:C.amberLight}}>{e.weight}kg</b> <span style={{color:C.textDim}}>{e.sets}×{e.reps}</span>{e.restSets>0&&<span style={{color:C.amber,marginLeft:3}}>⏱{e.restSets}s</span>}{e.restExo>0&&<span style={{color:C.textDim,marginLeft:2}}>→{e.restExo}s</span>}</span>)}</div></Card>)}<button onClick={doReset} style={{padding:"7px 14px",borderRadius:10,border:`1px solid ${C.danger}44`,background:"transparent",color:C.danger,fontSize:11,cursor:"pointer"}}>Réinitialiser</button></>}</div>}
+    {mode==="charts"&&<div>
+      <Card><div style={{fontSize:13,fontWeight:800,marginBottom:10}}>📊 Volume par séance</div>{volData.length<2?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>2 séances min.</div>:<ResponsiveContainer width="100%" height={200}><BarChart data={volData}><CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft}/><XAxis dataKey="date" tick={{fill:C.textDim,fontSize:9}}/><YAxis tick={{fill:C.textDim,fontSize:9}}/><Tooltip contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11}}/><Bar dataKey="vol" fill={C.amber} radius={[4,4,0,0]}/></BarChart></ResponsiveContainer>}</Card>
+      <Card><div style={{fontSize:13,fontWeight:800,marginBottom:10}}>🏋️ Progression par exercice</div><div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>{allExos.map(e=><button key={e} onClick={()=>setChartExo(e)} style={{padding:"4px 8px",borderRadius:8,border:`1px solid ${chartExo===e?C.amber:C.borderSoft}`,background:chartExo===e?C.amber+"22":C.surfaceAlt,color:chartExo===e?C.amber:C.textDim,fontSize:10,cursor:"pointer",fontWeight:600}}>{e.split(" ").slice(0,2).join(" ")}</button>)}</div>{!chartExo?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>Sélectionne un exercice.</div>:chartData.length<2?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>Pas assez de données.</div>:<ResponsiveContainer width="100%" height={200}><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft}/><XAxis dataKey="date" tick={{fill:C.textDim,fontSize:9}}/><YAxis tick={{fill:C.textDim,fontSize:9}}/><Tooltip contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11}}/><Line type="monotone" dataKey="kg" stroke={C.amberLight} strokeWidth={2.5} dot={{fill:C.amberLight,r:3}} name="kg"/></LineChart></ResponsiveContainer>}</Card>
+    </div>}
+  </div>;
+}
+
+/* ═══ SUIVI NUTRITION ═══ */
+function SuiviNutrition(){
+  const[logs,setLogs]=useState([]);const[loading,setLoading]=useState(true);const[mode,setMode]=useState("log");const[meals,setMeals]=useState({});const[weight,setWeight]=useState("");const[saving,setSaving]=useState(false);const[selDate,setSelDate]=useState(isoToday());
+  useEffect(()=>{load("nutri-logs",[]).then(d=>{setLogs(d);setLoading(false)});},[]);
+  useEffect(()=>{const ex=logs.find(l=>l.dateISO===selDate);setMeals(ex?{...ex.meals}:{});setWeight(ex&&ex.weight!=null?String(ex.weight):"");},[selDate,logs]);
+  const selLabel=fmtDateShort(selDate);
+  const toggle=id=>setMeals(p=>({...p,[id]:!p[id]}));
+  const doSave=async()=>{setSaving(true);const ok=mealIds.filter(id=>meals[id]).length;const e={id:Date.now(),date:selLabel,dateISO:selDate,meals:{...meals},mealsOk:ok,mealsTotal:mealIds.length,compliance:Math.round(ok/mealIds.length*100),weight:parseFloat(weight)||null};const u=[...logs.filter(l=>l.dateISO!==selDate),e];await save("nutri-logs",u);setLogs(u);setSaving(false);setMode("history");};
+  const doDel=async id=>{const u=logs.filter(l=>l.id!==id);await save("nutri-logs",u);setLogs(u);};
+  const doReset=async()=>{await save("nutri-logs",[]);setLogs([]);};
+  const weightData=logs.filter(l=>l.weight).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>({date:l.date,kg:l.weight}));
+  const compData=[...logs].sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).slice(-30).map(l=>({date:l.date,pct:l.compliance}));
+  const last7=logs.filter(l=>{const d=new Date(l.dateISO);const a=new Date();a.setDate(a.getDate()-7);return d>=a;});
+  const avgC=last7.length?Math.round(last7.reduce((a,l)=>a+l.compliance,0)/last7.length):0;
+  const latW=weightData.length?weightData[weightData.length-1].kg:null;const fstW=weightData.length?weightData[0].kg:null;const diffW=latW&&fstW?(latW-fstW).toFixed(1):null;
+  if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
+  return <div>
+    <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>{[["log","📝 Saisie"],["history","📋 Historique"],["charts","📈 Graphiques"]].map(([k,l])=><Pill key={k} active={mode===k} onClick={()=>setMode(k)} color={C.green}>{l}</Pill>)}</div>
+    {mode==="log"&&<div>
+      <DateNav value={selDate} onChange={setSelDate} color={C.green}/>
+      <Card><div style={{fontSize:14,fontWeight:800,marginBottom:2}}>📋 Repas du jour</div><div style={{fontSize:11,color:C.textMut,marginBottom:12}}>{selLabel}</div>
+        {mealIds.map(id=><div key={id} onClick={()=>toggle(id)} style={{display:"flex",alignItems:"center",gap:10,padding:"9px 0",cursor:"pointer",borderTop:`1px solid ${C.borderSoft}`}}><div style={{width:26,height:26,borderRadius:7,display:"flex",alignItems:"center",justifyContent:"center",border:`2px solid ${meals[id]?C.green:C.borderSoft}`,background:meals[id]?C.green+"22":"transparent",fontSize:13}}>{meals[id]?"✓":""}</div><span style={{fontSize:15}}>{mealIcons[id]}</span><div style={{flex:1}}><div style={{fontSize:12.5,fontWeight:meals[id]?700:400,color:meals[id]?C.text:C.textMut}}>{mealLabels[id]}</div><div style={{fontSize:10,color:C.textDim}}>{mealTimes[id]}</div></div></div>)}
+        <div style={{fontSize:11,color:C.greenLight,fontWeight:700,marginTop:6}}>{mealIds.filter(id=>meals[id]).length}/{mealIds.length}</div>
+      </Card>
+      <Card><div style={{fontSize:14,fontWeight:800,marginBottom:2}}>⚖️ Pesée</div><div style={{display:"flex",alignItems:"center",gap:8,marginTop:8}}><input type="number" step="0.1" value={weight} onChange={e=>setWeight(e.target.value)} placeholder="129.5" style={{...inputStyle,width:130,fontSize:16,fontWeight:700}}/><span style={{color:C.textMut}}>kg</span></div></Card>
+      <button onClick={doSave} disabled={saving} style={{width:"100%",padding:"11px 0",borderRadius:12,border:"none",cursor:"pointer",background:C.green,color:"#04130B",fontSize:13,fontWeight:800,opacity:saving?.6:1}}>{saving?"Enregistrement…":(logs.some(l=>l.dateISO===selDate)?"Mettre à jour la journée":"Enregistrer la journée")}</button>
+    </div>}
+    {mode==="history"&&<div>{!logs.length?<Card><div style={{textAlign:"center",color:C.textMut,padding:10}}>Aucune journée.</div></Card>:<>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+        <Card style={{marginBottom:0}}><div style={{fontSize:16,fontWeight:800,color:C.greenLight}}>{avgC}%</div><div style={{fontSize:9,color:C.textDim}}>Compliance 7j</div></Card>
+        <Card style={{marginBottom:0}}><div style={{fontSize:16,fontWeight:800,color:C.prot}}>{latW||"—"}</div><div style={{fontSize:9,color:C.textDim}}>Dernier poids</div></Card>
+        <Card style={{marginBottom:0}}><div style={{fontSize:16,fontWeight:800,color:diffW&&parseFloat(diffW)<0?C.green:diffW?C.gluc:C.textDim}}>{diffW?(parseFloat(diffW)>0?"+":"")+diffW:"—"}</div><div style={{fontSize:9,color:C.textDim}}>Évolution</div></Card>
+      </div>
+      {[...logs].sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).slice(0,30).map(l=><Card key={l.id}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}><div><span style={{fontSize:13,fontWeight:700}}>{l.date}</span><span style={{fontSize:11,color:l.compliance>=80?C.green:l.compliance>=50?C.gluc:C.danger,marginLeft:8,fontWeight:700}}>{l.compliance}%</span>{l.weight&&<span style={{fontSize:11,color:C.prot,marginLeft:8}}>{l.weight}kg</span>}</div><button onClick={()=>doDel(l.id)} style={{background:"none",border:"none",color:C.danger,cursor:"pointer",fontSize:15}}>✕</button></div><div style={{display:"flex",flexWrap:"wrap",gap:4}}>{mealIds.map(id=><span key={id} style={{fontSize:10,borderRadius:6,padding:"3px 6px",background:l.meals[id]?C.green+"22":C.surfaceAlt,color:l.meals[id]?C.green:C.textDim,border:`1px solid ${l.meals[id]?C.green+"44":C.borderSoft}`}}>{mealIcons[id]}{l.meals[id]?"✓":"✗"}</span>)}</div></Card>)}
+      <button onClick={doReset} style={{padding:"7px 14px",borderRadius:10,border:`1px solid ${C.danger}44`,background:"transparent",color:C.danger,fontSize:11,cursor:"pointer"}}>Réinitialiser</button>
+    </>}</div>}
+    {mode==="charts"&&<div>
+      <Card><div style={{fontSize:13,fontWeight:800,marginBottom:10}}>⚖️ Courbe de poids</div>{weightData.length<2?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>2 pesées min.</div>:<ResponsiveContainer width="100%" height={200}><LineChart data={weightData}><CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft}/><XAxis dataKey="date" tick={{fill:C.textDim,fontSize:9}}/><YAxis domain={["auto","auto"]} tick={{fill:C.textDim,fontSize:9}}/><Tooltip contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11}}/><Line type="monotone" dataKey="kg" stroke={C.greenLight} strokeWidth={2.5} dot={{fill:C.greenLight,r:3}} name="kg"/></LineChart></ResponsiveContainer>}</Card>
+      <Card><div style={{fontSize:13,fontWeight:800,marginBottom:10}}>📊 Compliance 30j</div>{compData.length<2?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>2 jours min.</div>:<ResponsiveContainer width="100%" height={200}><BarChart data={compData}><CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft}/><XAxis dataKey="date" tick={{fill:C.textDim,fontSize:9}}/><YAxis domain={[0,100]} tick={{fill:C.textDim,fontSize:9}}/><Tooltip contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11}}/><Bar dataKey="pct" fill={C.green} radius={[4,4,0,0]} name="%"/></BarChart></ResponsiveContainer>}</Card>
+    </div>}
+  </div>;
+}
+
+/* ═══ SUIVI BUDGET ═══ */
+function SuiviBudget(){
+  const[logs,setLogs]=useState([]);const[loading,setLoading]=useState(true);const[mode,setMode]=useState("log");
+  const[selProd,setSelProd]=useState(budgetAliments[0].id);const[prix,setPrix]=useState("");const[poids,setPoids]=useState("");const[saving,setSaving]=useState(false);const[chartProd,setChartProd]=useState("");const[selDate,setSelDate]=useState(isoToday());
+  useEffect(()=>{load("budget-logs",[]).then(d=>{setLogs(d);setLoading(false)});},[]);
+  const doSave=async()=>{setSaving(true);const e={id:Date.now(),date:fmtDateShort(selDate),dateISO:selDate,prodId:selProd,prodNom:budgetAliments.find(a=>a.id===selProd)?.nom,prix:parseFloat(prix)||0,poids:parseFloat(poids)||0,prixKg:poids&&prix?Math.round(parseFloat(prix)/parseFloat(poids)*1000*100)/100:0};const u=[...logs,e];await save("budget-logs",u);setLogs(u);setPrix("");setPoids("");setSaving(false);setMode("history");};
+  const doDel=async id=>{const u=logs.filter(l=>l.id!==id);await save("budget-logs",u);setLogs(u);};
+  const doReset=async()=>{await save("budget-logs",[]);setLogs([]);};
+  // Prix moyen par produit
+  const avgPrices={};budgetAliments.forEach(a=>{const entries=logs.filter(l=>l.prodId===a.id&&l.prixKg>0);if(entries.length)avgPrices[a.id]=Math.round(entries.reduce((s,e)=>s+e.prixKg,0)/entries.length*100)/100;});
+  // Recalcul total semaine avec prix réels
+  const realTotal=budgetAliments.reduce((s,a)=>{if(avgPrices[a.id]&&a.prixKg){const ratio=avgPrices[a.id]/a.prixKg;return s+a.sem*ratio;}return s+a.sem;},0);
+  // Chart data par produit
+  const prodsWithData=[...new Set(logs.filter(l=>l.prixKg>0).map(l=>l.prodId))];
+  const chartD=logs.filter(l=>l.prodId===chartProd&&l.prixKg>0).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>({date:l.date,eur:l.prixKg}));
+  if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
+  return <div>
+    <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>{[["log","📝 Saisie"],["history","📋 Historique"],["charts","📈 Tendances"]].map(([k,l])=><Pill key={k} active={mode===k} onClick={()=>setMode(k)} color={C.budget}>{l}</Pill>)}</div>
+    {mode==="log"&&<div>
+      <DateNav value={selDate} onChange={setSelDate} color={C.budget}/>
+      {Object.keys(avgPrices).length>0&&<Card border={C.budget+"44"}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{fontSize:12,fontWeight:700,color:C.budget}}>💰 Total semaine recalculé</span><span style={{fontSize:18,fontWeight:800,color:C.budgetLight}}>~{Math.round(realTotal)} €</span></div><div style={{fontSize:10,color:C.textDim,marginTop:4}}>Basé sur tes prix réels vs estimation {TOTAL_SEM} €</div></Card>}
+      <Card><div style={{fontSize:14,fontWeight:800,marginBottom:10}}>🛒 Enregistrer un achat</div>
+        <div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Produit</div>
+        <select value={selProd} onChange={e=>setSelProd(e.target.value)} style={{...inputStyle,fontSize:13,marginBottom:10}}>{budgetAliments.map(a=><option key={a.id} value={a.id}>{a.emoji} {a.nom}</option>)}</select>
+        <div style={{display:"flex",gap:8}}>
+          <div style={{flex:1}}><div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Prix payé (€)</div><input type="number" step="0.01" value={prix} onChange={e=>setPrix(e.target.value)} style={inputStyle} placeholder="4.50"/></div>
+          <div style={{flex:1}}><div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Poids (g)</div><input type="number" value={poids} onChange={e=>setPoids(e.target.value)} style={inputStyle} placeholder="500"/></div>
+        </div>
+        {prix&&poids&&parseFloat(poids)>0&&<div style={{marginTop:8,fontSize:12,color:C.budgetLight,fontWeight:700}}>= {(parseFloat(prix)/parseFloat(poids)*1000).toFixed(2)} €/kg</div>}
+        <button onClick={doSave} disabled={saving||!prix||!poids} style={{width:"100%",marginTop:12,padding:"11px 0",borderRadius:12,border:"none",cursor:"pointer",background:C.budget,color:"#fff",fontSize:13,fontWeight:800,opacity:saving||!prix||!poids?.5:1}}>Enregistrer</button>
+      </Card>
+    </div>}
+    {mode==="history"&&<div>{!logs.length?<Card><div style={{textAlign:"center",color:C.textMut,padding:10}}>Aucun achat.</div></Card>:<>
+      {Object.keys(avgPrices).length>0&&<Card><div style={{fontSize:12,fontWeight:700,color:C.budget,marginBottom:8}}>📊 Prix moyens observés</div>
+        {budgetAliments.filter(a=>avgPrices[a.id]).map(a=><div key={a.id} style={{display:"flex",justifyContent:"space-between",fontSize:12,lineHeight:2}}>
+          <span style={{color:C.textMut}}>{a.emoji} {a.nom}</span>
+          <span><span style={{color:C.budgetLight,fontWeight:700}}>{avgPrices[a.id]} €/kg</span>{a.prixKg&&<span style={{color:C.textDim,marginLeft:6}}>vs {a.prixKg} € est.</span>}</span>
+        </div>)}
+      </Card>}
+      {[...logs].reverse().slice(0,30).map(l=><Card key={l.id}><div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}><div><span style={{fontSize:12,fontWeight:700}}>{l.prodNom}</span><span style={{fontSize:11,color:C.textMut,marginLeft:8}}>{l.date}</span></div><button onClick={()=>doDel(l.id)} style={{background:"none",border:"none",color:C.danger,cursor:"pointer",fontSize:15}}>✕</button></div><div style={{fontSize:11,color:C.textDim,marginTop:2}}>{l.prix}€ pour {l.poids}g → <span style={{color:C.budgetLight,fontWeight:700}}>{l.prixKg} €/kg</span></div></Card>)}
+      <button onClick={doReset} style={{padding:"7px 14px",borderRadius:10,border:`1px solid ${C.danger}44`,background:"transparent",color:C.danger,fontSize:11,cursor:"pointer"}}>Réinitialiser</button>
+    </>}</div>}
+    {mode==="charts"&&<div>
+      <Card><div style={{fontSize:13,fontWeight:800,marginBottom:10}}>📈 Évolution prix par produit</div>
+        <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:12}}>{prodsWithData.map(id=>{const a=budgetAliments.find(x=>x.id===id);return <button key={id} onClick={()=>setChartProd(id)} style={{padding:"4px 8px",borderRadius:8,border:`1px solid ${chartProd===id?C.budget:C.borderSoft}`,background:chartProd===id?C.budget+"22":C.surfaceAlt,color:chartProd===id?C.budget:C.textDim,fontSize:10,cursor:"pointer",fontWeight:600}}>{a?.emoji} {a?.nom.split(" ")[0]}</button>;})}</div>
+        {!chartProd?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>Sélectionne un produit.</div>:chartD.length<2?<div style={{color:C.textDim,fontSize:12,padding:16,textAlign:"center"}}>2 achats min.</div>:
+        <ResponsiveContainer width="100%" height={200}><LineChart data={chartD}><CartesianGrid strokeDasharray="3 3" stroke={C.borderSoft}/><XAxis dataKey="date" tick={{fill:C.textDim,fontSize:9}}/><YAxis tick={{fill:C.textDim,fontSize:9}}/><Tooltip contentStyle={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:8,color:C.text,fontSize:11}}/><Line type="monotone" dataKey="eur" stroke={C.budgetLight} strokeWidth={2.5} dot={{fill:C.budgetLight,r:3}} name="€/kg"/></LineChart></ResponsiveContainer>}
+      </Card>
+    </div>}
+  </div>;
+}
+
+/* ═══ SPORT SECTION ═══ */
+function SportSection(){
+  const[tab,setTab]=useState("resume");const[openS,setOpenS]=useState("A");const[actS,setActS]=useState("Push");const[actP,setActP]=useState(0);
+  const se=salleSeances.find(s=>s.id===actS);
+  const tabs=[["resume","Résumé"],["maison","Maison"],["salle","Salle"],["progression","Progression"],["suivi","📊 Suivi"],["conseils","Conseils"]];
+  return <div>
+    <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>{tabs.map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.amber}>{l}</Pill>)}</div>
+    {tab==="resume"&&<div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:12}}>{profil.map(p=><Card key={p.l}><div style={{fontSize:10,color:C.textDim,textTransform:"uppercase",letterSpacing:.5}}>{p.l}</div><div style={{fontSize:20,fontWeight:800,color:C.amberLight,margin:"3px 0 1px"}}>{p.v}</div><div style={{fontSize:11,color:C.textMut}}>{p.s}</div></Card>)}</div>
+      <Card border={C.danger+"33"}><div style={{fontSize:12,fontWeight:700,color:C.danger,marginBottom:8}}>⚠️ Règles de sécurité</div>{regles.map((r,i)=><div key={i} style={{fontSize:12,color:C.text,lineHeight:1.5,marginBottom:6,paddingLeft:12,position:"relative"}}><span style={{position:"absolute",left:0,color:C.danger}}>•</span>{r}</div>)}</Card>
+      <Card><div style={{fontSize:12,fontWeight:700,color:C.amber,marginBottom:8}}>🔥 Échauffement</div>{echauffement.map((e,i)=><div key={i} style={{fontSize:12,color:C.textMut,lineHeight:1.7}}>{e}</div>)}</Card>
+    </div>}
+    {tab==="maison"&&<div>
+      <div style={{display:"flex",gap:6,marginBottom:12}}>{maison.map(s=><Pill key={s.code} active={openS===s.code} onClick={()=>setOpenS(s.code)} color={C.amber}>{s.code}·{s.jour.slice(0,3)}</Pill>)}</div>
+      {maison.filter(s=>s.code===openS).map(s=><Card key={s.code}><div style={{fontSize:15,fontWeight:800}}>Séance {s.code} — {s.titre}</div><div style={{fontSize:11,color:C.amber,margin:"3px 0 12px"}}>{s.format}</div>{s.ex.map((e,i)=><div key={i} style={{display:"flex",gap:8,alignItems:"baseline",padding:"6px 0",borderTop:i?`1px solid ${C.borderSoft}`:"none"}}><span style={{color:C.amberLight,fontWeight:700,fontSize:11}}>{String(i+1).padStart(2,"0")}</span><span style={{fontSize:12.5}}>{e}</span></div>)}{s.note&&<div style={{marginTop:10,fontSize:11,color:C.textMut,fontStyle:"italic",borderLeft:`2px solid ${C.amber}`,paddingLeft:8}}>{s.note}</div>}</Card>)}
+      <Card border={C.borderSoft}><div style={{fontSize:12,fontWeight:700,color:C.green,marginBottom:8}}>🧘 Étirements</div>{etirements.map((e,i)=><div key={i} style={{fontSize:11.5,color:C.textMut,lineHeight:1.7}}>{e}</div>)}</Card>
+    </div>}
+    {tab==="salle"&&<div>
+      <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>{phases.map((p,i)=><button key={i} onClick={()=>setActP(i)} style={{padding:"5px 10px",borderRadius:999,border:`2px solid ${actP===i?p.c:"transparent"}`,cursor:"pointer",fontSize:10,fontWeight:700,background:actP===i?p.c+"22":C.surfaceAlt,color:actP===i?p.c:C.textDim}}>{p.sem}</button>)}</div>
+      <div style={{background:C.surfaceAlt,border:`1px solid ${phases[actP].c}44`,borderRadius:10,padding:"6px 12px",marginBottom:12,fontSize:11,color:phases[actP].c,fontWeight:700}}>{phases[actP].ph} — {phases[actP].pct} — {phases[actP].but}</div>
+      <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto"}}>{salleSeances.map(s=><button key={s.id} onClick={()=>setActS(s.id)} style={{padding:"7px 12px",borderRadius:999,border:`2px solid ${actS===s.id?s.couleur:"transparent"}`,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",background:actS===s.id?s.couleur+"22":C.surfaceAlt,color:actS===s.id?s.couleur:C.textMut}}>{s.emoji} {s.id}</button>)}</div>
+      <Card border={se.couleur+"33"}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><div style={{fontSize:16,fontWeight:800}}>{se.emoji} {se.id}</div><div style={{fontSize:11,color:se.couleur,fontWeight:700}}>{se.jour}</div></div><div style={{fontSize:11,color:C.textMut,marginBottom:14}}>{se.focus}</div>
+        {se.exercices.map((ex,i)=><div key={i} style={{padding:"10px 0",borderTop:i?`1px solid ${C.borderSoft}`:"none"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><div style={{display:"flex",gap:8,alignItems:"baseline"}}><span style={{color:se.couleur,fontWeight:800,fontSize:11}}>{String(i+1).padStart(2,"0")}</span><span style={{fontSize:13,fontWeight:700}}>{ex.nom}</span></div><span style={{fontSize:11,color:C.amberLight,fontWeight:700}}>{ex.detail}</span></div><div style={{display:"flex",alignItems:"center",gap:6,marginLeft:19,marginTop:3}}><span style={{fontSize:10,fontWeight:700,color:phases[actP].c,background:phases[actP].c+"18",padding:"2px 7px",borderRadius:5}}>{phases[actP].sem}</span><span style={{fontSize:12,fontWeight:700}}>{ex.charges[actP]}</span></div><div style={{display:"flex",gap:10,marginLeft:19,marginTop:4,flexWrap:"wrap"}}>{ex.charges.map((ch,pi)=>pi!==actP&&<span key={pi} style={{fontSize:10,color:C.textDim}}>{phases[pi].sem}: {ch}</span>)}</div>{ex.note&&<div style={{marginLeft:19,marginTop:4,fontSize:10.5,color:C.textMut,fontStyle:"italic"}}>⚠ {ex.note}</div>}</div>)}
+      </Card>
+    </div>}
+    {tab==="progression"&&<div>{phases.map(p=><Card key={p.ph} border={p.c+"40"}><div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:13,fontWeight:800,color:p.c}}>{p.ph}</span><span style={{fontSize:11,color:C.textDim}}>{p.sem}</span></div><div style={{fontSize:18,fontWeight:800,margin:"3px 0 1px"}}>{p.pct}</div><div style={{fontSize:11.5,color:C.textMut}}>{p.but}</div></Card>)}<Card border={C.green+"33"} style={{background:"#0A1A0A"}}><div style={{fontSize:11,fontWeight:700,color:C.green,marginBottom:4}}>🗓️ Timeline</div><div style={{fontSize:12,color:"#80C0A0",lineHeight:1.7}}>Haut : 75-80% S8-10 · Bas : 80% S12-16 · Fin S12 : force/hypertrophie</div></Card></div>}
+    {tab==="suivi"&&<SuiviSport/>}
+    {tab==="conseils"&&<div>{sportConseils.map(c=><Card key={c.t} style={{borderLeft:`3px solid ${C.amber}`,borderRadius:"0 14px 14px 0"}}><div style={{fontSize:13,fontWeight:700,color:C.amberLight,marginBottom:4}}>💡 {c.t}</div><div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{c.d}</div></Card>)}</div>}
+  </div>;
+}
+
+/* ═══ NUTRITION SECTION ═══ */
+function NutritionSection(){
+  const[tab,setTab]=useState("resume");const[day,setDay]=useState("training");
+  const repas=day==="training"?repasTraining:repasRest;const tot=repas.reduce((a,r)=>({P:a.P+r.P,G:a.G+r.G,L:a.L+r.L,kcal:a.kcal+r.kcal}),{P:0,G:0,L:0,kcal:0});
+  const tabs=[["resume","Résumé"],["repas","Repas"],["aliments","Aliments"],["complements","Compléments"],["suivi","📊 Suivi"],["conseils","Conseils"]];
+  return <div>
+    <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>{tabs.map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.green}>{l}</Pill>)}</div>
+    {tab==="resume"&&<div>
+      <Card><div style={{fontSize:11,fontWeight:700,color:C.green,marginBottom:8}}>⏰ Journée type</div>{planning.map(([h,t])=><div key={h} style={{display:"flex",gap:10,fontSize:12,lineHeight:1.8}}><span style={{color:C.greenLight,fontWeight:700,minWidth:58}}>{h}</span><span style={{color:C.textMut}}>{t}</span></div>)}</Card>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:10}}>{[{l:"Métabo",v:2314,c:C.prot},{l:"Dépense",v:3240,c:C.blue},{l:"Objectif",v:2750,c:C.green}].map(s=><Card key={s.l} style={{marginBottom:0}}><div style={{fontSize:16,fontWeight:800,color:s.c}}>{s.v}</div><div style={{fontSize:9,color:C.textDim}}>kcal</div><div style={{fontSize:10,color:C.textMut,marginTop:2}}>{s.l}</div></Card>)}</div>
+      <Card><div style={{fontSize:11,fontWeight:700,color:C.green,marginBottom:10}}>🎯 Macros · déficit ~15%</div>{[["Protéines",macrosTarget.p,C.prot],["Glucides",macrosTarget.g,C.gluc],["Lipides",macrosTarget.l,C.lip]].map(([n,v,c])=><div key={n} style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:8}}><span style={{color:c,fontWeight:700}}>{n}</span><span style={{fontWeight:800}}>{v}g</span></div>)}</Card>
+    </div>}
+    {tab==="repas"&&<div>
+      <div style={{display:"flex",gap:6,marginBottom:12}}><Pill active={day==="training"} onClick={()=>setDay("training")} color={C.green}>Entraînement</Pill><Pill active={day==="rest"} onClick={()=>setDay("rest")} color={C.green}>Repos</Pill></div>
+      <div style={{display:"flex",justifyContent:"space-around",background:C.surfaceAlt,borderRadius:12,padding:"10px 6px",marginBottom:12}}>{[["P",tot.P,C.prot],["G",tot.G,C.gluc],["L",tot.L,C.lip],["kcal",tot.kcal,C.greenLight]].map(([n,v,c])=><div key={n} style={{textAlign:"center"}}><div style={{fontSize:16,fontWeight:800,color:c}}>{v}</div><div style={{fontSize:10,color:C.textDim}}>{n}</div></div>)}</div>
+      {repas.map(r=><Card key={r.m}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><div style={{fontSize:14,fontWeight:800}}>{r.m}</div><div style={{fontSize:11,color:C.greenLight,fontWeight:700}}>{r.h}</div></div><div style={{fontSize:10,color:C.textDim,margin:"1px 0 8px"}}>{r.P}P/{r.G}G/{r.L}L · {r.kcal}kcal</div>{r.items.map((it,i)=><div key={i} style={{fontSize:12,color:C.textMut,lineHeight:1.6}}>· {it}</div>)}<MacroBar p={r.P} g={r.G} l={r.L}/>{r.note&&<div style={{marginTop:8,fontSize:11,color:C.textMut,fontStyle:"italic",borderLeft:`2px solid ${C.green}`,paddingLeft:8}}>{r.note}</div>}</Card>)}
+    </div>}
+    {tab==="aliments"&&<div>{Object.entries(alimentsCats).map(([cat,list])=>{const c=cat==="Protéines"?C.prot:cat==="Glucides"?C.gluc:C.lip;return <Card key={cat}><div style={{fontSize:12,fontWeight:700,color:c,marginBottom:8}}>{cat}</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{list.map(a=><span key={a} style={{fontSize:11,color:C.text,background:C.surfaceAlt,border:`1px solid ${C.borderSoft}`,borderRadius:999,padding:"4px 10px"}}>{a}</span>)}</div></Card>;})}<Card border={C.danger+"33"}><div style={{fontSize:12,fontWeight:700,color:C.danger,marginBottom:8}}>🚫 Retirés</div><div style={{display:"flex",flexWrap:"wrap",gap:6}}>{retires.map(a=><span key={a} style={{fontSize:11,color:"#C99",background:"#1A0E0E",borderRadius:999,padding:"4px 10px",textDecoration:"line-through"}}>{a}</span>)}</div></Card></div>}
+    {tab==="complements"&&<div>{complements.map(c=><Card key={c.n}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}><span style={{fontSize:18}}>{c.emoji}</span><span style={{fontSize:14,fontWeight:800}}>{c.n}</span></div><div style={{fontSize:11,color:C.greenLight,fontWeight:700,marginBottom:6}}>{c.quand}</div><div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{c.d}</div></Card>)}</div>}
+    {tab==="suivi"&&<SuiviNutrition/>}
+    {tab==="conseils"&&<div>{nutritionConseils.map(c=><Card key={c.t} style={{borderLeft:`3px solid ${C.green}`,borderRadius:"0 14px 14px 0"}}><div style={{fontSize:13,fontWeight:700,color:C.greenLight,marginBottom:4}}>💡 {c.t}</div><div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{c.d}</div></Card>)}</div>}
+  </div>;
+}
+
+/* ═══ BUDGET SECTION ═══ */
+function BudgetSection(){
+  const[tab,setTab]=useState("resume");const[cat,setCat]=useState("Tous");
+  const cats=["Tous",...new Set(budgetAliments.map(a=>a.cat))];
+  const filtered=cat==="Tous"?budgetAliments:budgetAliments.filter(a=>a.cat===cat);
+  const totalF=filtered.reduce((a,x)=>a+x.sem,0);const totalPostes=postes.reduce((a,p)=>a+p.val,0);
+  const tabs=[["resume","📊 Résumé"],["aliments","🛒 Aliments"],["alternatives","💸 Alternatives"],["suivi","📊 Suivi"],["conseils","💡 Conseils"]];
+  return <div>
+    <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>{tabs.map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.budget}>{l}</Pill>)}</div>
+    {tab==="resume"&&<div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
+        {[{l:"Par semaine",v:"~"+TOTAL_SEM+" €",c:C.budget},{l:"Par mois",v:"~"+TOTAL_MOIS+" €",c:C.budgetLight},{l:"Version budget",v:"~"+TOTAL_SEM_B+" €",c:C.amber},{l:"Économie / mois",v:"~60 €",c:C.green}].map(s=><Card key={s.l} style={{borderTop:`3px solid ${s.c}`,marginBottom:0}}><div style={{fontSize:10,color:C.textMut}}>{s.l}</div><div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div></Card>)}
+      </div>
+      <Card><div style={{fontSize:12,fontWeight:700,color:C.budget,marginBottom:10}}>📊 Répartition (€/sem)</div>
+        <div style={{display:"flex",height:12,borderRadius:6,overflow:"hidden",marginBottom:12}}>{postes.map(p=><div key={p.nom} style={{width:`${p.val/totalPostes*100}%`,background:p.color}}/>)}</div>
+        {postes.map(p=><div key={p.nom} style={{display:"flex",alignItems:"center",gap:8,fontSize:12,lineHeight:2}}><span style={{width:10,height:10,borderRadius:3,background:p.color,flexShrink:0}}/><span style={{color:C.textMut,flex:1}}>{p.nom}</span><span style={{fontWeight:600}}>{p.val} €</span><span style={{color:C.textDim,minWidth:36,textAlign:"right"}}>{Math.round(p.val/totalPostes*100)}%</span></div>)}
+      </Card>
+    </div>}
+    {tab==="aliments"&&<div>
+      <div style={{display:"flex",gap:5,overflowX:"auto",marginBottom:12}}>{cats.map(c=><Pill key={c} active={cat===c} onClick={()=>setCat(c)} color={C.budget}>{c}</Pill>)}</div>
+      <Card>{filtered.sort((a,b)=>b.sem-a.sem).map((a,i)=><div key={a.id} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 0",borderTop:i?`1px solid ${C.borderSoft}`:"none"}}><span style={{fontSize:16}}>{a.emoji}</span><div style={{flex:1,minWidth:0}}><div style={{fontSize:13,fontWeight:600}}>{a.nom}</div><div style={{fontSize:10,color:C.textDim}}>{a.q}{a.prixKg&&` · ~${a.prixKg} €/kg`}</div></div><div style={{fontSize:14,fontWeight:700,color:C.budgetLight}}>{a.sem} €</div></div>)}
+        <div style={{display:"flex",justifyContent:"space-between",padding:"10px 0",borderTop:`1px solid ${C.border}`}}><span style={{fontSize:13,fontWeight:700,color:C.textMut}}>Total {cat==="Tous"?"semaine":cat}</span><span style={{fontSize:16,fontWeight:800,color:C.budget}}>~{Math.round(totalF)} €</span></div>
+      </Card>
+    </div>}
+    {tab==="alternatives"&&<div>
+      {swaps.map(s=><Card key={s.de} border={C.amber+"33"}>
+        <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}><span style={{fontSize:12,color:C.danger,textDecoration:"line-through"}}>{s.de}</span><span style={{color:C.textDim}}>→</span><span style={{fontSize:12,color:C.green,fontWeight:700}}>{s.a}</span></div>
+        <div style={{fontSize:11,color:C.textMut}}>{s.detail}</div>
+        <div style={{fontSize:12,color:C.amber,fontWeight:700,marginTop:4}}>💰 -{s.saveSem} €/sem</div>
+      </Card>)}
+      <Card border={C.green+"44"}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline"}}><span style={{fontSize:13,fontWeight:700,color:C.green}}>Total avec swaps</span><div><span style={{fontSize:12,color:C.danger,textDecoration:"line-through",marginRight:8}}>~{TOTAL_SEM} €</span><span style={{fontSize:18,fontWeight:800,color:C.green}}>~{TOTAL_SEM_B} €/sem</span></div></div></Card>
+    </div>}
+    {tab==="suivi"&&<SuiviBudget/>}
+    {tab==="conseils"&&<div>{budgetConseils.map(c=><Card key={c.t} style={{borderLeft:`3px solid ${C.budget}`,borderRadius:"0 14px 14px 0"}}><div style={{fontSize:13,fontWeight:700,color:C.budgetLight,marginBottom:4}}>💡 {c.t}</div><div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{c.d}</div></Card>)}</div>}
+  </div>;
+}
+
+/* ═══ REVIEW DATA ═══ */
+const RV={ok:{c:"#10B981",ic:"✅",lab:"Aligné"},warn:{c:"#F59E0B",ic:"🟡",lab:"À affiner"},bad:{c:"#EF4444",ic:"🔴",lab:"À revoir"}};
+const reviewItems=[
+  {id:"proteines",emoji:"🥩",titre:"Protéines — 250 g (~1,9 g/kg)",v:"ok",
+   prog:"250 g/jour soit 1,9 g/kg pour 130 kg. Sources : blancs d'œufs, poulet, poisson, fromage blanc 0 %, whey.",
+   sci:"Morton 2018 (méta 49 études, 1 863 participants) : les gains plafonnent vers 1,62 g/kg (IC 1,03–2,20). Phillips & Van Loon 2011 : athlètes > population générale, fourchette 1,6–2,2 g/kg. Moore 2009 : la MPS sature à ~20 g/repas — d'où la distribution en 7 repas. Areta 2013 : 4 × 20 g > 2 × 40 g ou 8 × 10 g pour la MPS sur 12 h. Schoenfeld & Aragon 2018 : 0,4 g/kg/repas comme dose plancher. Nutrients 2018 : rôle pivot de la leucine pour activer mTOR.",
+   conclusion:"Les 6 études convergent vers le même plafond biologique. Tes 250 g et ta distribution en 7 repas correspondent exactement à ce que la science recommande. C'est l'aspect le mieux soutenu de tout ton programme.",
+   verdict:"Cible et distribution optimales. Rien à changer.",
+   refs:["Morton 2018 (BJSM — 49 études)","Phillips & Van Loon 2011","Moore 2009 (dose-réponse MPS)","Areta 2013 (distribution 4×20g)","Schoenfeld & Aragon 2018","Nutrients 2018 (leucine/mTOR)"]},
+  {id:"deficit",emoji:"📉",titre:"Déficit calorique — ~15 %",v:"ok",
+   prog:"≈490 kcal sous la maintenance (TDEE 3 240 kcal).",
+   sci:"Garthe 2011 : perte lente préserve voire augmente la masse maigre, la perte rapide en fait perdre. Longland 2016 (40 hommes, déficit 40 %) : haute protéine + entraînement = +1,2 kg LBM et -4,8 kg graisse. Aragon ISSN 2017 : plus la masse grasse de départ est élevée, plus le déficit peut être maintenu sans risque. Roth 2022 : ≥10 séries/muscle/sem + haute protéine en restriction = rétention maximale. PMC 2025 (304 adultes) : musculation > aérobie pour préserver la LBM en déficit.",
+   conclusion:"Tu combines les deux facteurs protecteurs : déficit modéré + haute protéine. Ta masse grasse élevée t'offre un troisième avantage — elle sert de tampon énergétique pour soutenir la synthèse protéique même en déficit. Ton 15 % est scientifiquement au bon endroit.",
+   verdict:"Rythme idéal. Ne modifie pas.",
+   refs:["Garthe 2011","Longland 2016 (AJCN)","Aragon 2017 (ISSN)","Roth 2022 (Eur J Appl Physiol)","PMC 2025 cohort 304 adults","Phillips — revue athlètes"]},
+  {id:"recompo",emoji:"🔄",titre:"Recomposition corporelle",v:"ok",
+   prog:"Perdre du gras et gagner du muscle simultanément.",
+   sci:"Barakat 2020 : recompo documentée chez débutants, reprises après pause et masse grasse élevée. Longland 2016 : +1,2 kg LBM et -4,8 kg graisse simultanément en 4 semaines. Mettler 2010 : haute protéine en déficit → 5× moins de perte de LBM. Slater 2019 : un surplus n'est pas nécessaire pour l'hypertrophie sous conditions spécifiques. Helms 2014 : haute protéine maintient la LBM en restriction. Campbell 2018 : groupe haute protéine gagne plus de LBM en déficit.",
+   conclusion:"Tu coches deux des trois critères (reprise + masse grasse élevée). La recomposition n'est pas un mythe pour toi — c'est la stratégie scientifiquement la plus efficace dans ta situation actuelle.",
+   verdict:"Stratégie pleinement justifiée.",
+   refs:["Barakat 2020 (SCJ)","Longland 2016","Mettler 2010","Slater 2019 (Front Nutr)","Helms 2014","Campbell 2018 (IJSNEM)"]},
+  {id:"volume",emoji:"📊",titre:"Volume d'entraînement",v:"warn",
+   prog:"~9–13 séries/muscle/sem selon le groupe. Quadriceps 1×/sem.",
+   sci:"Schoenfeld 2017 (méta 15 études) : relation dose-réponse p=0,002 ; avantage net dès 10 séries/sem. Baz-Valle 2022 : bénéfices du volume modéré-élevé (12–20 séries). Pelland 2024 : +0,24 % de gain/série supplémentaire. Roth 2022 : ≥10 séries/muscle/sem en déficit = rétention maximale. Krieger 2010 : multi-séries → +40 % d'hypertrophie vs mono-série. Schoenfeld 2019 : dose-réponse confirmée chez les sujets entraînés.",
+   conclusion:"Ton programme est globalement bien calibré. Le seul point d'attention est le quadriceps (1×/sem par protection du genou) : assure-toi que le jour Legs apporte ≥10 séries pour rester au-dessus du seuil documenté.",
+   verdict:"Vérifier ≥10 séries quadriceps au jour Legs.",
+   refs:["Schoenfeld 2017 (J Sports Sci)","Baz-Valle 2022","Pelland 2024","Roth 2022","Krieger 2010 (JSCR)","Schoenfeld 2019 (MSSE)"]},
+  {id:"frequence",emoji:"🗓️",titre:"Fréquence PPL + Upper + Lower",v:"ok",
+   prog:"Pectoraux, dos et épaules travaillés 2×/sem. Quadriceps 1×/sem.",
+   sci:"Schoenfeld 2016 (méta 10 études) : 2×/sem > 1×/sem, effect size 0,49 vs 0,30. Schoenfeld 2019 (méta 25 études) : 2× et 3× équivalents à volume égal. Ralston 2018 : fréquence augmente les gains en force jusqu'à un plateau. Grgic 2018 : ≥2×/sem supérieur pour la force. Colquhoun 2018 : le volume total prime sur la fréquence seule. Pelland 2024 : fréquence avantageuse pour la force, neutre pour l'hypertrophie à volume équivalent.",
+   conclusion:"Ton split applique exactement ce que recommandent les méta-analyses. Si la contrainte du genou limite la fréquence quad, la solution est d'augmenter le volume sur la seule séance disponible plutôt que multiplier les séances à faible volume.",
+   verdict:"Structure cohérente. Quadriceps à réévaluer si le genou tolère.",
+   refs:["Schoenfeld 2016 (Sports Med)","Schoenfeld 2019 (méta 25 études)","Ralston 2018","Grgic 2018","Colquhoun 2018","Pelland 2024"]},
+  {id:"repos",emoji:"⏱️",titre:"Temps de repos entre séries",v:"warn",
+   prog:"Circuits maison : 60–90 s. Salle : suivi en cours via l'app.",
+   sci:"Schoenfeld 2016 (JSCR) : 3 min > 1 min pour la force et l'hypertrophie chez les entraînés (quad +11 % vs +7 %). McKendry : 1 min réduit la MPS myofibrillaire malgré une réponse hormonale identique. Grgic 2017 : revue systématique en faveur des repos longs chez les entraînés. Give it a rest 2024 (méta bayésienne) : tendance favorable aux repos longs sur composés lourds. Henselmans 2014 : repos long via volume-charge. medrxiv 2025 : repos < 60 s légèrement défavorable pour la force.",
+   conclusion:"Toutes les études pointent vers le même mécanisme : un repos trop court réduit la tension mécanique disponible sur la série suivante, qui est le principal moteur de l'hypertrophie. Ta fonction suivi-repos te permet précisément de vérifier ça à chaque séance.",
+   verdict:"Vise 2–3 min sur squat, développé et rowing.",
+   refs:["Schoenfeld 2016 (JSCR)","McKendry (MPS & repos)","Grgic 2017 (Eur J Sport Sci)","Give it a rest 2024","Henselmans 2014","medrxiv 2025"]},
+  {id:"creatine",emoji:"⚡",titre:"Créatine — 5 g/jour",v:"warn",
+   prog:"5 g/jour dans 300 ml eau au réveil, sans phase de charge.",
+   sci:"Kreider ISSN 2017 : supplément le plus efficace et le mieux documenté ; grands gabarits 5–10 g/j. Devries 2014 : Cr + musculation > musculation seule pour la LBM. Delpino 2022 (méta 50+ RCTs) : bénéfice sur LBM tous âges/sexes. Chilibeck 2017 : +1,37 kg LBM et +6,85 kg leg press vs placebo. Doma 2022 (23 études) : amélioration partielle de la récupération. Liu 2025 (RCTs) : effet significatif confirmé après ≥12 semaines.",
+   conclusion:"Six méta-analyses convergent — aucun débat à ce niveau. Ton protocole est correct. Le seul ajustement : à 130 kg tu as plus de masse musculaire à saturer, les études situent la dose optimale pour les grands gabarits entre 7 et 8 g/j.",
+   verdict:"Passe à ~7–8 g/j vu ton gabarit.",
+   refs:["Kreider 2017 (ISSN)","Devries 2014","Delpino 2022 (50+ RCTs)","Chilibeck 2017","Doma 2022","Liu 2025"]},
+  {id:"timing",emoji:"🥛",titre:"Timing protéique — shaker",v:"warn",
+   prog:"Shaker whey (~24 g) juste après la séance (~8h20).",
+   sci:"Schoenfeld/Aragon 2013 (méta) : le total quotidien est le prédicteur dominant, pas le timing. Aragon 2013 : fenêtre anabolique de 4–6 h (pas 30 min). Moore 2009 : la MPS sature à ~20 g/repas, l'urgence des 30 min est exagérée. Areta 2013 : la régularité des prises compte plus que leur proximité avec la séance. Morton 2018 : c'est le total (plateau à 1,62 g/kg) qui détermine les adaptations. Schoenfeld & Aragon 2018 : 0,4 g/kg/repas, distribués régulièrement.",
+   conclusion:"L'angoisse de rater la fenêtre n'est pas fondée. La vraie fenêtre est de 4 à 6 h. Ton shaker est un outil pratique qui t'aide à atteindre tes 250 g dans un emploi du temps contraint — pas une nécessité biologique urgente.",
+   verdict:"Garde le shaker pour la praticité, pas pour la fenêtre.",
+   refs:["Schoenfeld/Aragon 2013 (JISSN)","Aragon 2013 (fenêtre 4-6h)","Moore 2009","Areta 2013","Morton 2018","Schoenfeld & Aragon 2018"]},
+  {id:"memoire",emoji:"🧠",titre:"Mémoire musculaire (reprise)",v:"ok",
+   prog:"Anciens maxs squat 140 / développé 100 : la force revient plus vite.",
+   sci:"Seaborne 2018 : première démo de mémoire épigénétique humaine — gènes de croissance restent primed après désentraînement. Cumming 2024 : myonoyaux persistent après désentraînement + expression génique différentielle. Halonen 2024 : groupe entraînement périodique regagne ses pertes rapidement lors de la reprise. AJP-Cell 2023 : synergie myonoyaux + épigénétique documentée. Front Nutr 2025 : persistance de la mémoire et implications nutritionnelles. Petrella : satellites cells présentes dès le départ chez les anciens pratiquants.",
+   conclusion:"Ta base moléculaire de 3 ans d'entraînement existe encore. Tu ne repars pas de zéro — tu réveilles un système déjà formé. Mais cette mémoire fait aussi que tes muscles répondent vite à la charge avant que tes tendons aient eu le temps de se renforcer.",
+   verdict:"Avantage réel. Attention à l'écart force/tissus.",
+   refs:["Seaborne 2018 (Sci Rep)","Cumming 2024 (J Physiol)","Halonen 2024","AJP-Cell 2023","Front Nutr 2025","Petrella (J Appl Physiol)"]},
+  {id:"tendons",emoji:"🦵",titre:"Progression prudente & tendons",v:"ok",
+   prog:"45 % → 85 % sur 12 sem. Bas du corps : montée encore plus lente.",
+   sci:"Magnusson/Kjaer 2010 : adaptation structurelle du tendon plus lente que le muscle. Kjaer 2004 : rigidité tendineux mesurable seulement après 2–3 mois de charge soutenue. PMC4637912 : synthèse de collagène type I nécessite semaines à mois. Worthington 2026 : MPS rapide (heures) vs remodelage tendineux (mois) = fenêtre de vulnérabilité. PMC11282471 : collagen FSR augmente après exercice, mais adaptation structurelle est lente.",
+   conclusion:"L'asymétrie temporelle muscle/tendon est établie : la force revient vite (mémoire musculaire), mais le collagène tendineux n'a pas encore eu le temps de se renforcer. Ta progression conservatrice sur 12 semaines est une application directe et justifiée de ces données.",
+   verdict:"Logique parfaitement fondée scientifiquement.",
+   refs:["Magnusson/Kjaer 2010","Kjaer 2004 (J Appl Physiol)","PMC4637912","Worthington 2026","PMC11282471"]},
+  {id:"genou",emoji:"🩹",titre:"Modifications du genou droit",v:"warn",
+   prog:"Squat amplitude réduite, pas de squat lourd sur Lower, abduction de hanche incluse.",
+   sci:"JOSPT 2018 (méta 14 essais, 673 participants) : hanche + genou > genou seul pour douleur fémoro-patellaire. PMC4540887 : rotateurs + abducteurs + quadriceps > quadriceps isolé. PMC4518569 : renfort hanche améliore la cinématique du fémur sous la rotule. Méta HKS 2024 : résultats JOSPT 2018 confirmés sur corpus plus large. PMC12533450 (2025) : bénéfice clinique significatif dès 4–8 sem. Note : quadriceps lourd isolé sur genou faible peut irriter l'articulation.",
+   conclusion:"La cause racine est biomécanique : des rotateurs externes de hanche faibles laissent le fémur tourner en dedans à chaque flexion du genou. Tes exercices actuels (abduction, hip thrust) vont dans le bon sens. L'ajout de rotateurs externes ciblés complète le puzzle.",
+   verdict:"Ajoute clamshells et marche élastique aux exercices hanche.",
+   refs:["JOSPT 2018 (14 essais, 673 participants)","PMC4540887","PMC4518569","Méta HKS 2024","PMC12533450 (2025)","Nakagawa — combinaison hanche+genou"]},
+  {id:"multivit",emoji:"💊",titre:"Alpha-Men (multivitamine)",v:"bad",
+   prog:"Multivitamine Alpha-Men quotidienne avec un repas gras.",
+   sci:"Revue micronutriments 2023 (MDPI) : alimentation équilibrée suffit, bénéfice seulement en carence. Revue suppléments élite 2025 (46 RCTs) : créatine, caféine, protéines → oui ; multivitamines génériques → pas d'evidence. Vojdani 2017 : fortes doses vit. C/E synthèse peuvent atténuer les adaptations à l'entraînement. Sports Perf. Bulletin : vitamine D et fer sont les carences les plus courantes. Aragon 2017 (ISSN) : aliments entiers supérieurs aux suppléments en biodisponibilité. EFSA 2021 : dosages génériques inadaptés à la biologie individuelle.",
+   conclusion:"Avec un plan centré sur les aliments bruts, les multivitamines génériques n'apportent pas de bénéfice mesurable — et peuvent même perturber certaines adaptations. La seule exception documentée est la vitamine D. Approche optimale : bilan sanguin, puis supplémentation ciblée uniquement si carence confirmée.",
+   verdict:"Facultatif. Cible vitamine D après bilan sanguin.",
+   refs:["Revue micronutriments 2023 (MDPI)","Revue suppléments élite 2025","Vojdani 2017","Sports Perf. Bulletin","Aragon 2017 (ISSN)","EFSA 2021"]},
+];
+
+function ReviewSection(){
+  const[tab,setTab]=useState("synthese");
+  const[open,setOpen]=useState(null);
+  const counts={ok:reviewItems.filter(i=>i.v==="ok").length,warn:reviewItems.filter(i=>i.v==="warn").length,bad:reviewItems.filter(i=>i.v==="bad").length};
+  const tabs=[["synthese","Synthèse"],["analyse","🔬 Analyse"],["amelio","🎯 Actions"]];
+  return <div>
+    <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>
+      {tabs.map(([k,l])=><button key={k} onClick={()=>setTab(k)} style={{padding:"7px 13px",borderRadius:999,border:"none",cursor:"pointer",fontSize:12,fontWeight:700,whiteSpace:"nowrap",background:tab===k?C.blue:C.surfaceAlt,color:tab===k?"#fff":C.textMut}}>{l}</button>)}
+    </div>
+
+    {tab==="synthese"&&<div>
+      <div style={{background:C.surfaceAlt,border:`1px solid ${C.blue}22`,borderRadius:14,padding:14,marginBottom:14}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.blueLight,marginBottom:5}}>ℹ️ Méthode</div>
+        <div style={{fontSize:12,color:C.textMut,lineHeight:1.6}}>Repose sur des méta-analyses, revues systématiques et prises de position d'organismes scientifiques — le plus haut niveau de preuve. Chaque sujet est couvert par ≥5 études indépendantes.</div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}>
+        {[["ok",counts.ok,"Aligné","#10B981"],["warn",counts.warn,"À affiner","#F59E0B"],["bad",counts.bad,"À revoir","#EF4444"]].map(([k,n,lab,c])=><div key={k} style={{background:C.surface,borderTop:`3px solid ${c}`,borderRadius:12,padding:"12px 8px",textAlign:"center"}}><div style={{fontSize:24,fontWeight:800,color:c}}>{n}</div><div style={{fontSize:10,color:C.textMut,marginTop:2}}>{lab}</div></div>)}
+      </div>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,padding:14,marginBottom:12}}>
+        <div style={{fontSize:11,fontWeight:700,color:C.blueLight,marginBottom:10}}>Vue d'ensemble — {reviewItems.length} sujets analysés</div>
+        <div style={{display:"flex",height:12,borderRadius:6,overflow:"hidden",marginBottom:10}}>
+          <div style={{width:`${counts.ok/reviewItems.length*100}%`,background:"#10B981"}}/>
+          <div style={{width:`${counts.warn/reviewItems.length*100}%`,background:"#F59E0B"}}/>
+          <div style={{width:`${counts.bad/reviewItems.length*100}%`,background:"#EF4444"}}/>
+        </div>
+        <div style={{fontSize:12,color:C.textMut,lineHeight:1.6}}>La majorité est déjà <span style={{color:"#10B981",fontWeight:700}}>optimale</span>. Les ajustements sont des <span style={{color:"#F59E0B",fontWeight:700}}>affinages</span>. Un seul point <span style={{color:"#EF4444",fontWeight:700}}>à revoir</span> (Alpha-Men).</div>
+      </div>
+      <div style={{background:C.surface,border:`1px solid ${C.border}`,borderRadius:14,overflow:"hidden"}}>
+        {reviewItems.map((it,i)=><div key={it.id} onClick={()=>{setTab("analyse");setOpen(it.id);}} style={{display:"flex",alignItems:"center",gap:10,padding:"10px 14px",cursor:"pointer",borderBottom:i<reviewItems.length-1?`1px solid ${C.borderSoft}`:"none"}}>
+          <span style={{fontSize:15}}>{it.emoji}</span>
+          <span style={{flex:1,fontSize:12,color:C.text}}>{it.titre}</span>
+          <span style={{fontSize:10,fontWeight:700,color:RV[it.v].c}}>{RV[it.v].ic}</span>
+        </div>)}
+      </div>
+    </div>}
+
+    {tab==="analyse"&&<div>
+      {reviewItems.map(it=>{
+        const isOpen=open===it.id;
+        return <div key={it.id} style={{background:C.surface,border:`1px solid ${isOpen?RV[it.v].c+"55":C.border}`,borderRadius:14,marginBottom:10,overflow:"hidden"}}>
+          <div onClick={()=>setOpen(isOpen?null:it.id)} style={{display:"flex",alignItems:"center",gap:10,padding:13,cursor:"pointer"}}>
+            <span style={{fontSize:16}}>{it.emoji}</span>
+            <span style={{flex:1,fontSize:13,fontWeight:700}}>{it.titre}</span>
+            <span style={{fontSize:9,fontWeight:700,color:RV[it.v].c,background:RV[it.v].c+"1A",padding:"2px 7px",borderRadius:6}}>{RV[it.v].ic} {RV[it.v].lab}</span>
+            <span style={{color:C.textDim,fontSize:12}}>{isOpen?"▲":"▼"}</span>
+          </div>
+          {isOpen&&<div style={{padding:"0 13px 13px"}}>
+            <div style={{marginBottom:8}}>
+              <div style={{fontSize:8,fontWeight:700,color:C.textDim,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Ton programme</div>
+              <div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{it.prog}</div>
+            </div>
+            <div style={{marginBottom:8}}>
+              <div style={{fontSize:8,fontWeight:700,color:C.blueLight,textTransform:"uppercase",letterSpacing:.5,marginBottom:2}}>Ce que disent les études</div>
+              <div style={{fontSize:12,color:C.text,lineHeight:1.55}}>{it.sci}</div>
+            </div>
+            <div style={{background:`${C.blue}12`,border:`1px solid ${C.blue}33`,borderRadius:10,padding:"9px 11px",marginBottom:10}}>
+              <div style={{fontSize:8,fontWeight:700,color:C.blueLight,textTransform:"uppercase",letterSpacing:.5,marginBottom:4}}>📌 Conclusion de synthèse</div>
+              <div style={{fontSize:12.5,color:C.text,lineHeight:1.6,fontWeight:500}}>{it.conclusion}</div>
+            </div>
+            <div style={{background:RV[it.v].c+"12",borderLeft:`3px solid ${RV[it.v].c}`,borderRadius:"0 8px 8px 0",padding:"7px 11px",marginBottom:10}}>
+              <div style={{fontSize:12,color:C.text,fontWeight:600}}>{RV[it.v].ic} {it.verdict}</div>
+            </div>
+            <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+              {it.refs.map(r=><span key={r} style={{fontSize:9.5,color:C.textMut,background:C.surfaceAlt,border:`1px solid ${C.borderSoft}`,borderRadius:999,padding:"2px 8px"}}>{r}</span>)}
+            </div>
+          </div>}
+        </div>;
+      })}
+    </div>}
+
+    {tab==="amelio"&&<div>
+      <div style={{fontSize:12,color:C.textMut,marginBottom:12}}>Classées par impact. Les premières sont les plus rentables.</div>
+      {[
+        {n:1,t:"Repos 2–3 min sur les gros composés",d:"Squat, développé, rowing. Préserve le volume-charge sur les séries suivantes. Vérifie dans le suivi sport.",c:C.blue},
+        {n:2,t:"Renforcement hanche (genou droit)",d:"Ajoute clamshells + marche élastique aux exercices hanche existants. Levier #1 documenté pour le genou.",c:C.blue},
+        {n:3,t:"Vérifier ≥10 séries quad au jour Legs",d:"Le quadriceps est à 1×/sem. Concentre le volume suffisant sur cette seule séance.",c:C.blueLight},
+        {n:4,t:"Créatine 5 → 7–8 g/j",d:"Dose physiologiquement justifiée à 130 kg pour saturer la masse musculaire.",c:C.blueLight},
+        {n:5,t:"Shaker = praticité, pas fenêtre",d:"La fenêtre anabolique fait 4–6 h. Le total quotidien prime.",c:C.blueLight},
+        {n:6,t:"Alpha-Men → optionnel",d:"Cible vitamine D (± oméga-3) après bilan sanguin uniquement.",c:C.textMut},
+      ].map(a=><div key={a.n} style={{background:C.surface,border:`1px solid ${a.c}33`,borderRadius:14,padding:12,marginBottom:10,display:"flex",gap:10}}>
+        <div style={{width:26,height:26,borderRadius:7,background:a.c+"22",color:a.c,display:"flex",alignItems:"center",justifyContent:"center",fontWeight:800,fontSize:13,flexShrink:0}}>{a.n}</div>
+        <div><div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{a.t}</div><div style={{fontSize:11.5,color:C.textMut}}>{a.d}</div></div>
+      </div>)}
+      <div style={{background:"#0A1A12",border:"1px solid #10B98133",borderRadius:14,padding:12,marginTop:4}}>
+        <div style={{fontSize:11,fontWeight:700,color:"#10B981",marginBottom:5}}>✅ À conserver tel quel</div>
+        <div style={{fontSize:11.5,color:"#80C0A0",lineHeight:1.6}}>Protéines 1,9 g/kg · déficit ~15 % · recomposition · fréquence 2×/sem · distribution 7 repas · progression 45 %→85 %</div>
+      </div>
+    </div>}
+  </div>;
+}
+
+/* ═══ HOME SCREEN ═══ */
+function HomeScreen({goTo}){
+  const[sLogs,setSLogs]=useState([]);const[nLogs,setNLogs]=useState([]);const[bLogs,setBLogs]=useState([]);const[ok,setOk]=useState(false);
+  useEffect(()=>{Promise.all([load("sport-logs",[]),load("nutri-logs",[]),load("budget-logs",[])]).then(([s,n,b])=>{setSLogs(s);setNLogs(n);setBLogs(b);setOk(true);});},[]);
+  const lastW=sLogs.length?sLogs[sLogs.length-1]:null;const totalS=sLogs.length;
+  const wE=nLogs.filter(l=>l.weight).sort((a,b)=>a.dateISO.localeCompare(b.dateISO));
+  const latW=wE.length?wE[wE.length-1].weight:null;const fstW=wE.length?wE[0].weight:null;const diffW=latW&&fstW?(latW-fstW).toFixed(1):null;
+  const l7=nLogs.filter(l=>{const d=new Date(l.dateISO);const a=new Date();a.setDate(a.getDate()-7);return d>=a;});
+  const avgC=l7.length?Math.round(l7.reduce((a,l)=>a+l.compliance,0)/l7.length):null;
+  return <div>
+    <div style={{textAlign:"center",padding:"28px 20px 24px",background:`radial-gradient(ellipse at 50% 0%, ${C.amber}12 0%, transparent 70%)`,borderRadius:20,marginBottom:20}}>
+      <div style={{width:72,height:72,borderRadius:20,margin:"0 auto 14px",background:`linear-gradient(135deg, ${C.amber}33, ${C.green}33)`,border:`2px solid ${C.amber}44`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:36}}>💪</div>
+      <div style={{fontSize:32,fontWeight:900,letterSpacing:-1,marginBottom:4}}>RECOMP</div>
+      <div style={{fontSize:12,color:C.textMut,letterSpacing:3,textTransform:"uppercase"}}>Programme personnel</div>
+      <div style={{display:"inline-flex",gap:8,marginTop:14,padding:"6px 16px",background:C.surface,borderRadius:999,border:`1px solid ${C.border}`}}>
+        <span style={{fontSize:11,color:C.textMut}}>130 kg</span><span style={{fontSize:11,color:C.borderSoft}}>·</span><span style={{fontSize:11,color:C.textMut}}>Recomposition</span><span style={{fontSize:11,color:C.borderSoft}}>·</span><span style={{fontSize:11,color:C.textMut}}>5j/sem</span>
+      </div>
+    </div>
+    {ok&&(totalS>0||nLogs.length>0)&&<div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr 1fr",gap:8,marginBottom:20}}>
+      <Card style={{marginBottom:0,textAlign:"center",padding:"10px 6px"}}><div style={{fontSize:18,fontWeight:800,color:C.amberLight}}>{totalS}</div><div style={{fontSize:9,color:C.textDim}}>Séances</div></Card>
+      <Card style={{marginBottom:0,textAlign:"center",padding:"10px 6px"}}><div style={{fontSize:18,fontWeight:800,color:C.prot}}>{latW||"—"}</div><div style={{fontSize:9,color:C.textDim}}>Poids</div></Card>
+      <Card style={{marginBottom:0,textAlign:"center",padding:"10px 6px"}}><div style={{fontSize:18,fontWeight:800,color:diffW&&parseFloat(diffW)<0?C.green:diffW?C.gluc:C.textDim}}>{diffW?(parseFloat(diffW)>0?"+":"")+diffW:"—"}</div><div style={{fontSize:9,color:C.textDim}}>Évol.</div></Card>
+      <Card style={{marginBottom:0,textAlign:"center",padding:"10px 6px"}}><div style={{fontSize:18,fontWeight:800,color:avgC!==null?(avgC>=80?C.green:avgC>=50?C.gluc:C.danger):C.textDim}}>{avgC!==null?avgC+"%":"—"}</div><div style={{fontSize:9,color:C.textDim}}>Nutri 7j</div></Card>
+    </div>}
+    {/* Sport card */}
+    <div onClick={()=>goTo("sport")} style={{background:`linear-gradient(135deg, ${C.surface} 0%, #1A1608 100%)`,border:`1px solid ${C.amber}33`,borderRadius:20,padding:18,marginBottom:12,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-20,right:-20,fontSize:80,opacity:.06}}>🏋️</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${C.amber}22, ${C.amber}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🏋️</div><div><div style={{fontSize:16,fontWeight:800}}>Programme Sport</div><div style={{fontSize:10,color:C.textMut}}>Maison + Salle · PPL Upper Lower</div></div></div>
+      {lastW&&<div style={{fontSize:10,color:C.textMut}}>Dernière séance : <span style={{color:C.amberLight,fontWeight:700}}>{salleSeances.find(s=>s.id===lastW.seance)?.emoji} {lastW.seance}</span> — {lastW.date}</div>}
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:10,fontSize:12,fontWeight:700,color:C.amber}}>Accéder →</div>
+    </div>
+    {/* Nutrition card */}
+    <div onClick={()=>goTo("nutrition")} style={{background:`linear-gradient(135deg, ${C.surface} 0%, #08160E 100%)`,border:`1px solid ${C.green}33`,borderRadius:20,padding:18,marginBottom:12,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-20,right:-20,fontSize:80,opacity:.06}}>🥗</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${C.green}22, ${C.green}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🥗</div><div><div style={{fontSize:16,fontWeight:800}}>Programme Nutrition</div><div style={{fontSize:10,color:C.textMut}}>2750 kcal · 250P / 240G / 88L</div></div></div>
+      {avgC!==null&&<div style={{fontSize:10,color:C.textMut}}>Compliance 7j : <span style={{color:C.greenLight,fontWeight:700}}>{avgC}%</span>{latW&&<span style={{marginLeft:10}}>Poids : <span style={{color:C.prot,fontWeight:700}}>{latW} kg</span></span>}</div>}
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:10,fontSize:12,fontWeight:700,color:C.green}}>Accéder →</div>
+    </div>
+    {/* Budget card */}
+    <div onClick={()=>goTo("budget")} style={{background:`linear-gradient(135deg, ${C.surface} 0%, #120E1A 100%)`,border:`1px solid ${C.budget}33`,borderRadius:20,padding:18,marginBottom:12,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-20,right:-20,fontSize:80,opacity:.06}}>💰</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${C.budget}22, ${C.budget}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>💰</div><div><div style={{fontSize:16,fontWeight:800}}>Budget Courses</div><div style={{fontSize:10,color:C.textMut}}>~{TOTAL_SEM} €/sem · alternatives à {TOTAL_SEM_B} €</div></div></div>
+      {bLogs.length>0&&<div style={{fontSize:10,color:C.textMut}}>{bLogs.length} achats enregistrés</div>}
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:10,fontSize:12,fontWeight:700,color:C.budget}}>Accéder →</div>
+    </div>
+    {/* Review card */}
+    <div onClick={()=>goTo("review")} style={{background:`linear-gradient(135deg, ${C.surface} 0%, #090E18 100%)`,border:`1px solid ${C.blue}33`,borderRadius:20,padding:18,marginBottom:12,cursor:"pointer",position:"relative",overflow:"hidden"}}>
+      <div style={{position:"absolute",top:-20,right:-20,fontSize:80,opacity:.06}}>🔬</div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${C.blue}22, ${C.blue}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🔬</div><div><div style={{fontSize:16,fontWeight:800}}>Revue Scientifique</div><div style={{fontSize:10,color:C.textMut}}>12 sujets · 40+ études · méta-analyses</div></div></div>
+      <div style={{display:"flex",gap:6,marginBottom:6,flexWrap:"wrap"}}>{[["✅",reviewItems.filter(i=>i.v==="ok").length,"#10B981"],["🟡",reviewItems.filter(i=>i.v==="warn").length,"#F59E0B"],["🔴",reviewItems.filter(i=>i.v==="bad").length,"#EF4444"]].map(([ic,n,c])=><span key={ic} style={{fontSize:10,color:c,background:c+"15",padding:"2px 8px",borderRadius:999}}>{ic} {n}</span>)}</div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginTop:6,fontSize:12,fontWeight:700,color:C.blue}}>Accéder →</div>
+    </div>
+    <Card style={{marginTop:6}}><div style={{fontSize:12,fontWeight:700,color:C.textMut,marginBottom:8}}>⏰ Planning matin</div><div style={{display:"grid",gridTemplateColumns:"auto 1fr",gap:"4px 12px",fontSize:12}}>{[["6h45","Réveil + créatine"],["6h50","Banane"],["7h15","Séance"],["8h20","Shaker whey"],["9h00","Petit-déj labo"]].map(([h,t])=><><span key={h+"h"} style={{color:C.amberLight,fontWeight:700}}>{h}</span><span key={h+"t"} style={{color:C.textDim}}>{t}</span></>)}</div></Card>
+  </div>;
+}
+
+/* ═══ APP ═══ */
+function App(){
+  const[section,setSection]=useState("home");
+  const hdr={home:{c:C.amber,i:"💪",l:"ACCUEIL"},sport:{c:C.amber,i:"🏋️",l:"PROGRAMME SPORT"},nutrition:{c:C.green,i:"🥗",l:"PROGRAMME NUTRITION"},budget:{c:C.budget,i:"💰",l:"BUDGET COURSES"},review:{c:C.blue,i:"🔬",l:"REVUE SCIENTIFIQUE"}};
+  return <div style={{background:C.bg,color:C.text,minHeight:"100vh",fontFamily:"'Inter', system-ui, sans-serif",display:"flex",flexDirection:"column"}}>
+    {section!=="home"&&<div style={{padding:"16px 16px 0",display:"flex",alignItems:"center",gap:12}}>
+      <div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${hdr[section].c}22, ${hdr[section].c}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>{hdr[section].i}</div>
+      <div><div style={{fontSize:20,fontWeight:800,letterSpacing:-.5}}>RECOMP</div><div style={{fontSize:11,color:C.textMut,letterSpacing:1}}>{hdr[section].l}</div></div>
+    </div>}
+    <div style={{flex:1,padding:"14px 14px 90px",overflowY:"auto"}}>
+      {section==="home"&&<HomeScreen goTo={setSection}/>}
+      {section==="sport"&&<SportSection/>}
+      {section==="nutrition"&&<NutritionSection/>}
+      {section==="budget"&&<BudgetSection/>}
+      {section==="review"&&<ReviewSection/>}
+    </div>
+    <div style={{position:"fixed",bottom:0,left:0,right:0,background:`${C.bg}F2`,backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",borderTop:`1px solid ${C.border}`,display:"flex",justifyContent:"center",padding:"0 0 env(safe-area-inset-bottom, 8px)"}}>
+      {[["home","🏠","Accueil",C.text],["sport","🏋️","Sport",C.amber],["nutrition","🥗","Nutri",C.green],["budget","💰","Budget",C.budget],["review","🔬","Science",C.blue]].map(([id,icon,label,color])=><button key={id} onClick={()=>setSection(id)} style={{flex:1,maxWidth:90,display:"flex",flexDirection:"column",alignItems:"center",gap:2,padding:"10px 0 8px",border:"none",cursor:"pointer",background:"transparent",position:"relative"}}>
+        {section===id&&<div style={{position:"absolute",top:-1,width:40,height:3,borderRadius:"0 0 4px 4px",background:color,boxShadow:`0 0 12px ${color}88`}}/>}
+        <span style={{fontSize:20,filter:section===id?"none":"grayscale(1) opacity(0.4)"}}>{icon}</span>
+        <span style={{fontSize:9,fontWeight:700,letterSpacing:.5,color:section===id?color:C.textDim}}>{label}</span>
+      </button>)}
+    </div>
+  </div>;
+}
+
+/* ===================================================== */
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('/sw.js')
+      .then(r=>console.log('SW registered:', r.scope))
+      .catch(e=>console.log('SW error:', e));
+  });
+}
+</script>
+</body>
+</html>
