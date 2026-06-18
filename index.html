@@ -22,37 +22,17 @@ input,button,select,textarea{font-family:inherit}
 </head>
 <body>
 <div id="root"><div id="boot"><div class="icon">💪</div><div>Chargement…</div></div></div>
-
-<!-- CDN dans l'ordre, synchrones : chacun attend que le précédent soit prêt -->
 <script src="https://cdn.jsdelivr.net/npm/react@18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/prop-types@15.8.1/prop-types.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/recharts@2.12.7/umd/Recharts.min.js"></script>
-
-<!-- Stockage : localStorage du navigateur -->
 <script>
-window.storage=(function(){
-  var mem={};
-  function ls(){try{return localStorage;}catch(e){return null;}}
-  return{
-    get:function(k){return Promise.resolve().then(function(){var s=ls(),v=s&&s.getItem(k);return v==null?null:{value:v};});},
-    set:function(k,v){return Promise.resolve().then(function(){var s=ls();if(s)try{s.setItem(k,v);}catch(e){mem[k]=v;}else mem[k]=v;});},
-    delete:function(k){return Promise.resolve().then(function(){var s=ls();if(s)try{s.removeItem(k);}catch(e){delete mem[k];}else delete mem[k];});}
-  };
-})();
+window.storage=(function(){var mem={};function ls(){try{return localStorage;}catch(e){return null;}}return{get:function(k){return Promise.resolve().then(function(){var s=ls(),v=s&&s.getItem(k);return v==null?null:{value:v};});},set:function(k,v){return Promise.resolve().then(function(){var s=ls();if(s)try{s.setItem(k,v);}catch(e){mem[k]=v;}else mem[k]=v;});},delete:function(k){return Promise.resolve().then(function(){var s=ls();if(s)try{s.removeItem(k);}catch(e){delete mem[k];}else delete mem[k];});}};})();
 </script>
-
-<!-- Globals React/Recharts -->
 <script>
 var useState=React.useState,useEffect=React.useEffect,useCallback=React.useCallback;
-var LineChart=Recharts.LineChart,Line=Recharts.Line,XAxis=Recharts.XAxis,
-    YAxis=Recharts.YAxis,Tooltip=Recharts.Tooltip,
-    ResponsiveContainer=Recharts.ResponsiveContainer,
-    BarChart=Recharts.BarChart,Bar=Recharts.Bar,
-    CartesianGrid=Recharts.CartesianGrid;
+var LineChart=Recharts.LineChart,Line=Recharts.Line,XAxis=Recharts.XAxis,YAxis=Recharts.YAxis,Tooltip=Recharts.Tooltip,ResponsiveContainer=Recharts.ResponsiveContainer,BarChart=Recharts.BarChart,Bar=Recharts.Bar,CartesianGrid=Recharts.CartesianGrid;
 </script>
-
-<!-- App RECOMP pré-compilée -->
 <script>
 "use strict";
 const C = {
@@ -1015,7 +995,7 @@ function HomeScreen({ goTo }) {
 function App() {
     const [section, setSection] = useState("home");
     const hdr = { home: { c: C.amber, i: "💪", l: "ACCUEIL" }, sport: { c: C.amber, i: "🏋️", l: "PROGRAMME SPORT" }, nutrition: { c: C.green, i: "🥗", l: "PROGRAMME NUTRITION" }, budget: { c: C.budget, i: "💰", l: "BUDGET COURSES" }, review: { c: C.blue, i: "🔬", l: "REVUE SCIENTIFIQUE" } };
-    return React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column" } },
+    return React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top, 0px)" } },
         section !== "home" && React.createElement("div", { style: { padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 } },
             React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${hdr[section].c}22, ${hdr[section].c}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 } }, hdr[section].i),
             React.createElement("div", null,
@@ -1035,11 +1015,6 @@ function App() {
 
 ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
 </script>
-
-<script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});
-}
-</script>
+<script>if('serviceWorker' in navigator){window.addEventListener('load',function(){navigator.serviceWorker.register('/sw.js').catch(function(){});});}</script>
 </body>
 </html>
