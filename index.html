@@ -10,9 +10,7 @@
 <meta name="theme-color" content="#060806">
 <title>RECOMP</title>
 <style>
-  html,body{margin:0;padding:0;background:#060806;color:#E8EDE8;
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;background:#060806;color:#E8EDE8;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;}
   *{box-sizing:border-box;}
   #root{min-height:100vh;}
   #loading{padding:60px 24px;text-align:center;color:#9AA59A;font-size:14px;}
@@ -22,12 +20,9 @@
 <body>
 <div id="root"><div id="loading">Chargement de RECOMP…</div></div>
 <div id="fallback">⚠️ Impossible de charger l'application.<br>Vérifie ta connexion (React + Babel se chargent depuis un CDN au 1er lancement), puis recharge.</div>
-
-<!-- React + Babel via CDN (le code JSX ci-dessous reste lisible et modifiable) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js" crossorigin onerror="document.getElementById('fallback').style.display='block'"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js" crossorigin onerror="document.getElementById('fallback').style.display='block'"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js" crossorigin onerror="document.getElementById('fallback').style.display='block'"></script>
-
 <!-- ========== TON APPLICATION (JSX modifiable directement ici) ========== -->
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useCallback, useRef, useMemo, Fragment } = React;
@@ -57,10 +52,10 @@ const profil=[{l:"Poids",v:"130 kg",s:"départ"},{l:"Objectif",v:"Recompo",s:"gr
 const regles=["Genou droit : ne jamais dépasser la pointe du pied.","Zéro saut les 4 premières semaines.","Douleur piquante = arrêt immédiat.","Bas du corps : progression plus lente (genou + pied droit).","Hydratation +++ et 7-8 h de sommeil."];
 const echauffement=["Marche sur place — 2 min","Rotations épaules — 20/sens","Rotations bassin — 15/sens","Cat-cow — 10 reps","Cercles chevilles — 15/pied"];
 const maison=[
-  {code:"A",jour:"Lundi",titre:"Bas du corps + cardio",format:"3 tours · 60-90s",ex:["Squat sur chaise — 12","Pont fessier — 15 (2s tenue)","Step-up lent — 8/jambe","Marche rapide — 60s","Wall sit — 20-30s","Shadow boxing — 60s"]},
-  {code:"B",jour:"Mercredi",titre:"Haut du corps + gainage",format:"3 tours · 60-90s",ex:["Pompes inclinées — 8-12","Rowing serviette — 12","Pompes diamant — 6-8","Planche genoux — 20-30s","Dead bug — 8/côté","Bird dog — 8/côté"]},
-  {code:"C",jour:"Vendredi",titre:"Cardio full body",format:"4 tours · 45s/30s",ex:["Marche genoux hauts","Pompes inclinées","Squat chaise","Shadow boxing","Gainage genoux","Step-touch"],note:"FC: parler oui, chanter non."},
-  {code:"D",jour:"Samedi",titre:"Full body force",format:"4 tours · 75s",ex:["Squat bulgare — 6/j","Pompes — 10-12","Hip thrust — 12","Planche — 30-40s","Superman — 10","Dips chaise — 8-10"]},
+  {code:"A",jour:"Lundi",titre:"Bas du corps + cardio",format:"3 circuits · repos 60-90 s entre tours",ex:["Squat sur chaise — 12","Pont fessier — 15 (2s tenue)","Step-up lent — 8/jambe","Marche rapide — 60s","Wall sit — 20-30s","Shadow boxing — 60s"]},
+  {code:"B",jour:"Mercredi",titre:"Haut du corps + gainage",format:"3 circuits · repos 60-90 s entre tours",ex:["Pompes inclinées — 8-12","Rowing serviette — 12","Pompes diamant — 6-8","Planche genoux — 20-30s","Dead bug — 8/côté","Bird dog — 8/côté"]},
+  {code:"C",jour:"Vendredi",titre:"Cardio full body",format:"4 circuits · 45 s effort / 30 s repos par exercice",ex:["Marche genoux hauts — continu · RPE 5-7","Pompes inclinées — 12-20 · RPE 8","Squat chaise — 15-25 · RPE 7-8","Shadow boxing — continu · RPE 6-7","Gainage genoux — tenir 45s (iso)","Step-touch — continu · RPE 5-6"],note:"FC: parler oui, chanter non. Circuit chronométré : vise le tempo/RPE, pas un chiffre exact de reps."},
+  {code:"D",jour:"Samedi",titre:"Full body force",format:"4 circuits · repos 75 s entre tours",ex:["Squat bulgare — 6/j","Pompes — 10-12","Hip thrust — 12","Planche — 30-40s","Superman — 10","Dips chaise — 8-10"]},
 ];
 const etirements=["Ischios assis","Quadriceps debout","Fente basse","Mollet mur (priorité droite)","Posture enfant","Torsion allongée","Cercles chevilles (pied droit)"];
 const phases=[{ph:"Phase 1",sem:"S1-S3",pct:"45-55%",but:"Réadaptation",c:"#818CF8"},{ph:"Phase 2",sem:"S4-S6",pct:"55-65%",but:"Construction",c:C.blue},{ph:"Phase 3",sem:"S7-S9",pct:"65-75%",but:"Charges sérieuses",c:C.amber},{ph:"Phase 4",sem:"S10-S12",pct:"75-85%",but:"80% des max",c:C.green}];
@@ -638,6 +633,7 @@ function SportSection(){
       <div style={{display:"flex",gap:5,marginBottom:10,flexWrap:"wrap"}}>{phases.map((p,i)=><button key={i} onClick={()=>setActP(i)} style={{padding:"5px 10px",borderRadius:999,border:`2px solid ${actP===i?p.c:"transparent"}`,cursor:"pointer",fontSize:10,fontWeight:700,background:actP===i?p.c+"22":C.surfaceAlt,color:actP===i?p.c:C.textDim}}>{p.sem}</button>)}</div>
       <div style={{background:C.surfaceAlt,border:`1px solid ${phases[actP].c}44`,borderRadius:10,padding:"6px 12px",marginBottom:12,fontSize:11,color:phases[actP].c,fontWeight:700}}>{phases[actP].ph} — {phases[actP].pct} — {phases[actP].but}</div>
       <div style={{display:"flex",gap:5,marginBottom:14,overflowX:"auto"}}>{salleSeances.map(s=><button key={s.id} onClick={()=>setActS(s.id)} style={{padding:"7px 12px",borderRadius:999,border:`2px solid ${actS===s.id?s.couleur:"transparent"}`,cursor:"pointer",fontSize:11,fontWeight:700,whiteSpace:"nowrap",background:actS===s.id?s.couleur+"22":C.surfaceAlt,color:actS===s.id?s.couleur:C.textMut}}>{s.emoji} {s.id}</button>)}</div>
+      <div style={{background:C.surfaceAlt,border:`1px solid ${C.borderSoft}`,borderRadius:10,padding:"8px 12px",marginBottom:12,fontSize:10.5,color:C.textMut,lineHeight:1.5}}>📖 <b style={{color:C.amberLight}}>4×8-10</b> = 4 séries de 8 à 10 répétitions · <b style={{color:C.text}}>/j</b> = par jambe · <b style={{color:C.text}}>/côté</b> = par côté · <b style={{color:C.text}}>s</b> = secondes. Le poids affiché = charge cible pour la phase choisie ci-dessus. Repos <b style={{color:C.text}}>~90-180 s</b> entre séries (plus long sur les gros mouvements : squat, DC, hip thrust).<div style={{marginTop:6,paddingTop:6,borderTop:`1px solid ${C.borderSoft}`}}><b style={{color:C.amberLight}}>Abréviations</b> — DC : développé couché · DI : développé incliné · DM : développé militaire · RDL : soulevé de terre roumain (ischios/fessiers).</div></div>
       <Card border={se.couleur+"33"}><div style={{display:"flex",justifyContent:"space-between",marginBottom:2}}><div style={{fontSize:16,fontWeight:800}}>{se.emoji} {se.id}</div><div style={{fontSize:11,color:se.couleur,fontWeight:700}}>{se.jour}</div></div><div style={{fontSize:11,color:C.textMut,marginBottom:14}}>{se.focus}</div>
         {se.exercices.map((ex,i)=>{const sciKey=se.id+":"+ex.nom;const sciW=sciCfg?.weightOverrides?.[sciKey];return <div key={i} style={{padding:"10px 0",borderTop:i?`1px solid ${C.borderSoft}`:"none"}}><div style={{display:"flex",justifyContent:"space-between",marginBottom:3}}><div style={{display:"flex",gap:8,alignItems:"baseline"}}><span style={{color:se.couleur,fontWeight:800,fontSize:11}}>{String(i+1).padStart(2,"0")}</span><span style={{fontSize:13,fontWeight:700}}>{ex.nom}</span></div><span style={{fontSize:11,color:C.amberLight,fontWeight:700}}>{ex.detail}</span></div><div style={{display:"flex",alignItems:"center",gap:6,marginLeft:19,marginTop:3,flexWrap:"wrap"}}><span style={{fontSize:10,fontWeight:700,color:phases[actP].c,background:phases[actP].c+"18",padding:"2px 7px",borderRadius:5}}>{phases[actP].sem}</span><span style={{fontSize:12,fontWeight:700}}>{sciCfg?.deload?Math.round(parseFloat(ex.charges[actP])*0.6*2)/2+"kg":ex.charges[actP]}</span>{sciW&&!sciCfg?.deload&&<span style={{fontSize:10,fontWeight:800,color:C.blue,background:C.blue+"18",padding:"2px 8px",borderRadius:5}}>🔬 {sciW}kg</span>}{sciCfg?.deload&&<span style={{fontSize:10,color:"#818CF8",background:"#818CF815",padding:"2px 7px",borderRadius:5}}>🔄 Décharge</span>}</div><div style={{display:"flex",gap:10,marginLeft:19,marginTop:4,flexWrap:"wrap"}}>{ex.charges.map((ch,pi)=>pi!==actP&&<span key={pi} style={{fontSize:10,color:C.textDim}}>{phases[pi].sem}: {ch}</span>)}</div>{ex.note&&<div style={{marginLeft:19,marginTop:4,fontSize:10.5,color:C.textMut,fontStyle:"italic"}}>⚠ {ex.note}</div>}</div>;})}
       </Card>
