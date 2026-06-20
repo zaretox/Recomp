@@ -303,6 +303,30 @@ function avgRPE(exs){const v=exs.filter(e=>e.rpe>0).map(e=>e.rpe);return v.lengt
 const painZones=["Genou droit","Pied droit","Épaule","Bas du dos","Poignet","Coude","Hanche","Autre"];
 const substitutions={"Squat barre":["Presse à cuisses (amplitude contrôlée)","Goblet squat sur box","Hack squat guidé"],"Leg press":["Presse unilatérale légère","Extension quadriceps","Hip thrust"],"Fente marchée":["Fente statique amplitude réduite","Step-up bas","Leg curl"],"Mollets debout":["Mollets assis","Mollets à la presse (léger)"],"Mollets assis":["Mollets debout (léger)","Extensions mollets au poids du corps"],"Abduction hanche":["Abduction au sol (élastique)","Clamshell","Pont fessier"],"Squat bulgare":["Fente arrière amplitude réduite","Step-up bas","Hip thrust"]};
 
+function deloadAdvice(logs){
+  if(!logs||!logs.length)return {level:"none",canAssess:false,reasons:[],info:"Pas encore de séances enregistrées."};
+  const asc=[...logs].sort((a,b)=>a.dateISO.localeCompare(b.dateISO));
+  const nonD=asc.filter(l=>!l.deload);
+  if(nonD.length<4)return {level:"none",canAssess:false,reasons:[],info:"Enregistre au moins 4 séances (hors décharge) pour activer l'analyse."};
+  const flags=[];const today=new Date();
+  const lastDeload=[...asc].reverse().find(l=>l.deload);
+  const refDate=lastDeload?new Date(lastDeload.dateISO+"T12:00:00"):new Date(asc[0].dateISO+"T12:00:00");
+  const weeksSince=Math.round((today-refDate)/(7*86400000)*10)/10;
+  if(weeksSince>=6)flags.push("≈ "+Math.round(weeksSince)+" sem. sans décharge");
+  const recent=nonD.slice(-3);
+  const sessRPE=recent.map(l=>{const v=(l.exercices||[]).filter(e=>e.rpe>0).map(e=>e.rpe);return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;}).filter(x=>x!=null);
+  const recentRPE=sessRPE.length?Math.round(sessRPE.reduce((a,b)=>a+b,0)/sessRPE.length*10)/10:null;
+  if(recentRPE!=null&&recentRPE>=9)flags.push("RPE moyen "+recentRPE+"/10 (très élevé)");
+  const vol=l=>(l.exercices||[]).reduce((a,e)=>a+(e.weight||0)*(e.reps||0)*(e.sets||0),0);
+  const bySeance={};nonD.forEach(l=>{(bySeance[l.seance]=bySeance[l.seance]||[]).push(l);});
+  let regress=0,assessed=0;
+  Object.values(bySeance).forEach(arr=>{if(arr.length>=2){assessed++;const last=vol(arr[arr.length-1]),prev=vol(arr[arr.length-2]);if(last>0&&prev>0&&last<prev*0.97)regress++;}});
+  if(assessed>=2&&regress>=2)flags.push("volume en baisse sur "+regress+" types de séance");
+  let level=flags.length>=2?"deload":flags.length===1?"watch":"ok";
+  if(weeksSince>=8)level="deload";
+  return {level,canAssess:true,reasons:flags,weeksSince,recentRPE};
+}
+
 function SuiviSport(){
   const[logs,setLogs]=useState([]);const[loading,setLoading]=useState(true);const[sel,setSel]=useState("Push");const[form,setForm]=useState({});
   const[chartSel,setChartSel]=useState("Push");const[mode,setMode]=useState("log");const[saving,setSaving]=useState(false);const[selDate,setSelDate]=useState(isoToday());
@@ -319,11 +343,15 @@ function SuiviSport(){
   const seanceInfo=salleSeances.find(s=>s.id===chartSel)||salleSeances[0];
   const chartData=logs.filter(l=>l.seance===chartSel).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>({date:l.date,vol:l.exercices.reduce((a,e)=>a+e.weight*e.reps*e.sets,0),charge:Math.max(...l.exercices.map(e=>e.weight||0))}));
   const prevLog=useMemo(()=>prevSessionFor(logs,sel,selDate),[logs,sel,selDate]);
+  const advice=useMemo(()=>deloadAdvice(logs),[logs]);
   const effExo=seanceInfo.exercices.find(e=>e.nom===chartExo)?chartExo:(seanceInfo.exercices[0]?.nom||"");
   const rmData=logs.filter(l=>l.seance===chartSel).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>{const ex=l.exercices.find(e=>e.nom===effExo);return {date:l.date,rm:ex?epley1RM(ex.weight,ex.reps):0};}).filter(d=>d.rm>0);
   const prefillTargets=()=>{setForm(p=>{const n={...p};se.exercices.forEach((ex,i)=>{const cur=n[i]||{};const t=parseTargetKg(ex.charges[selPhase]);const d=parseDetail(ex.detail);n[i]={...cur,weight:cur.weight||(t!=null?String(t):""),sets:cur.sets||(d?String(d.sets):""),reps:cur.reps||(d?String(d.reps):"")};});return n;});};
   if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
   return <div>
+    {advice.level==="none"
+      ? <Card border={C.border}><div style={{fontSize:11,color:C.textMut}}>⚪ <b style={{color:C.text}}>Analyse de décharge</b> — {advice.info}</div></Card>
+      : (()=>{const cfg={ok:{c:C.green,e:"🟢",t:"Pas de décharge nécessaire",s:"Tes indicateurs sont bons — continue la progression."},watch:{c:C.gluc,e:"🟠",t:"Vigilance — léger signe de fatigue",s:"Pas indispensable, mais surveille les prochaines séances."},deload:{c:"#818CF8",e:"🪶",t:"Semaine de décharge recommandée",s:"Réduis les charges ~40-50 % pendant une semaine, en gardant le volume."}}[advice.level];return <Card border={cfg.c} style={{background:`linear-gradient(135deg,${cfg.c}1A,${C.surface})`}}><div style={{fontSize:13,fontWeight:800,color:cfg.c}}>{cfg.e} {cfg.t}</div><div style={{fontSize:11,color:C.textMut,marginTop:3}}>{cfg.s}</div>{advice.reasons.length>0&&<div style={{marginTop:7,display:"flex",flexWrap:"wrap",gap:5}}>{advice.reasons.map((r,i)=><span key={i} style={{fontSize:10,fontWeight:700,background:cfg.c+"22",color:cfg.c,borderRadius:6,padding:"3px 8px"}}>{r}</span>)}</div>}{advice.level==="deload"&&<div style={{fontSize:10,color:C.textDim,marginTop:7}}>👉 Active le 🪶 « Semaine de décharge » dans le Log. Une gêne au genou/pied est aussi une raison valable de décharger.</div>}</Card>;})()}
     <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>{[["log","📝 Log"],["history","📋 Historique"],["charts","📈 Graphiques"]].map(([k,l])=><Pill key={k} active={mode===k} onClick={()=>setMode(k)} color={C.amber}>{l}</Pill>)}</div>
     {pr.length>0&&<Card border={C.amber} style={{background:`linear-gradient(135deg,${C.amber}22,${C.surface})`,boxShadow:`0 0 0 1px ${C.amber}55`}}><div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",gap:8}}><div><div style={{fontSize:13,fontWeight:800,color:C.amberLight}}>🏆 Nouveau{pr.length>1?"x":""} record{pr.length>1?"s":""} !</div><div style={{fontSize:11,color:C.text,marginTop:3}}>{pr.map(p=>p.nom+" — "+p.weight+"kg").join(" · ")}</div></div><button onClick={()=>setPr([])} style={{background:"none",border:"none",color:C.textMut,cursor:"pointer",fontSize:15,lineHeight:1}}>✕</button></div></Card>}
     {mode==="log"&&<div>
@@ -680,14 +708,80 @@ function NutritionSection(){
 }
 
 /* ═══ BUDGET SECTION ═══ */
+/* ═══ FINANCES PERSO ═══ */
+const finCats=[{k:"Logement",e:"🏠"},{k:"Courses",e:"🛒"},{k:"Transport",e:"🚗"},{k:"Sorties",e:"🍽️"},{k:"Loisirs",e:"🎮"},{k:"Santé",e:"💊"},{k:"Abonnements",e:"📺"},{k:"Sport",e:"🏋️"},{k:"Vêtements",e:"👕"},{k:"Autre",e:"📦"}];
+const finColors=["#8B5CF6","#A78BFA","#22C55E","#F59E0B","#EF4444","#3B82F6","#EC4899","#14B8A6","#F97316","#9CA3AF"];
+function ymOf(iso){return String(iso||"").slice(0,7);}
+function prevYm(ym){const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1,1);d.setMonth(d.getMonth()-1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
+function nextYm(ym){const[y,m]=ym.split("-").map(Number);const d=new Date(y,m-1,1);d.setMonth(d.getMonth()+1);return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0");}
+function ymLabel(ym){const[y,m]=ym.split("-");return ["janv.","févr.","mars","avr.","mai","juin","juil.","août","sept.","oct.","nov.","déc."][+m-1]+" "+y;}
+function sumMonth(entries,ym){return Math.round(entries.filter(e=>ymOf(e.dateISO)===ym).reduce((a,e)=>a+(+e.montant||0),0)*100)/100;}
+function catBreakdown(expenses,ym){const m={};expenses.filter(e=>ymOf(e.dateISO)===ym).forEach(e=>{m[e.cat]=(m[e.cat]||0)+(+e.montant||0);});return m;}
+function savingsRate(income,exp){if(income<=0)return null;return Math.round((income-exp)/income*1000)/10;}
+function pctChange(cur,prev){if(prev<=0)return null;return Math.round((cur-prev)/prev*1000)/10;}
+function topCat(bd){let k=null,v=-1;for(const c in bd){if(bd[c]>v){v=bd[c];k=c;}}return k?{cat:k,montant:Math.round(v*100)/100}:null;}
+
+function FinancePerso(){
+  const[inc,setInc]=useState([]);const[exp,setExp]=useState([]);const[caps,setCaps]=useState({});const[goal,setGoal]=useState("");const[loading,setLoading]=useState(true);
+  const[mode,setMode]=useState("saisie");const[ym,setYm]=useState(isoToday().slice(0,7));
+  const[type,setType]=useState("dep");const[montant,setMontant]=useState("");const[cat,setCat]=useState("Courses");const[label,setLabel]=useState("");const[dateISO,setDateISO]=useState(isoToday());const[saving,setSaving]=useState(false);
+  useEffect(()=>{Promise.all([load("fin-income",[]),load("fin-expenses",[]),load("fin-caps",{}),load("fin-goal","")]).then(([i,e,c,g])=>{setInc(i||[]);setExp(e||[]);setCaps(c||{});setGoal((g||g===0)?String(g):"");setLoading(false);});},[]);
+  const addEntry=async()=>{const m=parseFloat(montant);if(!m||m<=0)return;setSaving(true);if(type==="rev"){const e={id:Date.now(),dateISO,montant:m,source:label.trim()||"Revenu"};const u=[...inc,e];await save("fin-income",u);setInc(u);}else{const e={id:Date.now(),dateISO,montant:m,cat,label:label.trim()};const u=[...exp,e];await save("fin-expenses",u);setExp(u);}setMontant("");setLabel("");setSaving(false);};
+  const delInc=async id=>{const u=inc.filter(x=>x.id!==id);await save("fin-income",u);setInc(u);};
+  const delExp=async id=>{const u=exp.filter(x=>x.id!==id);await save("fin-expenses",u);setExp(u);};
+  const setCap=async(c,v)=>{const u={...caps,[c]:v};setCaps(u);await save("fin-caps",u);};
+  const saveGoal=async v=>{setGoal(v);await save("fin-goal",parseFloat(v)||0);};
+  const rev=sumMonth(inc,ym),dep=sumMonth(exp,ym),solde=Math.round((rev-dep)*100)/100;
+  const bd=catBreakdown(exp,ym),rate=savingsRate(rev,dep),goalN=parseFloat(goal)||0,prevDep=sumMonth(exp,prevYm(ym)),change=pctChange(dep,prevDep),top=topCat(bd);
+  const overCaps=finCats.filter(c=>caps[c.k]>0&&(bd[c.k]||0)>caps[c.k]);
+  const recent=[...inc.map(e=>({...e,_t:"rev"})),...exp.map(e=>({...e,_t:"dep"}))].sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).slice(0,20);
+  const B=C.budget,navBtn={width:34,height:34,borderRadius:9,border:`1px solid ${C.border}`,background:C.surfaceAlt,color:C.text,fontSize:18,cursor:"pointer"};
+  if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
+  return <div>
+    <div style={{display:"flex",gap:6,marginBottom:14,flexWrap:"wrap"}}>{[["saisie","✍️ Saisie"],["mois","📅 Mois"],["analyse","📈 Analyse"]].map(([k,l])=><Pill key={k} active={mode===k} onClick={()=>setMode(k)} color={B}>{l}</Pill>)}</div>
+    {mode==="saisie"&&<div>
+      <div style={{display:"flex",gap:8,marginBottom:12}}><button onClick={()=>setType("dep")} style={{flex:1,padding:"9px 0",borderRadius:10,border:`2px solid ${type==="dep"?C.danger:"transparent"}`,background:type==="dep"?C.danger+"18":C.surfaceAlt,color:type==="dep"?C.danger:C.textMut,fontWeight:800,fontSize:13,cursor:"pointer"}}>− Dépense</button><button onClick={()=>setType("rev")} style={{flex:1,padding:"9px 0",borderRadius:10,border:`2px solid ${type==="rev"?C.green:"transparent"}`,background:type==="rev"?C.green+"18":C.surfaceAlt,color:type==="rev"?C.green:C.textMut,fontWeight:800,fontSize:13,cursor:"pointer"}}>+ Revenu</button></div>
+      <Card>
+        <div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:1}}><div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Montant (€)</div><input type="number" inputMode="decimal" step="0.01" value={montant} onChange={e=>setMontant(e.target.value)} placeholder="0" style={{...inputStyle,fontSize:18,fontWeight:700}}/></div><div style={{width:140}}><div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Date</div><input type="date" value={dateISO} onChange={e=>setDateISO(e.target.value)} style={inputStyle}/></div></div>
+        {type==="dep"&&<div><div style={{fontSize:10,color:C.textDim,marginBottom:5}}>Catégorie</div><div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>{finCats.map(c=><button key={c.k} onClick={()=>setCat(c.k)} style={{padding:"5px 9px",borderRadius:999,border:`2px solid ${cat===c.k?B:"transparent"}`,cursor:"pointer",fontSize:10.5,fontWeight:700,background:cat===c.k?B+"22":C.surfaceAlt,color:cat===c.k?B:C.textMut}}>{c.e} {c.k}</button>)}</div></div>}
+        <div style={{fontSize:10,color:C.textDim,marginBottom:3}}>{type==="dep"?"Libellé (optionnel)":"Source"}</div>
+        <input value={label} onChange={e=>setLabel(e.target.value)} placeholder={type==="dep"?"ex : resto midi":"ex : salaire"} style={{...inputStyle,width:"100%"}}/>
+      </Card>
+      <button onClick={addEntry} disabled={saving||!(parseFloat(montant)>0)} style={{width:"100%",padding:"11px 0",borderRadius:12,border:"none",cursor:"pointer",background:type==="dep"?C.danger:C.green,color:"#fff",fontSize:13,fontWeight:800,opacity:(saving||!(parseFloat(montant)>0))?.5:1}}>{type==="dep"?"Ajouter la dépense":"Ajouter le revenu"}</button>
+      <div style={{fontSize:11,fontWeight:700,color:C.textMut,margin:"16px 0 8px"}}>Dernières entrées</div>
+      {!recent.length?<Card><div style={{textAlign:"center",color:C.textMut,padding:10}}>Aucune entrée. Commence par ajouter un revenu ou une dépense.</div></Card>:recent.map(e=><Card key={e._t+e.id} style={{padding:"10px 12px"}}><div style={{display:"flex",alignItems:"center",gap:10}}><span style={{fontSize:16}}>{e._t==="rev"?"💰":(finCats.find(c=>c.k===e.cat)?.e||"📦")}</span><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{e._t==="rev"?e.source:(e.label||e.cat)}</div><div style={{fontSize:10,color:C.textDim}}>{e._t==="rev"?"Revenu":e.cat} · {fmtDateShort(e.dateISO)}</div></div><span style={{fontSize:14,fontWeight:800,color:e._t==="rev"?C.green:C.danger,whiteSpace:"nowrap"}}>{e._t==="rev"?"+":"−"}{e.montant} €</span><button onClick={()=>e._t==="rev"?delInc(e.id):delExp(e.id)} style={{background:"none",border:"none",color:C.textMut,cursor:"pointer",fontSize:14,marginLeft:2}}>✕</button></div></Card>)}
+    </div>}
+    {mode==="mois"&&<div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><button onClick={()=>setYm(prevYm(ym))} style={navBtn}>‹</button><span style={{fontSize:14,fontWeight:800}}>{ymLabel(ym)}</span><button onClick={()=>setYm(nextYm(ym))} style={navBtn}>›</button></div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8,marginBottom:14}}><Card style={{marginBottom:0,textAlign:"center",padding:"12px 4px"}}><div style={{fontSize:9,color:C.textDim}}>Revenus</div><div style={{fontSize:15,fontWeight:800,color:C.green}}>{rev} €</div></Card><Card style={{marginBottom:0,textAlign:"center",padding:"12px 4px"}}><div style={{fontSize:9,color:C.textDim}}>Dépenses</div><div style={{fontSize:15,fontWeight:800,color:C.danger}}>{dep} €</div></Card><Card style={{marginBottom:0,textAlign:"center",padding:"12px 4px"}}><div style={{fontSize:9,color:C.textDim}}>Épargne</div><div style={{fontSize:15,fontWeight:800,color:solde>=0?B:C.danger}}>{solde} €</div></Card></div>
+      <Card><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:goalN>0?8:0}}><div style={{fontSize:12,fontWeight:700}}>🎯 Objectif d'épargne / mois</div><div style={{display:"flex",alignItems:"center",gap:6}}><input type="number" value={goal} onChange={e=>saveGoal(e.target.value)} placeholder="0" style={{...inputStyle,width:80,textAlign:"right"}}/><span style={{fontSize:11,color:C.textMut}}>€</span></div></div>{goalN>0&&<div><div style={{height:8,borderRadius:4,background:C.surfaceAlt,overflow:"hidden",marginBottom:4}}><div style={{height:"100%",width:`${Math.max(0,Math.min(100,solde/goalN*100))}%`,background:solde>=goalN?C.green:B}}/></div><div style={{fontSize:10,color:C.textMut}}>{solde>=goalN?"✅ Objectif atteint ("+solde+" €)":Math.max(0,Math.round(goalN-solde))+" € manquants pour "+goalN+" €"}</div></div>}</Card>
+      <Card><div style={{fontSize:12,fontWeight:700,color:B,marginBottom:4}}>📊 Budgets par catégorie</div><div style={{fontSize:10,color:C.textDim,marginBottom:6}}>Fixe un plafond mensuel pour dépenser moins. Vide = pas de plafond.</div>
+        {finCats.map(c=>{const spent=Math.round((bd[c.k]||0)*100)/100;const cap=caps[c.k]||0;const over=cap>0&&spent>cap;const pct=cap>0?Math.min(100,spent/cap*100):0;return (spent>0||cap>0)?<div key={c.k} style={{padding:"8px 0",borderTop:`1px solid ${C.borderSoft}`}}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:5}}><span style={{fontSize:14}}>{c.e}</span><span style={{flex:1,fontSize:12,fontWeight:700}}>{c.k}</span><span style={{fontSize:12,fontWeight:800,color:over?C.danger:C.text}}>{spent} €</span><span style={{fontSize:10,color:C.textDim}}>/</span><input type="number" value={caps[c.k]||""} onChange={e=>setCap(c.k,parseFloat(e.target.value)||0)} placeholder="—" style={{...inputStyle,width:62,textAlign:"right",padding:"4px 6px",fontSize:11}}/></div>{cap>0&&<div style={{height:6,borderRadius:3,background:C.surfaceAlt,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:over?C.danger:C.green}}/></div>}{over&&<div style={{fontSize:9.5,color:C.danger,marginTop:3}}>Dépassement de {Math.round((spent-cap)*100)/100} €</div>}</div>:null;})}
+        {Object.keys(bd).length===0&&<div style={{fontSize:11,color:C.textDim,textAlign:"center",padding:8}}>Aucune dépense ce mois.</div>}
+      </Card>
+    </div>}
+    {mode==="analyse"&&<div>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12}}><button onClick={()=>setYm(prevYm(ym))} style={navBtn}>‹</button><span style={{fontSize:14,fontWeight:800}}>{ymLabel(ym)}</span><button onClick={()=>setYm(nextYm(ym))} style={navBtn}>›</button></div>
+      {rev===0&&dep===0?<Card><div style={{textAlign:"center",color:C.textMut,padding:12}}>Aucune donnée ce mois. Saisis des revenus et dépenses pour voir l'analyse.</div></Card>:<div>
+        <Card border={(rate==null?C.border:(rate>=20?C.green:rate>=10?C.gluc:C.danger))+"66"}><div style={{fontSize:12,fontWeight:700,marginBottom:6}}>💰 Taux d'épargne</div>{rate==null?<div style={{fontSize:11,color:C.textMut}}>Ajoute tes revenus du mois pour le calculer.</div>:<div><div style={{fontSize:26,fontWeight:800,color:rate>=20?C.green:rate>=10?C.gluc:C.danger}}>{rate} %</div><div style={{fontSize:11,color:C.textMut,marginTop:2}}>{rate<0?"Tu dépenses plus que tes revenus ce mois.":rate>=20?"Excellent — tu épargnes une belle part de tes revenus.":rate>=10?"Correct. Vise 20 % pour accélérer.":"Faible. Cible d'abord ton plus gros poste."}</div></div>}</Card>
+        {top&&<Card><div style={{fontSize:12,fontWeight:700,marginBottom:6}}>🔍 Plus gros poste</div><div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontSize:20}}>{finCats.find(c=>c.k===top.cat)?.e}</span><div style={{flex:1}}><div style={{fontSize:13,fontWeight:800}}>{top.cat}</div><div style={{fontSize:11,color:C.textMut}}>{top.montant} € · {dep>0?Math.round(top.montant/dep*100):0} % des dépenses</div></div></div><div style={{fontSize:10.5,color:C.textDim,marginTop:8}}>💡 −10 % sur ce poste = <b style={{color:C.green}}>{Math.round(top.montant*0.1*100)/100} €/mois</b> (~{Math.round(top.montant*0.1*12)} €/an).</div></Card>}
+        {change!=null&&<Card><div style={{fontSize:12,fontWeight:700,marginBottom:6}}>📊 Vs mois précédent</div><div style={{fontSize:11,color:C.textMut}}>Dépenses {change<=0?"en baisse de ":"en hausse de "}<b style={{color:change<=0?C.green:C.danger}}>{Math.abs(change)} %</b> ({prevDep} € → {dep} €).</div></Card>}
+        {overCaps.length>0&&<Card border={C.danger+"44"}><div style={{fontSize:12,fontWeight:700,color:C.danger,marginBottom:6}}>⚠️ Budgets dépassés</div>{overCaps.map(c=><div key={c.k} style={{fontSize:11,color:C.textMut,lineHeight:1.6}}>{c.e} {c.k} : {Math.round((bd[c.k]||0)*100)/100} € (plafond {caps[c.k]} €)</div>)}</Card>}
+        {Object.keys(bd).length>0&&<Card><div style={{fontSize:12,fontWeight:700,color:B,marginBottom:10}}>Répartition des dépenses</div><div style={{display:"flex",height:12,borderRadius:6,overflow:"hidden",marginBottom:10}}>{Object.entries(bd).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=><div key={k} style={{width:(v/dep*100)+"%",background:finColors[i%finColors.length]}}/>)}</div>{Object.entries(bd).sort((a,b)=>b[1]-a[1]).map(([k,v],i)=><div key={k} style={{display:"flex",alignItems:"center",gap:8,fontSize:11,lineHeight:1.9}}><span style={{width:9,height:9,borderRadius:2,background:finColors[i%finColors.length],flexShrink:0}}/><span style={{flex:1,color:C.textMut}}>{finCats.find(c=>c.k===k)?.e} {k}</span><span style={{fontWeight:700}}>{Math.round(v*100)/100} €</span><span style={{color:C.textDim,minWidth:34,textAlign:"right"}}>{Math.round(v/dep*100)}%</span></div>)}</Card>}
+      </div>}
+    </div>}
+  </div>;
+}
+
 function BudgetSection(){
   const[tab,setTab]=useState("resume");const[cat,setCat]=useState("Tous");
   const cats=["Tous",...new Set(budgetAliments.map(a=>a.cat))];
   const filtered=cat==="Tous"?budgetAliments:budgetAliments.filter(a=>a.cat===cat);
   const totalF=filtered.reduce((a,x)=>a+x.sem,0);const totalPostes=postes.reduce((a,p)=>a+p.val,0);
-  const tabs=[["resume","📊 Résumé"],["aliments","🛒 Aliments"],["alternatives","💸 Alternatives"],["suivi","📊 Suivi"],["conseils","💡 Conseils"]];
+  const tabs=[["resume","📊 Résumé"],["finances","💰 Finances"],["aliments","🛒 Aliments"],["alternatives","💸 Alternatives"],["suivi","📊 Suivi"],["conseils","💡 Conseils"]];
   return <div>
     <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>{tabs.map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.budget}>{l}</Pill>)}</div>
+    {tab==="finances"&&<FinancePerso/>}
     {tab==="resume"&&<div>
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:8,marginBottom:14}}>
         {[{l:"Par semaine",v:"~"+TOTAL_SEM+" €",c:C.budget},{l:"Par mois",v:"~"+TOTAL_MOIS+" €",c:C.budgetLight},{l:"Version budget",v:"~"+TOTAL_SEM_B+" €",c:C.amber},{l:"Économie / mois",v:"~60 €",c:C.green}].map(s=><Card key={s.l} style={{borderTop:`3px solid ${s.c}`,marginBottom:0}}><div style={{fontSize:10,color:C.textMut}}>{s.l}</div><div style={{fontSize:20,fontWeight:800,color:s.c}}>{s.v}</div></Card>)}
@@ -875,7 +969,7 @@ const _ip=n=>String(n).padStart(2,"0");
 function icsLocal(d){return d.getFullYear()+_ip(d.getMonth()+1)+_ip(d.getDate())+"T"+_ip(d.getHours())+_ip(d.getMinutes())+"00";}
 function buildRoutineICS(events){const now=new Date();let s="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//RECOMP//FR\r\nCALSCALE:GREGORIAN\r\n";events.forEach((e,i)=>{const st=new Date(now);st.setHours(e.h,e.m,0,0);const en=new Date(st.getTime()+15*60000);s+="BEGIN:VEVENT\r\nUID:recomp-"+i+"-"+now.getTime()+"@recomp\r\nDTSTAMP:"+icsLocal(now)+"\r\nDTSTART:"+icsLocal(st)+"\r\nDTEND:"+icsLocal(en)+"\r\nRRULE:"+e.rrule+"\r\nSUMMARY:"+e.title+"\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:"+e.title+"\r\nTRIGGER:PT0S\r\nEND:VALARM\r\nEND:VEVENT\r\n";});return s+"END:VCALENDAR\r\n";}
 const routineEvents=[{title:"Réveil + créatine",h:6,m:45,rrule:"FREQ=DAILY"},{title:"Séance RECOMP",h:7,m:15,rrule:"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"},{title:"Shaker whey",h:8,m:20,rrule:"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"},{title:"Déjeuner",h:12,m:30,rrule:"FREQ=DAILY"},{title:"Collation",h:16,m:0,rrule:"FREQ=DAILY"},{title:"Dîner",h:19,m:30,rrule:"FREQ=DAILY"}];
-const STORAGE_KEYS=["sport-logs","sport-phase","nutri-logs","budget-logs","mensurations","photos-index","douleur-logs","science-config","maison-logs"];
+const STORAGE_KEYS=["sport-logs","sport-phase","nutri-logs","budget-logs","mensurations","photos-index","douleur-logs","science-config","maison-logs","fin-income","fin-expenses","fin-caps","fin-goal"];
 function downloadText(filename,text,mime){try{const blob=new Blob([text],{type:mime||"text/plain"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(e){console.error(e);}}
 
 /* ═══ PROJECTION ═══ */
