@@ -1,68 +1,46 @@
-const CACHE = 'recomp-v1';
-
-const CDN_ASSETS = [
-  'https://unpkg.com/react@18.2.0/umd/react.production.min.js',
-  'https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js',
-  'https://unpkg.com/prop-types@15.8.1/prop-types.min.js',
-  'https://unpkg.com/recharts@2.12.7/umd/Recharts.min.js',
-  'https://unpkg.com/@babel/standalone@7.24.7/babel.min.js',
+/* RECOMP service worker — lancement hors-ligne après la 1re visite */
+const CACHE = "recomp-v1";
+const ASSETS = [
+  "./",
+  "./index.html",
+  "https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js",
+  "https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.26.4/babel.min.js"
 ];
-
-/* Installation : pré-cache le shell + CDN */
-self.addEventListener('install', e => {
-  e.waitUntil(
-    caches.open(CACHE).then(async cache => {
-      // App shell (toujours depuis l'origine)
-      await cache.add('/');
-      // CDN : on essaie de pré-cacher mais on ne bloque pas si offline
-      for (const url of CDN_ASSETS) {
-        try { await cache.add(url); } catch (_) {}
-      }
-    })
-  );
+self.addEventListener("install", e => {
   self.skipWaiting();
+  e.waitUntil(caches.open(CACHE).then(c =>
+    Promise.allSettled(ASSETS.map(u =>
+      c.add(new Request(u, { mode: u.startsWith("http") ? "no-cors" : "same-origin" }))
+    ))
+  ));
 });
-
-/* Activation : nettoie les anciens caches */
-self.addEventListener('activate', e => {
+self.addEventListener("activate", e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    )
+    caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
-  self.clients.claim();
 });
-
-/* Fetch : cache-first pour les assets CDN, network-first pour le reste */
-self.addEventListener('fetch', e => {
-  const url = e.request.url;
-
-  // Assets CDN : cache-first (ils ne changent jamais)
-  if (CDN_ASSETS.some(a => url.startsWith(a.split('@')[0]))) {
+self.addEventListener("fetch", e => {
+  const req = e.request;
+  if (req.method !== "GET") return;
+  if (req.mode === "navigate") {
+    // réseau d'abord (pour récupérer tes mises à jour), sinon cache hors-ligne
     e.respondWith(
-      caches.match(e.request).then(hit => {
-        if (hit) return hit;
-        return fetch(e.request).then(res => {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-          return res;
-        });
-      })
+      fetch(req).then(r => {
+        const copy = r.clone();
+        caches.open(CACHE).then(c => c.put("./index.html", copy)).catch(() => {});
+        return r;
+      }).catch(() => caches.match("./index.html").then(r => r || caches.match("./")))
     );
     return;
   }
-
-  // App shell : network-first avec fallback cache
-  if (e.request.mode === 'navigate' || url.includes(self.location.origin)) {
-    e.respondWith(
-      fetch(e.request)
-        .then(res => {
-          const clone = res.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
-          return res;
-        })
-        .catch(() => caches.match(e.request))
-    );
-    return;
-  }
+  // cache d'abord pour le reste (React, Babel…)
+  e.respondWith(
+    caches.match(req).then(cached => cached || fetch(req).then(r => {
+      const copy = r.clone();
+      caches.open(CACHE).then(c => c.put(req, copy)).catch(() => {});
+      return r;
+    }).catch(() => cached))
+  );
 });
