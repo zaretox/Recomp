@@ -812,15 +812,17 @@ function bmrMifflin(kg,cm,age,sex){if(!kg||!cm||!age)return null;return Math.rou
 function calorieTarget(kg,cm,age,sex,activity,deficitKcal){const bmr=bmrMifflin(kg,cm,age,sex);if(bmr==null)return null;const tdee=Math.round(bmr*activity);const t=tdee-(deficitKcal||0);const target=Math.max(t,bmr);return {bmr,tdee,target,clamped:target!==t};}
 function macrosFor(targetKcal,proteinG){const pKcal=proteinG*4;const fatKcal=Math.round(targetKcal*0.25);const fatG=Math.round(fatKcal/9);const carbG=Math.max(0,Math.round((targetKcal-pKcal-fatKcal)/4));return {p:proteinG,l:fatG,g:carbG};}
 function proteinTarget(kg,lean){return lean>0?Math.round(2.2*lean):Math.round(1.8*kg);}
+function proteinFor(kg,lean,mode){if(mode==="lean")return lean>0?Math.round(2.2*lean):Math.round(1.8*kg);const gk=parseFloat(mode);return Math.round((gk||1.8)*kg);}
+const protOpts=[{l:"1,8 g/kg",v:"1.8"},{l:"2,0 g/kg",v:"2.0"},{l:"2,2 g/kg",v:"2.2"},{l:"Masse maigre",v:"lean"}];
 function avgRecent(weighIns,n){const w=[...weighIns].sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).slice(0,n).map(x=>x.kg);return w.length?Math.round(w.reduce((a,b)=>a+b,0)/w.length*10)/10:null;}
 function scaleQty(text,f){if(!f||f===1)return text;return String(text).replace(/^(\d+)(\s?)(g|ml)\b/,(m,n,sp,u)=>{const v=+n;if(v<40)return m;return Math.round(v*f/5)*5+sp+u;});}
 const activityOpts=[{l:"Sédentaire",v:1.2},{l:"Léger",v:1.375},{l:"Modéré",v:1.55},{l:"Élevé",v:1.725}];
 const objectifOpts=[{l:"−500 kcal",v:500},{l:"−550 kcal",v:550},{l:"−700 kcal",v:700},{l:"−1000 kcal",v:1000},{l:"Maintien",v:0}];
 
 function NutritionCalories(){
-  const[nLogs,setNLogs]=useState([]);const[mens,setMens]=useState([]);const[height,setHeight]=useState("");const[cfg,setCfg]=useState({sex:"H",age:"",activity:1.55,deficit:700});const[loading,setLoading]=useState(true);
-  useEffect(()=>{Promise.all([load("nutri-logs",[]),load("mensurations",[]),load("taille-corps",""),load("nutri-cal-cfg",null)]).then(([n,m,h,c])=>{setNLogs(n||[]);setMens(m||[]);setHeight((h||h===0)&&h!==""?String(h):"");if(c)setCfg({sex:c.sex||"H",age:c.age!=null?String(c.age):"",activity:c.activity||1.55,deficit:(c.deficit>0&&c.deficit<=40)?700:(c.deficit!=null?c.deficit:700)});setLoading(false);});},[]);
-  const saveCfg=async patch=>{const nc={...cfg,...patch};setCfg(nc);await save("nutri-cal-cfg",{sex:nc.sex,age:parseInt(nc.age)||null,activity:nc.activity,deficit:nc.deficit});};
+  const[nLogs,setNLogs]=useState([]);const[mens,setMens]=useState([]);const[height,setHeight]=useState("");const[cfg,setCfg]=useState({sex:"H",age:"",activity:1.55,deficit:700,protMode:"lean"});const[loading,setLoading]=useState(true);
+  useEffect(()=>{Promise.all([load("nutri-logs",[]),load("mensurations",[]),load("taille-corps",""),load("nutri-cal-cfg",null)]).then(([n,m,h,c])=>{setNLogs(n||[]);setMens(m||[]);setHeight((h||h===0)&&h!==""?String(h):"");if(c)setCfg({sex:c.sex||"H",age:c.age!=null?String(c.age):"",activity:c.activity||1.55,deficit:(c.deficit>0&&c.deficit<=40)?700:(c.deficit!=null?c.deficit:700),protMode:c.protMode||"lean"});setLoading(false);});},[]);
+  const saveCfg=async patch=>{const nc={...cfg,...patch};setCfg(nc);await save("nutri-cal-cfg",{sex:nc.sex,age:parseInt(nc.age)||null,activity:nc.activity,deficit:nc.deficit,protMode:nc.protMode||"lean"});};
   const saveHeight=async v=>{setHeight(v);await save("taille-corps",parseFloat(v)||0);};
   const G=C.green;
   const weighIns=nLogs.filter(l=>l.weight>0).map(l=>({dateISO:l.dateISO,kg:l.weight}));
@@ -830,7 +832,7 @@ function NutritionCalories(){
   if(lastM&&cm){const bf=navyBF(lastM.vals.taille,lastM.vals.cou,cm);const w=closestWeight(weighIns,lastM.dateISO)||curW;const lf=(w&&bf!=null)?leanFat(w,bf):null;if(lf)lean=lf.lean;}
   const ready=curW&&cm&&age;
   const res=ready?calorieTarget(curW,cm,age,cfg.sex,cfg.activity,cfg.deficit):null;
-  const prot=ready?proteinTarget(curW,lean):0;
+  const prot=ready?proteinFor(curW,lean,cfg.protMode):0;const bfPct=(curW&&lean)?Math.round((curW-lean)/curW*100):null;
   const macros=res?macrosFor(res.target,prot):null;
   const brackets=ready?[130,125,115,105,95].map(w=>({w,t:calorieTarget(w,cm,age,cfg.sex,cfg.activity,cfg.deficit).target})):[];
   if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
@@ -844,6 +846,7 @@ function NutritionCalories(){
       </div>
       <div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Niveau d'activité</div><div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>{activityOpts.map(o=><button key={o.v} onClick={()=>saveCfg({activity:o.v})} style={{padding:"5px 10px",borderRadius:999,border:`2px solid ${cfg.activity===o.v?G:"transparent"}`,background:cfg.activity===o.v?G+"22":C.surfaceAlt,color:cfg.activity===o.v?G:C.textMut,fontWeight:700,fontSize:10.5,cursor:"pointer"}}>{o.l}</button>)}</div>
       <div style={{fontSize:10,color:C.textDim,marginBottom:3}}>Objectif</div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{objectifOpts.map(o=><button key={o.l} onClick={()=>saveCfg({deficit:o.v})} style={{padding:"5px 10px",borderRadius:999,border:`2px solid ${cfg.deficit===o.v?G:"transparent"}`,background:cfg.deficit===o.v?G+"22":C.surfaceAlt,color:cfg.deficit===o.v?G:C.textMut,fontWeight:700,fontSize:10.5,cursor:"pointer"}}>{o.l}</button>)}</div>
+      <div style={{fontSize:10,color:C.textDim,margin:"10px 0 3px"}}>Protéines <span style={{color:C.textDim}}>(base de calcul)</span></div><div style={{display:"flex",flexWrap:"wrap",gap:5}}>{protOpts.map(o=><button key={o.v} onClick={()=>saveCfg({protMode:o.v})} style={{padding:"5px 10px",borderRadius:999,border:`2px solid ${cfg.protMode===o.v?G:"transparent"}`,background:cfg.protMode===o.v?G+"22":C.surfaceAlt,color:cfg.protMode===o.v?G:C.textMut,fontWeight:700,fontSize:10.5,cursor:"pointer"}}>{o.l}</button>)}</div>
     </Card>
     {!ready?<Card border={C.gluc+"44"}><div style={{fontSize:12,color:C.textMut,padding:4}}>Pour calculer ta cible, il manque : <b style={{color:C.text}}>{miss.join(", ")}</b>.</div></Card>
      :<div>
@@ -855,7 +858,8 @@ function NutritionCalories(){
           <div style={{textAlign:"center",background:C.surfaceAlt,borderRadius:10,padding:"9px 4px"}}><div style={{fontSize:17,fontWeight:800,color:C.gluc}}>{macros.g}<span style={{fontSize:10,color:C.textDim}}>g</span></div><div style={{fontSize:9,color:C.textDim}}>Glucides</div></div>
           <div style={{textAlign:"center",background:C.surfaceAlt,borderRadius:10,padding:"9px 4px"}}><div style={{fontSize:17,fontWeight:800,color:C.amberLight}}>{macros.l}<span style={{fontSize:10,color:C.textDim}}>g</span></div><div style={{fontSize:9,color:C.textDim}}>Lipides</div></div>
         </div>
-        <div style={{fontSize:9,color:C.textDim,marginTop:8}}>Protéines {lean>0?"= 2,2 g/kg de masse maigre ("+lean+" kg)":"= 1,8 g/kg (renseigne taille+cou dans 📐 Corps pour affiner via la masse maigre)"} · lipides 25 % · glucides = le reste.</div>
+        <div style={{fontSize:9,color:C.textDim,marginTop:8}}>Protéines {cfg.protMode==="lean"?(lean>0?"= 2,2 g/kg de masse maigre ("+lean+" kg)":"= 1,8 g/kg (ajoute taille+cou dans 📐 Corps pour la masse maigre)"):"= "+cfg.protMode.replace(".",",")+" g/kg de poids de corps"} · lipides 25 % · glucides = le reste.</div>
+        {ready&&bfPct!=null&&bfPct<22&&cfg.protMode==="lean"&&<div style={{fontSize:10,color:C.blue,background:C.blue+"14",border:`1px solid ${C.blue}44`,borderRadius:8,padding:"6px 10px",marginTop:8}}>🎯 Masse grasse estimée ~{bfPct}% (sous 22 %) : masse maigre et poids de corps se rejoignent — tu peux basculer sur <b style={{color:C.text}}>2 g/kg de poids de corps</b> si tu préfères ce repère.</div>}
       </Card>
       {cfg.deficit>=900&&<Card border={C.danger+"55"}><div style={{fontSize:11,fontWeight:800,color:C.danger,marginBottom:3}}>⚠️ Déficit agressif</div><div style={{fontSize:10.5,color:C.textMut,lineHeight:1.5}}>−{cfg.deficit} kcal = perte rapide, mais risque de <b style={{color:C.text}}>fonte musculaire</b> et de fatigue avec ton volume d'entraînement. À réserver aux premières semaines (quand tu pars de haut). Repasse à −700 dès que ta force baisse ou que la faim devient ingérable.</div></Card>}
       {brackets.length>1&&<Card><div style={{fontSize:12,fontWeight:700,color:C.greenLight,marginBottom:2}}>📉 Ta cible en descendant</div><div style={{fontSize:10,color:C.textDim,marginBottom:8}}>Déficit fixe de {cfg.deficit>0?"−"+cfg.deficit+" kcal":"maintien"} à chaque palier. Se recalcule seule à chaque pesée :</div>
@@ -875,7 +879,7 @@ function NutritionSection(){
   const repas=day==="training"?repasTraining:repasRest;const tot=repas.reduce((a,r)=>({P:a.P+r.P,G:a.G+r.G,L:a.L+r.L,kcal:a.kcal+r.kcal}),{P:0,G:0,L:0,kcal:0});
   const _wi=nLogsN.filter(l=>l.weight>0).map(l=>({dateISO:l.dateISO,kg:l.weight}));const _cw=avgRecent(_wi,7);const _age=calCfg?parseInt(calCfg.age)||0:0;let _lean=0;const _lm=[...mensC].reverse().find(m=>m.vals&&m.vals.taille>0&&m.vals.cou>0);if(_lm&&hCm){const _bf=navyBF(_lm.vals.taille,_lm.vals.cou,hCm);const _w=closestWeight(_wi,_lm.dateISO)||_cw;const _lf=(_w&&_bf!=null)?leanFat(_w,_bf):null;if(_lf)_lean=_lf.lean;}
   const calReady=_cw&&hCm&&_age&&calCfg;const calRes=calReady?calorieTarget(_cw,hCm,_age,calCfg.sex,calCfg.activity,calCfg.deficit):null;const calTgt=calRes?calRes.target:null;
-  const mealFactor=(calTgt&&tot.kcal)?calTgt/tot.kcal:1;const _prot=calReady?proteinTarget(_cw,_lean):0;const calMacros=calRes?macrosFor(calRes.target,_prot):null;const pF=calMacros&&tot.P?calMacros.p/tot.P:mealFactor;const gF=calMacros&&tot.G?calMacros.g/tot.G:mealFactor;const lF=calMacros&&tot.L?calMacros.l/tot.L:mealFactor;const scP=v=>Math.round(v*pF),scG=v=>Math.round(v*gF),scL=v=>Math.round(v*lF);const sc=v=>Math.round(v*mealFactor);
+  const mealFactor=(calTgt&&tot.kcal)?calTgt/tot.kcal:1;const _prot=calReady?proteinFor(_cw,_lean,(calCfg&&calCfg.protMode)||"lean"):0;const calMacros=calRes?macrosFor(calRes.target,_prot):null;const pF=calMacros&&tot.P?calMacros.p/tot.P:mealFactor;const gF=calMacros&&tot.G?calMacros.g/tot.G:mealFactor;const lF=calMacros&&tot.L?calMacros.l/tot.L:mealFactor;const scP=v=>Math.round(v*pF),scG=v=>Math.round(v*gF),scL=v=>Math.round(v*lF);const sc=v=>Math.round(v*mealFactor);
   const tabs=[["resume","Résumé"],["cal","🔥 Calories"],["repas","Repas"],["aliments","Aliments"],["complements","Compléments"],["suivi","📊 Suivi"],["corps","📐 Corps"],["conseils","Conseils"]];
   return <div>
     <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>{tabs.map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.green}>{l}</Pill>)}</div>
