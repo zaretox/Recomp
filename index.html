@@ -865,7 +865,7 @@ function NutritionCalories(){
       {brackets.length>1&&<Card><div style={{fontSize:12,fontWeight:700,color:C.greenLight,marginBottom:2}}>📉 Ta cible en descendant</div><div style={{fontSize:10,color:C.textDim,marginBottom:8}}>Déficit fixe de {cfg.deficit>0?"−"+cfg.deficit+" kcal":"maintien"} à chaque palier. Se recalcule seule à chaque pesée :</div>
         {brackets.map(b=>{const cur=Math.abs(b.w-curW)<2.5;return <div key={b.w} style={{display:"flex",alignItems:"center",padding:"6px 0",borderTop:`1px solid ${C.borderSoft}`}}><span style={{width:70,fontSize:12,fontWeight:cur?800:600,color:cur?G:C.text}}>{b.w} kg{cur?" ←":""}</span><div style={{flex:1,height:6,background:C.surfaceAlt,borderRadius:3,overflow:"hidden",margin:"0 10px"}}><div style={{height:"100%",width:Math.round(b.t/brackets[0].t*100)+"%",background:cur?G:C.borderSoft}}/></div><span style={{fontSize:12,fontWeight:700,color:cur?G:C.textMut}}>{b.t} kcal</span></div>;})}
       </Card>}
-      <div style={{fontSize:9.5,color:C.textDim,padding:"2px 4px 0",lineHeight:1.5}}>Estimation par formule (Mifflin-St Jeor). Ajuste l'objectif si tu perds trop vite (&gt;1 % du poids/sem) ou si tu stagnes &gt;2-3 semaines. Les menus de l'onglet Résumé restent un modèle ~2750 kcal — c'est cette cible-ci qui fait foi.</div>
+      <div style={{fontSize:9.5,color:C.textDim,padding:"2px 4px 0",lineHeight:1.5}}>Estimation par formule (Mifflin-St Jeor). Ajuste l'objectif si tu perds trop vite (&gt;1 % du poids/sem) ou si tu stagnes &gt;2-3 semaines. Cette cible pilote aussi le Résumé et le menu Repas, mis à l'échelle automatiquement.</div>
      </div>}
   </div>;
 }
@@ -1066,7 +1066,7 @@ function ScienceSection(){
 
   if(loading)return <Card><div style={{color:C.textMut,textAlign:"center",padding:20}}>Chargement des données…</div></Card>;
   return <div>
-    <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto"}}>{[["bilan","📊 Bilan"],["surcharge","🏋️ Surcharge"],["calories","🥗 Calories"],["config","🔧 Config"]].map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.blue}>{l}</Pill>)}</div>
+    <div style={{display:"flex",gap:5,marginBottom:12,overflowX:"auto"}}>{[["bilan","📊 Bilan"],["surcharge","🏋️ Surcharge"],["config","🔧 Config"]].map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.blue}>{l}</Pill>)}</div>
 
     {tab==="bilan"&&<div>
       {activeCount>0&&<Card border={C.blue+"44"} style={{marginBottom:12,background:"#080E18"}}><div style={{fontSize:12,fontWeight:700,color:C.blueLight,marginBottom:8}}>🔬 Ajustements actifs ({activeCount})</div>
@@ -1084,7 +1084,7 @@ function ScienceSection(){
         <Card><div style={{fontSize:10,color:C.textDim,textTransform:"uppercase",letterSpacing:.5}}>Tendance / sem</div><div style={{fontSize:22,fontWeight:800,color:weightTrend?weightTrend.weekly<-0.05&&weightTrend.weekly>-0.5?C.green:C.danger:C.textMut,margin:"4px 0 1px"}}>{weightTrend?(weightTrend.weekly>0?"+":"")+weightTrend.weekly+" kg":"—"}</div><div style={{fontSize:10,color:C.textMut}}>{weightTrend?"Cible : -0.1 à -0.4 kg/sem":"En attente de pesées"}</div></Card>
       </div>
       {overloadRecs.filter(r=>r.stagnant).length>0&&<Card border="#F59E0B33"><div style={{fontSize:12,fontWeight:700,color:"#FBBF24",marginBottom:8}}>⚠️ {overloadRecs.filter(r=>r.stagnant).length} stagnation(s) détectée(s)</div><div style={{fontSize:11,color:C.textMut}}>Va dans l'onglet 🏋️ Surcharge pour voir les recommandations.</div></Card>}
-      {caloricRec&&<Card border={caloricRec.color+"33"}><div style={{fontSize:12,fontWeight:700,color:caloricRec.color,marginBottom:6}}>⚡ Ajustement calorique recommandé</div><div style={{fontSize:11,color:C.textMut}}>Va dans l'onglet 🥗 Calories pour appliquer.</div></Card>}
+      {caloricRec&&<Card border={caloricRec.color+"33"}><div style={{fontSize:12,fontWeight:700,color:caloricRec.color,marginBottom:6}}>⚡ Rythme de perte</div><div style={{fontSize:11,color:C.textMut,lineHeight:1.5}}>{caloricRec.reason}. Ajuste ton <b style={{color:C.text}}>objectif</b> dans Nutrition → 🔥 Calories ({caloricRec.delta>0?"déficit plus doux":"déficit un peu plus marqué"}).</div></Card>}
     </div>}
 
     {tab==="surcharge"&&<div>
@@ -1112,33 +1112,6 @@ function ScienceSection(){
       </>}
     </div>}
 
-    {tab==="calories"&&<div>
-      <Card border={C.blue+"33"} style={{marginBottom:10}}>
-        <div style={{fontSize:13,fontWeight:800,marginBottom:4}}>Cible actuelle</div>
-        <div style={{fontSize:26,fontWeight:800,color:C.amber}}>{macrosTarget.kcal+(cfg.caloricAdjust||0)} <span style={{fontSize:13,color:C.textMut,fontWeight:400}}>kcal/jour</span></div>
-        {cfg.caloricAdjust!==0&&<div style={{fontSize:11,color:C.textMut,marginTop:2}}>Base 2 750 kcal {cfg.caloricAdjust>0?"+":""}{cfg.caloricAdjust} kcal (ajustement science)</div>}
-      </Card>
-      {!weightTrend?<Card><div style={{textAlign:"center",color:C.textMut,padding:14,fontSize:12}}>Enregistre au moins 3 pesées dans le Suivi Nutrition pour générer une recommandation.</div></Card>:<>
-        <Card border={caloricRec?caloricRec.color+"44":C.green+"44"}>
-          <div style={{fontSize:12,fontWeight:700,marginBottom:8,color:caloricRec?caloricRec.color:C.green}}>
-            {caloricRec?"⚠️ Ajustement recommandé":"✅ Rythme optimal"}
-          </div>
-          <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:6,marginBottom:10}}>
-            {[["Pesées",weightTrend.n],["Départ",weightTrend.first+"kg"],["Actuel",weightTrend.last+"kg"]].map(([l,v])=><div key={l} style={{textAlign:"center"}}><div style={{fontSize:9,color:C.textDim}}>{l}</div><div style={{fontSize:13,fontWeight:700}}>{v}</div></div>)}
-          </div>
-          <div style={{textAlign:"center",marginBottom:10}}>
-            <div style={{fontSize:10,color:C.textDim}}>Tendance hebdomadaire</div>
-            <div style={{fontSize:20,fontWeight:800,color:caloricRec?caloricRec.color:C.green}}>{weightTrend.weekly>0?"+":""}{weightTrend.weekly} kg/sem</div>
-            <div style={{fontSize:10,color:C.textMut}}>Cible recomp : -0.10 à -0.40 kg/sem</div>
-          </div>
-          {caloricRec?<>
-            <div style={{background:caloricRec.color+"12",border:`1px solid ${caloricRec.color}33`,borderRadius:8,padding:"8px 10px",marginBottom:10,fontSize:11,color:C.text}}>{caloricRec.reason}</div>
-            <button onClick={async()=>{const nc={...cfg,caloricAdjust:(cfg.caloricAdjust||0)+caloricRec.delta};await saveCfg(nc);}} style={{width:"100%",padding:"10px 0",borderRadius:10,border:"none",cursor:"pointer",background:caloricRec.color,color:"#000",fontSize:12,fontWeight:800}}>Appliquer {caloricRec.delta>0?"+":""}{caloricRec.delta} kcal → {macrosTarget.kcal+(cfg.caloricAdjust||0)+caloricRec.delta} kcal/j</button>
-          </>:<div style={{fontSize:11,color:C.green,textAlign:"center"}}>Ton rythme de perte est dans la fenêtre idéale pour la recomposition.</div>}
-          {cfg.caloricAdjust!==0&&<button onClick={async()=>saveCfg({...cfg,caloricAdjust:0})} style={{width:"100%",padding:"7px 0",borderRadius:8,border:`1px solid ${C.textDim}33`,background:"transparent",color:C.textDim,fontSize:10,cursor:"pointer",marginTop:8}}>Remettre à la base (2 750 kcal)</button>}
-        </Card>
-      </>}
-    </div>}
 
     {tab==="config"&&<div>
       <div style={{fontSize:11,color:C.textMut,marginBottom:12}}>Protocoles spéciaux modifiant l'affichage de l'app. À activer selon la situation.</div>
@@ -1209,13 +1182,14 @@ function DataCard(){
 }
 
 function HomeScreen({goTo}){
-  const[sLogs,setSLogs]=useState([]);const[nLogs,setNLogs]=useState([]);const[bLogs,setBLogs]=useState([]);const[mLogs,setMLogs]=useState([]);const[fExp,setFExp]=useState([]);const[ok,setOk]=useState(false);
-  useEffect(()=>{Promise.all([load("sport-logs",[]),load("nutri-logs",[]),load("budget-logs",[]),load("maison-logs",[]),load("fin-expenses",[])]).then(([s,n,b,m,f])=>{setSLogs(s);setNLogs(n);setBLogs(b);setMLogs(m);setFExp(f||[]);setOk(true);});},[]);
+  const[sLogs,setSLogs]=useState([]);const[nLogs,setNLogs]=useState([]);const[bLogs,setBLogs]=useState([]);const[mLogs,setMLogs]=useState([]);const[fExp,setFExp]=useState([]);const[ok,setOk]=useState(false);const[hCalCfg,setHCalCfg]=useState(null);const[hCm,setHCm]=useState(0);const[hMens,setHMens]=useState([]);
+  useEffect(()=>{Promise.all([load("sport-logs",[]),load("nutri-logs",[]),load("budget-logs",[]),load("maison-logs",[]),load("fin-expenses",[]),load("nutri-cal-cfg",null),load("taille-corps",""),load("mensurations",[])]).then(([s,n,b,m,f,cc,h,me])=>{setSLogs(s);setNLogs(n);setBLogs(b);setMLogs(m);setFExp(f||[]);setHCalCfg(cc);setHCm(parseFloat(h)||0);setHMens(me||[]);setOk(true);});},[]);
   const trainDates=[...new Set([...sLogs.map(l=>l.dateISO),...mLogs.map(l=>l.dateISO)])];
   const train7=trainDates.filter(d=>{const dt=new Date(d+"T12:00:00");const a=new Date();a.setDate(a.getDate()-7);return dt>=a;}).length;
   const nutriStreak=streakFromDates(nLogs.filter(l=>l.compliance>=80).map(l=>l.dateISO));
   const creaStreak=streakFromDates(nLogs.filter(l=>l.supps&&l.supps["Créatine"]).map(l=>l.dateISO));
   const weighIns=nLogs.filter(l=>l.weight).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>({dateISO:l.dateISO,kg:l.weight}));
+  const hCurW=avgRecent(weighIns,7);const hAge=hCalCfg?parseInt(hCalCfg.age)||0:0;let hLean=0;const hLm=[...hMens].reverse().find(m=>m.vals&&m.vals.taille>0&&m.vals.cou>0);if(hLm&&hCm){const _bf=navyBF(hLm.vals.taille,hLm.vals.cou,hCm);const _w=closestWeight(weighIns,hLm.dateISO)||hCurW;const _lf=(_w&&_bf!=null)?leanFat(_w,_bf):null;if(_lf)hLean=_lf.lean;}const hReady=hCurW&&hCm&&hAge&&hCalCfg;const hCalRes=hReady?calorieTarget(hCurW,hCm,hAge,hCalCfg.sex,hCalCfg.activity,hCalCfg.deficit):null;const hMacros=hCalRes?macrosFor(hCalRes.target,proteinFor(hCurW,hLean,(hCalCfg&&hCalCfg.protMode)||"lean")):null;
   const lastW=sLogs.length?sLogs[sLogs.length-1]:null;const totalS=sLogs.length;
   const wE=nLogs.filter(l=>l.weight).sort((a,b)=>a.dateISO.localeCompare(b.dateISO));
   const latW=wE.length?wE[wE.length-1].weight:null;const fstW=wE.length?wE[0].weight:null;const diffW=latW&&fstW?(latW-fstW).toFixed(1):null;
@@ -1264,7 +1238,7 @@ function HomeScreen({goTo}){
     {/* Nutrition card */}
     <div onClick={()=>goTo("nutrition")} style={{background:`linear-gradient(135deg, ${C.surface} 0%, #08160E 100%)`,border:`1px solid ${C.green}33`,borderRadius:20,padding:18,marginBottom:12,cursor:"pointer",position:"relative",overflow:"hidden"}}>
       <div style={{position:"absolute",top:-20,right:-20,fontSize:80,opacity:.06}}>🥗</div>
-      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${C.green}22, ${C.green}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🥗</div><div><div style={{fontSize:16,fontWeight:800}}>Programme Nutrition</div><div style={{fontSize:10,color:C.textMut}}>2750 kcal · 250P / 240G / 88L</div></div></div>
+      <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:10}}><div style={{width:40,height:40,borderRadius:12,background:`linear-gradient(135deg, ${C.green}22, ${C.green}44)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:20}}>🥗</div><div><div style={{fontSize:16,fontWeight:800}}>Programme Nutrition</div><div style={{fontSize:10,color:C.textMut}}>{hMacros?hCalRes.target+" kcal · "+hMacros.p+"P / "+hMacros.g+"G / "+hMacros.l+"L":"Cible adaptative · configure 🔥 Calories"}</div></div></div>
       {avgC!==null&&<div style={{fontSize:10,color:C.textMut}}>Compliance 7j : <span style={{color:C.greenLight,fontWeight:700}}>{avgC}%</span>{latW&&<span style={{marginLeft:10}}>Poids : <span style={{color:C.prot,fontWeight:700}}>{latW} kg</span></span>}</div>}
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:10,fontSize:12,fontWeight:700,color:C.green}}>Accéder →</div>
     </div>
