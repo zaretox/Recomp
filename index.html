@@ -815,11 +815,11 @@ function proteinTarget(kg,lean){return lean>0?Math.round(2.2*lean):Math.round(1.
 function avgRecent(weighIns,n){const w=[...weighIns].sort((a,b)=>b.dateISO.localeCompare(a.dateISO)).slice(0,n).map(x=>x.kg);return w.length?Math.round(w.reduce((a,b)=>a+b,0)/w.length*10)/10:null;}
 function scaleQty(text,f){if(!f||f===1)return text;return String(text).replace(/^(\d+)(\s?)(g|ml)\b/,(m,n,sp,u)=>{const v=+n;if(v<40)return m;return Math.round(v*f/5)*5+sp+u;});}
 const activityOpts=[{l:"Sédentaire",v:1.2},{l:"Léger",v:1.375},{l:"Modéré",v:1.55},{l:"Élevé",v:1.725}];
-const objectifOpts=[{l:"−300 kcal",v:300},{l:"−500 kcal",v:500},{l:"−550 kcal",v:550},{l:"−600 kcal",v:600},{l:"Maintien",v:0}];
+const objectifOpts=[{l:"−500 kcal",v:500},{l:"−550 kcal",v:550},{l:"−700 kcal",v:700},{l:"−1000 kcal",v:1000},{l:"Maintien",v:0}];
 
 function NutritionCalories(){
-  const[nLogs,setNLogs]=useState([]);const[mens,setMens]=useState([]);const[height,setHeight]=useState("");const[cfg,setCfg]=useState({sex:"H",age:"",activity:1.55,deficit:550});const[loading,setLoading]=useState(true);
-  useEffect(()=>{Promise.all([load("nutri-logs",[]),load("mensurations",[]),load("taille-corps",""),load("nutri-cal-cfg",null)]).then(([n,m,h,c])=>{setNLogs(n||[]);setMens(m||[]);setHeight((h||h===0)&&h!==""?String(h):"");if(c)setCfg({sex:c.sex||"H",age:c.age!=null?String(c.age):"",activity:c.activity||1.55,deficit:(c.deficit>0&&c.deficit<=40)?550:(c.deficit!=null?c.deficit:550)});setLoading(false);});},[]);
+  const[nLogs,setNLogs]=useState([]);const[mens,setMens]=useState([]);const[height,setHeight]=useState("");const[cfg,setCfg]=useState({sex:"H",age:"",activity:1.55,deficit:700});const[loading,setLoading]=useState(true);
+  useEffect(()=>{Promise.all([load("nutri-logs",[]),load("mensurations",[]),load("taille-corps",""),load("nutri-cal-cfg",null)]).then(([n,m,h,c])=>{setNLogs(n||[]);setMens(m||[]);setHeight((h||h===0)&&h!==""?String(h):"");if(c)setCfg({sex:c.sex||"H",age:c.age!=null?String(c.age):"",activity:c.activity||1.55,deficit:(c.deficit>0&&c.deficit<=40)?700:(c.deficit!=null?c.deficit:700)});setLoading(false);});},[]);
   const saveCfg=async patch=>{const nc={...cfg,...patch};setCfg(nc);await save("nutri-cal-cfg",{sex:nc.sex,age:parseInt(nc.age)||null,activity:nc.activity,deficit:nc.deficit});};
   const saveHeight=async v=>{setHeight(v);await save("taille-corps",parseFloat(v)||0);};
   const G=C.green;
@@ -857,6 +857,7 @@ function NutritionCalories(){
         </div>
         <div style={{fontSize:9,color:C.textDim,marginTop:8}}>Protéines {lean>0?"= 2,2 g/kg de masse maigre ("+lean+" kg)":"= 1,8 g/kg (renseigne taille+cou dans 📐 Corps pour affiner via la masse maigre)"} · lipides 25 % · glucides = le reste.</div>
       </Card>
+      {cfg.deficit>=900&&<Card border={C.danger+"55"}><div style={{fontSize:11,fontWeight:800,color:C.danger,marginBottom:3}}>⚠️ Déficit agressif</div><div style={{fontSize:10.5,color:C.textMut,lineHeight:1.5}}>−{cfg.deficit} kcal = perte rapide, mais risque de <b style={{color:C.text}}>fonte musculaire</b> et de fatigue avec ton volume d'entraînement. À réserver aux premières semaines (quand tu pars de haut). Repasse à −700 dès que ta force baisse ou que la faim devient ingérable.</div></Card>}
       {brackets.length>1&&<Card><div style={{fontSize:12,fontWeight:700,color:C.greenLight,marginBottom:2}}>📉 Ta cible en descendant</div><div style={{fontSize:10,color:C.textDim,marginBottom:8}}>Déficit fixe de {cfg.deficit>0?"−"+cfg.deficit+" kcal":"maintien"} à chaque palier. Se recalcule seule à chaque pesée :</div>
         {brackets.map(b=>{const cur=Math.abs(b.w-curW)<2.5;return <div key={b.w} style={{display:"flex",alignItems:"center",padding:"6px 0",borderTop:`1px solid ${C.borderSoft}`}}><span style={{width:70,fontSize:12,fontWeight:cur?800:600,color:cur?G:C.text}}>{b.w} kg{cur?" ←":""}</span><div style={{flex:1,height:6,background:C.surfaceAlt,borderRadius:3,overflow:"hidden",margin:"0 10px"}}><div style={{height:"100%",width:Math.round(b.t/brackets[0].t*100)+"%",background:cur?G:C.borderSoft}}/></div><span style={{fontSize:12,fontWeight:700,color:cur?G:C.textMut}}>{b.t} kcal</span></div>;})}
       </Card>}
@@ -869,7 +870,7 @@ function NutritionSection(){
   const[tab,setTab]=useState("resume");const[day,setDay]=useState("training");const[sciCfg,setSciCfg]=useState({caloricAdjust:0});
   const[nLogsN,setNLogsN]=useState([]);const[calCfg,setCalCfg]=useState(null);const[hCm,setHCm]=useState(0);const[mensC,setMensC]=useState([]);
   useEffect(()=>{load("science-config",{caloricAdjust:0}).then(c=>setSciCfg(c));},[tab]);
-  useEffect(()=>{Promise.all([load("nutri-logs",[]),load("nutri-cal-cfg",null),load("taille-corps",""),load("mensurations",[])]).then(([n,c,h,m])=>{setNLogsN(n||[]);setCalCfg(c?{...c,deficit:(c.deficit>0&&c.deficit<=40)?550:(c.deficit==null?550:c.deficit)}:null);setHCm(parseFloat(h)||0);setMensC(m||[]);});},[tab]);
+  useEffect(()=>{Promise.all([load("nutri-logs",[]),load("nutri-cal-cfg",null),load("taille-corps",""),load("mensurations",[])]).then(([n,c,h,m])=>{setNLogsN(n||[]);setCalCfg(c?{...c,deficit:(c.deficit>0&&c.deficit<=40)?700:(c.deficit==null?700:c.deficit)}:null);setHCm(parseFloat(h)||0);setMensC(m||[]);});},[tab]);
   const kcalCible=macrosTarget.kcal+(sciCfg?.caloricAdjust||0);
   const repas=day==="training"?repasTraining:repasRest;const tot=repas.reduce((a,r)=>({P:a.P+r.P,G:a.G+r.G,L:a.L+r.L,kcal:a.kcal+r.kcal}),{P:0,G:0,L:0,kcal:0});
   const _wi=nLogsN.filter(l=>l.weight>0).map(l=>({dateISO:l.dateISO,kg:l.weight}));const _cw=avgRecent(_wi,7);const _age=calCfg?parseInt(calCfg.age)||0:0;let _lean=0;const _lm=[...mensC].reverse().find(m=>m.vals&&m.vals.taille>0&&m.vals.cou>0);if(_lm&&hCm){const _bf=navyBF(_lm.vals.taille,_lm.vals.cou,hCm);const _w=closestWeight(_wi,_lm.dateISO)||_cw;const _lf=(_w&&_bf!=null)?leanFat(_w,_bf):null;if(_lf)_lean=_lf.lean;}
