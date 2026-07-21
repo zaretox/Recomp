@@ -870,6 +870,64 @@ function NutritionCalories(){
   </div>;
 }
 
+function NutritionJournal(){
+  const[log,setLog]=useState({});const[nLogs,setNLogs]=useState([]);const[cfg,setCfg]=useState(null);const[cm,setCm]=useState(0);const[mens,setMens]=useState([]);const[loading,setLoading]=useState(true);
+  const[grams,setGrams]=useState("100");const[q,setQ]=useState("");
+  const today=isoToday();const G=C.green;
+  useEffect(()=>{Promise.all([load("food-log",{}),load("nutri-logs",[]),load("nutri-cal-cfg",null),load("taille-corps",""),load("mensurations",[])]).then(([lg,n,c,h,m])=>{setLog(lg||{});setNLogs(n||[]);setCfg(c);setCm(parseFloat(h)||0);setMens(m||[]);setLoading(false);});},[]);
+  const weighIns=nLogs.filter(l=>l.weight>0).map(l=>({dateISO:l.dateISO,kg:l.weight}));
+  const curW=avgRecent(weighIns,7);const age=cfg?parseInt(cfg.age)||0:0;
+  let lean=0;const lm=[...mens].reverse().find(m=>m.vals&&m.vals.taille>0&&m.vals.cou>0);if(lm&&cm){const bf=navyBF(lm.vals.taille,lm.vals.cou,cm);const w=closestWeight(weighIns,lm.dateISO)||curW;const lf=(w&&bf!=null)?leanFat(w,bf):null;if(lf)lean=lf.lean;}
+  const ready=curW&&cm&&age&&cfg;const calRes=ready?calorieTarget(curW,cm,age,cfg.sex,cfg.activity,cfg.deficit):null;
+  const target=calRes?macrosFor(calRes.target,proteinFor(curW,lean,(cfg&&cfg.protMode)||"lean")):null;
+  const foods=log[today]||[];const tot=foods.reduce((a,f)=>({p:a.p+f.p,gl:a.gl+f.gl,l:a.l+f.l,kcal:a.kcal+f.kcal}),{p:0,gl:0,l:0,kcal:0});
+  const r1=x=>Math.round(x*10)/10;
+  const results=foodDB.filter(f=>!q||f.nom.toLowerCase().includes(q.toLowerCase()));
+  const add=async food=>{const g=parseFloat(grams);if(!g||g<=0)return;const e={id:Date.now(),nom:food.nom,grams:g,p:r1(food.p*g/100),gl:r1(food.g*g/100),l:r1(food.l*g/100),kcal:Math.round(food.kcal*g/100)};const u={...log,[today]:[...(log[today]||[]),e]};setLog(u);await save("food-log",u);};
+  const del=async id=>{const u={...log,[today]:(log[today]||[]).filter(x=>x.id!==id)};setLog(u);await save("food-log",u);};
+  if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
+  const bar=(v,t,c)=>{const pct=t>0?Math.min(100,v/t*100):0;const over=t>0&&v>t*1.05;return <div style={{marginBottom:9}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span style={{color:c,fontWeight:700}}>{Math.round(v)}{t?" / "+t:""} g</span><span style={{color:over?C.danger:C.textDim}}>{t?Math.round(pct)+"%":""}</span></div><div style={{height:7,borderRadius:4,background:C.surfaceAlt,overflow:"hidden"}}><div style={{height:"100%",width:pct+"%",background:over?C.danger:c}}/></div></div>;};
+  return <div>
+    <Card border={G+"44"}><div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}><div style={{fontSize:12,fontWeight:800,color:C.greenLight}}>📓 Aujourd'hui</div><div style={{fontSize:18,fontWeight:800,color:G}}>{tot.kcal}<span style={{fontSize:11,color:C.textMut}}>{calRes?" / "+calRes.target:""} kcal</span></div></div>
+      {target?<div>{bar(tot.p,target.p,C.prot)}{bar(tot.gl,target.g,C.gluc)}{bar(tot.l,target.l,C.amberLight)}<div style={{fontSize:9,color:C.textDim,marginTop:2}}>Protéines · Glucides · Lipides vs ta cible du jour.</div></div>
+       :<div style={{fontSize:11,color:C.textMut}}>Total : {Math.round(tot.p)}P / {Math.round(tot.gl)}G / {Math.round(tot.l)}L. Renseigne 🔥 Calories pour comparer à ta cible.</div>}
+    </Card>
+    <Card><div style={{display:"flex",gap:8,marginBottom:8}}><input value={q} onChange={e=>setQ(e.target.value)} placeholder="🔍 Chercher un aliment" style={{...inputStyle,flex:1}}/><div style={{width:84}}><input type="number" value={grams} onChange={e=>setGrams(e.target.value)} style={{...inputStyle,textAlign:"right"}}/><div style={{fontSize:9,color:C.textDim,textAlign:"right",marginTop:2}}>grammes</div></div></div>
+      <div style={{maxHeight:210,overflowY:"auto"}}>{results.map(f=><div key={f.nom} onClick={()=>add(f)} style={{display:"flex",alignItems:"center",gap:8,padding:"7px 4px",borderTop:`1px solid ${C.borderSoft}`,cursor:"pointer"}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:12,fontWeight:600}}>{f.nom}</div><div style={{fontSize:9,color:C.textDim}}>{f.p}P/{f.g}G/{f.l}L · {f.kcal}kcal /100g</div></div><div style={{fontSize:20,color:G,fontWeight:800,lineHeight:1}}>+</div></div>)}{results.length===0&&<div style={{fontSize:11,color:C.textDim,textAlign:"center",padding:10}}>Aucun aliment trouvé.</div>}</div>
+    </Card>
+    <div style={{fontSize:11,fontWeight:700,color:C.textMut,margin:"4px 0 8px"}}>Mangé aujourd'hui</div>
+    {!foods.length?<Card><div style={{textAlign:"center",color:C.textMut,padding:10,fontSize:12}}>Rien encore. Cherche un aliment ci-dessus, règle les grammes, et tape +.</div></Card>:foods.slice().reverse().map(f=><Card key={f.id} style={{padding:"9px 12px"}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:12.5,fontWeight:700}}>{f.nom} <span style={{fontSize:10,color:C.textDim}}>{f.grams}g</span></div><div style={{fontSize:9.5,color:C.textDim}}>{f.p}P/{f.gl}G/{f.l}L</div></div><span style={{fontSize:13,fontWeight:800,color:C.greenLight}}>{f.kcal}</span><button onClick={()=>del(f.id)} style={{background:"none",border:"none",color:C.textMut,cursor:"pointer",fontSize:14,marginLeft:2}}>✕</button></div></Card>)}
+  </div>;
+}
+
+function FoodJournal({target}){
+  const[journal,setJournal]=useState({});const[loading,setLoading]=useState(true);const[dISO,setDISO]=useState(isoToday());const[sel,setSel]=useState(foodDB[0].nom);const[qty,setQty]=useState("");
+  useEffect(()=>{load("food-journal",{}).then(j=>{setJournal(j||{});setLoading(false);});},[]);
+  const G=C.green;const list=journal[dISO]||[];
+  const tot=list.reduce((a,e)=>({p:a.p+e.p,g:a.g+e.g,l:a.l+e.l,kcal:a.kcal+e.kcal}),{p:0,g:0,l:0,kcal:0});
+  const add=async()=>{const f=foodDB.find(x=>x.nom===sel);const q=parseFloat(qty);if(!f||!q||q<=0)return;const e={id:Date.now(),nom:f.nom,qty:q,p:Math.round(f.p*q/100*10)/10,g:Math.round(f.g*q/100*10)/10,l:Math.round(f.l*q/100*10)/10,kcal:Math.round(f.kcal*q/100)};const nj={...journal,[dISO]:[...list,e]};setJournal(nj);await save("food-journal",nj);setQty("");};
+  const del=async id=>{const nj={...journal,[dISO]:list.filter(x=>x.id!==id)};setJournal(nj);await save("food-journal",nj);};
+  if(loading)return <div style={{color:C.textMut,padding:20}}>Chargement…</div>;
+  const rows=[["Protéines","p",C.prot],["Glucides","g",C.gluc],["Lipides","l",C.lip]];
+  const pv=(()=>{const f=foodDB.find(x=>x.nom===sel);const q=parseFloat(qty)||0;return f&&q?{p:Math.round(f.p*q/100),g:Math.round(f.g*q/100),l:Math.round(f.l*q/100),kcal:Math.round(f.kcal*q/100)}:null;})();
+  return <div>
+    <DateNav value={dISO} onChange={setDISO} color={G}/>
+    <Card border={G+"44"}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}><div style={{fontSize:12,fontWeight:800,color:C.greenLight}}>🍽️ Mangé ce jour</div><div style={{fontSize:15,fontWeight:800,color:G}}>{Math.round(tot.kcal)}{target?<span style={{fontSize:11,color:C.textDim,fontWeight:400}}> / {target.kcal}</span>:""} <span style={{fontSize:11,color:C.textDim,fontWeight:400}}>kcal</span></div></div>
+      {target&&<div style={{height:8,background:C.surfaceAlt,borderRadius:4,overflow:"hidden",marginBottom:12}}><div style={{height:"100%",width:Math.min(tot.kcal/target.kcal*100,100)+"%",background:tot.kcal>target.kcal*1.05?C.danger:G}}/></div>}
+      {rows.map(([lab,k,c])=>{const v=Math.round(tot[k]);const tg=target?target[k]:0;return <div key={k} style={{marginBottom:9}}><div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:3}}><span style={{color:c,fontWeight:700}}>{lab}</span><span style={{fontWeight:700}}>{v}{target?<span style={{color:C.textDim,fontWeight:400}}> / {tg} g</span>:" g"}{target&&v>=tg?" ✓":""}</span></div>{target&&<div style={{height:6,background:C.surfaceAlt,borderRadius:3,overflow:"hidden"}}><div style={{height:"100%",width:Math.min(v/tg*100,100)+"%",background:c}}/></div>}</div>;})}
+      {!target?<div style={{fontSize:9.5,color:C.textDim,marginTop:4}}>Renseigne 🔥 Calories pour comparer à ta cible.</div>:<div style={{fontSize:9.5,color:C.textDim,marginTop:2}}>Cible {target.rest?"jour de repos":"jour d'entraînement"}.</div>}
+    </Card>
+    <Card>
+      <div style={{fontSize:12,fontWeight:700,marginBottom:8}}>➕ Ajouter un aliment</div>
+      <select value={sel} onChange={e=>setSel(e.target.value)} style={{...inputStyle,marginBottom:8,colorScheme:"dark"}}>{foodDB.map(f=><option key={f.nom} value={f.nom}>{f.nom} · {f.kcal}kcal/100g</option>)}</select>
+      <div style={{display:"flex",gap:8,alignItems:"center"}}><input type="number" value={qty} onChange={e=>setQty(e.target.value)} placeholder="quantité (g)" style={{...inputStyle,flex:1}}/><button onClick={add} style={{padding:"10px 16px",borderRadius:10,border:"none",background:G,color:"#04140A",fontWeight:800,fontSize:13,cursor:"pointer"}}>Ajouter</button></div>
+      {pv&&<div style={{fontSize:10,color:C.textMut,marginTop:8}}>→ {pv.p}P / {pv.g}G / {pv.l}L · {pv.kcal} kcal</div>}
+    </Card>
+    {list.length>0?<Card><div style={{fontSize:12,fontWeight:700,marginBottom:4}}>Journal · {list.length} aliment{list.length>1?"s":""}</div>{list.map(e=><div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"7px 0",borderTop:`1px solid ${C.borderSoft}`}}><div><div style={{fontSize:12,fontWeight:700}}>{e.nom} <span style={{color:C.textDim,fontWeight:400}}>· {e.qty}g</span></div><div style={{fontSize:10,color:C.textDim}}>{e.p}P / {e.g}G / {e.l}L · {e.kcal} kcal</div></div><button onClick={()=>del(e.id)} style={{background:"none",border:"none",color:C.danger,fontSize:18,cursor:"pointer",padding:"0 4px"}}>×</button></div>)}</Card>:<div style={{textAlign:"center",color:C.textMut,fontSize:11,padding:14}}>Rien de noté pour ce jour. Ajoute ce que tu manges au fil de la journée.</div>}
+  </div>;
+}
+
 function NutritionSection(){
   const[tab,setTab]=useState("resume");const[day,setDay]=useState("training");const[sciCfg,setSciCfg]=useState({caloricAdjust:0});
   const[nLogsN,setNLogsN]=useState([]);const[calCfg,setCalCfg]=useState(null);const[hCm,setHCm]=useState(0);const[mensC,setMensC]=useState([]);
@@ -879,8 +937,8 @@ function NutritionSection(){
   const repas=day==="training"?repasTraining:repasRest;const tot=repas.reduce((a,r)=>({P:a.P+r.P,G:a.G+r.G,L:a.L+r.L,kcal:a.kcal+r.kcal}),{P:0,G:0,L:0,kcal:0});
   const _wi=nLogsN.filter(l=>l.weight>0).map(l=>({dateISO:l.dateISO,kg:l.weight}));const _cw=avgRecent(_wi,7);const _age=calCfg?parseInt(calCfg.age)||0:0;let _lean=0;const _lm=[...mensC].reverse().find(m=>m.vals&&m.vals.taille>0&&m.vals.cou>0);if(_lm&&hCm){const _bf=navyBF(_lm.vals.taille,_lm.vals.cou,hCm);const _w=closestWeight(_wi,_lm.dateISO)||_cw;const _lf=(_w&&_bf!=null)?leanFat(_w,_bf):null;if(_lf)_lean=_lf.lean;}
   const calReady=_cw&&hCm&&_age&&calCfg;const calRes=calReady?calorieTarget(_cw,hCm,_age,calCfg.sex,calCfg.activity,calCfg.deficit):null;const calTgt=calRes?calRes.target:null;
-  const _prot=calReady?proteinFor(_cw,_lean,(calCfg&&calCfg.protMode)||"lean"):0;const calMacros=calRes?macrosFor(calRes.target,_prot):null;const REST_CUT=400;const dayTgt=calTgt!=null?(day==="rest"?Math.max(calTgt-REST_CUT,calRes?calRes.bmr:0):calTgt):null;const dayMacros=(calRes&&dayTgt)?macrosFor(dayTgt,_prot):null;const mealFactor=(dayTgt&&tot.kcal)?dayTgt/tot.kcal:1;const pF=dayMacros&&tot.P?dayMacros.p/tot.P:mealFactor;const gF=dayMacros&&tot.G?dayMacros.g/tot.G:mealFactor;const lF=dayMacros&&tot.L?dayMacros.l/tot.L:mealFactor;const scP=v=>Math.round(v*pF),scG=v=>Math.round(v*gF),scL=v=>Math.round(v*lF);const sc=v=>Math.round(v*mealFactor);
-  const tabs=[["resume","Résumé"],["cal","🔥 Calories"],["repas","Repas"],["aliments","Aliments"],["complements","Compléments"],["suivi","📊 Suivi"],["corps","📐 Corps"],["conseils","Conseils"]];
+  const _prot=calReady?proteinFor(_cw,_lean,(calCfg&&calCfg.protMode)||"lean"):0;const calMacros=calRes?macrosFor(calRes.target,_prot):null;const REST_CUT=400;const dayTgt=calTgt!=null?(day==="rest"?Math.max(calTgt-REST_CUT,calRes?calRes.bmr:0):calTgt):null;const dayMacros=(calRes&&dayTgt)?macrosFor(dayTgt,_prot):null;const _jRest=![1,2,3,5,6].includes(new Date().getDay());const jourTgt=calTgt!=null?(_jRest?Math.max(calTgt-REST_CUT,calRes?calRes.bmr:0):calTgt):null;const jourMacros=(calRes&&jourTgt)?macrosFor(jourTgt,_prot):null;const mealFactor=(dayTgt&&tot.kcal)?dayTgt/tot.kcal:1;const pF=dayMacros&&tot.P?dayMacros.p/tot.P:mealFactor;const gF=dayMacros&&tot.G?dayMacros.g/tot.G:mealFactor;const lF=dayMacros&&tot.L?dayMacros.l/tot.L:mealFactor;const scP=v=>Math.round(v*pF),scG=v=>Math.round(v*gF),scL=v=>Math.round(v*lF);const sc=v=>Math.round(v*mealFactor);
+  const tabs=[["resume","Résumé"],["cal","🔥 Calories"],["journal","📓 Journal"],["repas","Repas"],["aliments","Aliments"],["complements","Compléments"],["suivi","📊 Suivi"],["corps","📐 Corps"],["conseils","Conseils"]];
   return <div>
     <div style={{display:"flex",gap:6,overflowX:"auto",paddingBottom:14}}>{tabs.map(([k,l])=><Pill key={k} active={tab===k} onClick={()=>setTab(k)} color={C.green}>{l}</Pill>)}</div>
     {tab==="resume"&&<div>
@@ -901,6 +959,7 @@ function NutritionSection(){
     {tab==="complements"&&<div>{complements.map(c=><Card key={c.n}><div style={{display:"flex",alignItems:"center",gap:8,marginBottom:2}}><span style={{fontSize:18}}>{c.emoji}</span><span style={{fontSize:14,fontWeight:800}}>{c.n}</span></div><div style={{fontSize:11,color:C.greenLight,fontWeight:700,marginBottom:6}}>{c.quand}</div><div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{c.d}</div></Card>)}</div>}
     {tab==="suivi"&&<SuiviNutrition/>}
     {tab==="cal"&&<NutritionCalories/>}
+    {tab==="journal"&&<FoodJournal target={jourMacros?{p:jourMacros.p,g:jourMacros.g,l:jourMacros.l,kcal:jourTgt,rest:_jRest}:null}/>}
     {tab==="corps"&&<SuiviCorps/>}
     {tab==="conseils"&&<div>{nutritionConseils.map(c=><Card key={c.t} style={{borderLeft:`3px solid ${C.green}`,borderRadius:"0 14px 14px 0"}}><div style={{fontSize:13,fontWeight:700,color:C.greenLight,marginBottom:4}}>💡 {c.t}</div><div style={{fontSize:12,color:C.textMut,lineHeight:1.5}}>{c.d}</div></Card>)}</div>}
   </div>;
@@ -1146,7 +1205,7 @@ const _ip=n=>String(n).padStart(2,"0");
 function icsLocal(d){return d.getFullYear()+_ip(d.getMonth()+1)+_ip(d.getDate())+"T"+_ip(d.getHours())+_ip(d.getMinutes())+"00";}
 function buildRoutineICS(events){const now=new Date();let s="BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//RECOMP//FR\r\nCALSCALE:GREGORIAN\r\n";events.forEach((e,i)=>{const st=new Date(now);st.setHours(e.h,e.m,0,0);const en=new Date(st.getTime()+15*60000);s+="BEGIN:VEVENT\r\nUID:recomp-"+i+"-"+now.getTime()+"@recomp\r\nDTSTAMP:"+icsLocal(now)+"\r\nDTSTART:"+icsLocal(st)+"\r\nDTEND:"+icsLocal(en)+"\r\nRRULE:"+e.rrule+"\r\nSUMMARY:"+e.title+"\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:"+e.title+"\r\nTRIGGER:PT0S\r\nEND:VALARM\r\nEND:VEVENT\r\n";});return s+"END:VCALENDAR\r\n";}
 const routineEvents=[{title:"Réveil + créatine",h:6,m:45,rrule:"FREQ=DAILY"},{title:"Séance RECOMP",h:7,m:15,rrule:"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"},{title:"Shaker whey",h:8,m:20,rrule:"FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR"},{title:"Déjeuner",h:12,m:30,rrule:"FREQ=DAILY"},{title:"Collation",h:16,m:0,rrule:"FREQ=DAILY"},{title:"Dîner",h:19,m:30,rrule:"FREQ=DAILY"}];
-const STORAGE_KEYS=["sport-logs","sport-phase","nutri-logs","budget-logs","mensurations","photos-index","douleur-logs","science-config","maison-logs","fin-income","fin-expenses","fin-caps","fin-goal","taille-corps","nutri-cal-cfg"];
+const STORAGE_KEYS=["sport-logs","sport-phase","nutri-logs","budget-logs","mensurations","photos-index","douleur-logs","science-config","maison-logs","fin-income","fin-expenses","fin-caps","fin-goal","taille-corps","nutri-cal-cfg","food-journal"];
 function downloadText(filename,text,mime){try{const blob=new Blob([text],{type:mime||"text/plain"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;document.body.appendChild(a);a.click();document.body.removeChild(a);setTimeout(()=>URL.revokeObjectURL(url),1500);}catch(e){console.error(e);}}
 
 /* ═══ PROJECTION ═══ */
@@ -1190,6 +1249,7 @@ function HomeScreen({goTo}){
   const creaStreak=streakFromDates(nLogs.filter(l=>l.supps&&l.supps["Créatine"]).map(l=>l.dateISO));
   const weighIns=nLogs.filter(l=>l.weight).sort((a,b)=>a.dateISO.localeCompare(b.dateISO)).map(l=>({dateISO:l.dateISO,kg:l.weight}));
   const hCurW=avgRecent(weighIns,7);const hAge=hCalCfg?parseInt(hCalCfg.age)||0:0;let hLean=0;const hLm=[...hMens].reverse().find(m=>m.vals&&m.vals.taille>0&&m.vals.cou>0);if(hLm&&hCm){const _bf=navyBF(hLm.vals.taille,hLm.vals.cou,hCm);const _w=closestWeight(weighIns,hLm.dateISO)||hCurW;const _lf=(_w&&_bf!=null)?leanFat(_w,_bf):null;if(_lf)hLean=_lf.lean;}const hReady=hCurW&&hCm&&hAge&&hCalCfg;const hCalRes=hReady?calorieTarget(hCurW,hCm,hAge,hCalCfg.sex,hCalCfg.activity,hCalCfg.deficit):null;const hMacros=hCalRes?macrosFor(hCalRes.target,proteinFor(hCurW,hLean,(hCalCfg&&hCalCfg.protMode)||"lean")):null;
+  const todayISO=isoToday();const jourMap={1:"Push",2:"Pull",3:"Legs",5:"Upper",6:"Lower"};const todaySeance=jourMap[new Date().getDay()]||null;const seanceToday=todaySeance?salleSeances.find(s=>s.id===todaySeance):null;const isRest=!todaySeance;const didTrain=sLogs.some(l=>l.dateISO===todayISO)||mLogs.some(l=>l.dateISO===todayISO);const todayN=nLogs.find(l=>l.dateISO===todayISO);const didNutri=!!todayN;const didWeigh=!!(todayN&&todayN.weight);const doneCount=((isRest||didTrain)?1:0)+(didNutri?1:0)+(didWeigh?1:0);const todayTgt=hCalRes?(isRest?Math.max(hCalRes.target-400,hCalRes.bmr):hCalRes.target):null;
   const lastW=sLogs.length?sLogs[sLogs.length-1]:null;const totalS=sLogs.length;
   const wE=nLogs.filter(l=>l.weight).sort((a,b)=>a.dateISO.localeCompare(b.dateISO));
   const latW=wE.length?wE[wE.length-1].weight:null;const fstW=wE.length?wE[0].weight:null;const diffW=latW&&fstW?(latW-fstW).toFixed(1):null;
@@ -1217,6 +1277,20 @@ function HomeScreen({goTo}){
       <Card style={{marginBottom:0,textAlign:"center",padding:"12px 6px"}}><div style={{fontSize:20}}>🔥</div><div style={{fontSize:18,fontWeight:800,color:C.green}}>{nutriStreak.current}<span style={{fontSize:10,color:C.textDim,fontWeight:400}}>j</span></div><div style={{fontSize:9,color:C.textDim}}>Série nutrition</div>{nutriStreak.best>1&&<div style={{fontSize:8,color:C.textDim}}>record {nutriStreak.best}j</div>}</Card>
       <Card style={{marginBottom:0,textAlign:"center",padding:"12px 6px"}}><div style={{fontSize:20}}>⚡</div><div style={{fontSize:18,fontWeight:800,color:C.amberLight}}>{creaStreak.current}<span style={{fontSize:10,color:C.textDim,fontWeight:400}}>j</span></div><div style={{fontSize:9,color:C.textDim}}>Série créatine</div>{creaStreak.best>1&&<div style={{fontSize:8,color:C.textDim}}>record {creaStreak.best}j</div>}</Card>
       <Card style={{marginBottom:0,textAlign:"center",padding:"12px 6px"}}><div style={{fontSize:20}}>💪</div><div style={{fontSize:18,fontWeight:800,color:train7>=5?C.green:C.amberLight}}>{train7}<span style={{fontSize:10,color:C.textDim,fontWeight:400}}>/5</span></div><div style={{fontSize:9,color:C.textDim}}>Séances 7j</div></Card>
+    </div>}
+    {ok&&<div style={{background:`linear-gradient(135deg,${C.surface},#12100A)`,border:`1px solid ${C.amber}44`,borderRadius:18,padding:16,marginBottom:12}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
+        <div><div style={{fontSize:14,fontWeight:800}}>📅 Aujourd'hui</div><div style={{fontSize:10,color:C.textDim,textTransform:"capitalize"}}>{new Date().toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long"})}</div></div>
+        <div style={{textAlign:"center"}}><div style={{fontSize:20,fontWeight:800,color:doneCount>=3?C.green:C.amberLight}}>{doneCount}<span style={{fontSize:11,color:C.textDim,fontWeight:400}}>/3</span></div><div style={{fontSize:9,color:C.textDim}}>objectifs</div></div>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr 1fr",gap:8}}>
+        {[
+          {e:isRest?"🛌":(seanceToday?seanceToday.emoji:"🏋️"),lab:isRest?"Repos":(todaySeance||"Séance"),done:isRest||didTrain,sub:isRest?"jour off":(didTrain?"fait":"à faire")},
+          {e:"🥗",lab:"Nutrition",done:didNutri,sub:didNutri?"suivie":"à suivre"},
+          {e:"⚖️",lab:"Pesée",done:didWeigh,sub:didWeigh?"faite":"à faire"}
+        ].map((t,i)=><div key={i} style={{background:t.done?C.green+"14":C.surfaceAlt,border:`1px solid ${t.done?C.green+"44":C.borderSoft}`,borderRadius:12,padding:"10px 6px",textAlign:"center"}}><div style={{fontSize:18}}>{t.e}</div><div style={{fontSize:11,fontWeight:700,marginTop:2}}>{t.lab}</div><div style={{fontSize:9,color:t.done?C.green:C.textDim,fontWeight:t.done?700:400}}>{t.done?"✓ ":""}{t.sub}</div></div>)}
+      </div>
+      {todayTgt&&<div style={{fontSize:10.5,color:C.textMut,marginTop:11,textAlign:"center"}}>🔥 Cible du jour : <b style={{color:C.greenLight}}>{todayTgt} kcal</b>{isRest?" (repos, glucides réduits)":""}</div>}
     </div>}
     {ok&&(train7>0||l7.length>0||dep7>0)&&<div style={{background:`linear-gradient(135deg,${C.surface},#0C140C)`,border:`1px solid ${C.green}33`,borderRadius:18,padding:16,marginBottom:12}}>
       <div style={{fontSize:14,fontWeight:800,marginBottom:1}}>📅 Bilan de la semaine</div>
