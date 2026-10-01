@@ -3345,12 +3345,27 @@ function App() {
             React.createElement("span", { style: { fontSize: 20, filter: section === id ? "none" : "grayscale(1) opacity(0.4)" } }, icon),
             React.createElement("span", { style: { fontSize: 9, fontWeight: 700, letterSpacing: .5, color: section === id ? color : C.textDim } }, label)))));
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App));
+/* ═══ FILET DE SÉCURITÉ — une erreur d'affichage ne vide plus tout l'écran ═══ */
+class ErrorBoundary extends React.Component {
+    constructor(p) { super(p); this.state = { err: null }; }
+    static getDerivedStateFromError(err) { return { err }; }
+    componentDidCatch(err, info) { console.error("RECOMP crash", err, info); }
+    render() {
+        if (!this.state.err)
+            return this.props.children;
+        return React.createElement("div", { style: { minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, padding: 24, textAlign: "center", background: C.bg, color: C.text } },
+            React.createElement("div", { style: { fontSize: 40 } }, "⚠️"),
+            React.createElement("div", null, "Un problème d'affichage est survenu.", React.createElement("br"), "Tes données sont intactes."),
+            React.createElement("div", { style: { fontSize: 11, color: C.textDim } }, String(this.state.err && this.state.err.message || this.state.err)),
+            React.createElement("button", { onClick: () => this.setState({ err: null }), style: { padding: "12px 22px", borderRadius: 12, border: "none", background: C.green, color: "#04140a", fontWeight: 800, fontSize: 15 } }, "Réessayer"));
+    }
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(App)));
 
 }catch(e){var f=document.getElementById("fatal");if(f){f.style.display="flex";var m=document.getElementById("fatalmsg");if(m)m.textContent=String(e&&e.message||e);}console.error(e);}
 </script>
 <script>
-if("serviceWorker" in navigator){window.addEventListener("load",function(){navigator.serviceWorker.register("./sw.js").catch(function(){});});}
+if("serviceWorker" in navigator){navigator.serviceWorker.register("./sw.js").catch(function(e){console.warn("SW",e);});}
 setTimeout(function(){var b=document.getElementById("boot");if(b&&document.body.contains(b)){var f=document.getElementById("fatal");if(f)f.style.display="flex";}},12000);
 </script>
 </body>

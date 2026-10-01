@@ -1,0 +1,11 @@
+# Le service worker doit toujours être revérifié, sinon le téléphone garde une vieille version.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+    Service-Worker-Allowed = "/"
+
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Cache-Control = "no-cache"
