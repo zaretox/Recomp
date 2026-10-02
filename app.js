@@ -102,6 +102,7 @@ catch {
 /* Renvoie true si l'écriture a réussi, false sinon (espace plein, stockage refusé…). */
 async function save(k, v) { try {
     await window.storage.set(k, JSON.stringify(v));
+    bus.emit("stored:" + k, v); // les écrans abonnés via useStored se mettent à jour
     return true;
 }
 catch (e) {
@@ -111,6 +112,64 @@ catch (e) {
 const inputStyle = { width: "100%", padding: "9px 10px", borderRadius: 8, border: `1px solid ${C.border}`, background: C.surfaceAlt, color: C.text, fontSize: 14, boxSizing: "border-box" };
 function Pill({ children, active, onClick, color }) { return React.createElement("button", { onClick: onClick, style: { padding: "7px 13px", borderRadius: 999, border: "none", cursor: "pointer", fontSize: 12, fontWeight: 700, whiteSpace: "nowrap", background: active ? (color || C.amber) : C.surfaceAlt, color: active ? (color ? "#fff" : "#1A1505") : C.textMut } }, children); }
 function Card({ children, style, border }) { return React.createElement("div", { style: { background: C.surface, border: `1px solid ${border || C.border}`, borderRadius: 14, padding: 14, marginBottom: 10, ...style } }, children); }
+/* ═══ BUS D'ÉVÉNEMENTS — relie les composants sans passer par les props ═══ */
+const bus = (() => { const m = {}; return { on: (e, f) => { (m[e] = m[e] || []).push(f); return () => { m[e] = m[e].filter(x => x !== f); }; }, emit: (e, d) => (m[e] || []).forEach(f => f(d)) }; })();
+/* Valeur persistée + setter qui enregistre. Le cache du stockage rend la lecture instantanée. */
+function useStored(key, fallback) {
+    const [v, setV] = useState(fallback);
+    const [ready, setReady] = useState(false);
+    useEffect(() => { let alive = true; load(key, fallback).then(d => { if (alive) {
+        setV(d ?? fallback);
+        setReady(true);
+    } }); const off = bus.on("stored:" + key, d => setV(d)); return () => { alive = false; off(); }; }, [key]);
+    const set = useCallback(async (next) => { setV(next); await save(key, next); }, [key]);
+    return [v, set, ready];
+}
+/* ═══ CONFIRMATIONS & NOTIFICATIONS ═══ */
+function askConfirm(opts) { return new Promise(res => bus.emit("confirm", { ...opts, res })); }
+function toast(msg, opts) { bus.emit("toast", { id: Date.now() + Math.random(), msg, ...(opts || {}) }); }
+/* Enregistre `next`, met l'écran à jour et propose « Annuler » pendant quelques secondes. */
+async function commitWithUndo(key, prev, next, setter, label) {
+    if (!(await save(key, next))) {
+        toast("❌ Échec de l'enregistrement (stockage plein ?)", { tone: "danger" });
+        return false;
+    }
+    setter(next);
+    toast(label, { undo: async () => { await save(key, prev); setter(prev); toast("↩️ Restauré"); } });
+    return true;
+}
+/* Effacement complet d'une liste : confirmation explicite + possibilité d'annuler. */
+async function resetWithConfirm(key, prev, setter, what) {
+    if (!prev || !prev.length)
+        return;
+    const ok = await askConfirm({ title: "Tout effacer ?", message: prev.length + " entrée" + (prev.length > 1 ? "s" : "") + " — " + what + " — vont être supprimées. Pense à exporter une sauvegarde avant.", confirmLabel: "Tout effacer", danger: true });
+    if (ok)
+        await commitWithUndo(key, prev, [], setter, "🗑️ " + what + " : tout effacé");
+}
+function ConfirmHost() {
+    const [req, setReq] = useState(null);
+    useEffect(() => bus.on("confirm", setReq), []);
+    if (!req)
+        return null;
+    const close = v => { req.res(v); setReq(null); };
+    const col = req.danger ? C.danger : C.green;
+    return React.createElement("div", { onClick: () => close(false), style: { position: "fixed", inset: 0, background: "#000000B3", zIndex: 10000, display: "flex", alignItems: "flex-end", justifyContent: "center", padding: "16px 16px calc(16px + env(safe-area-inset-bottom, 0px))", animation: "rcFade .15s ease-out" } },
+        React.createElement("div", { onClick: e => e.stopPropagation(), role: "dialog", "aria-modal": true, style: { width: "100%", maxWidth: 420, background: C.surface, border: `1px solid ${col}55`, borderRadius: 18, padding: 18, boxShadow: "0 20px 60px #000", animation: "rcUp .2s ease-out" } },
+            React.createElement("div", { style: { fontSize: 16, fontWeight: 800, marginBottom: 6 } }, req.title || "Confirmer"),
+            req.message && React.createElement("div", { style: { fontSize: 12.5, color: C.textMut, lineHeight: 1.5, marginBottom: 16 } }, req.message),
+            React.createElement("div", { style: { display: "flex", gap: 8 } },
+                React.createElement("button", { onClick: () => close(false), style: { flex: 1, padding: "12px 0", borderRadius: 12, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 14, fontWeight: 700, cursor: "pointer" } }, req.cancelLabel || "Annuler"),
+                React.createElement("button", { autoFocus: true, onClick: () => close(true), style: { flex: 1, padding: "12px 0", borderRadius: 12, border: "none", background: col, color: req.danger ? "#fff" : "#04130B", fontSize: 14, fontWeight: 800, cursor: "pointer" } }, req.confirmLabel || "Confirmer"))));
+}
+function ToastHost() {
+    const [items, setItems] = useState([]);
+    useEffect(() => bus.on("toast", t => { setItems(a => [...a.slice(-2), t]); setTimeout(() => setItems(a => a.filter(x => x.id !== t.id)), t.undo ? 6000 : 3000); }), []);
+    if (!items.length)
+        return null;
+    return React.createElement("div", { style: { position: "fixed", left: 0, right: 0, bottom: "calc(78px + env(safe-area-inset-bottom, 0px))", zIndex: 9000, display: "flex", flexDirection: "column", alignItems: "center", gap: 6, padding: "0 14px", pointerEvents: "none" } }, items.map(t => React.createElement("div", { key: t.id, style: { pointerEvents: "auto", display: "flex", alignItems: "center", gap: 12, maxWidth: 420, width: "100%", background: "#1B231B", border: `1px solid ${t.tone === "danger" ? C.danger : C.border}`, borderRadius: 12, padding: "10px 12px", boxShadow: "0 8px 30px #000a", animation: "rcUp .2s ease-out" } },
+        React.createElement("span", { style: { flex: 1, fontSize: 12.5, color: C.text } }, t.msg),
+        t.undo && React.createElement("button", { onClick: () => { setItems(a => a.filter(x => x.id !== t.id)); t.undo(); }, style: { border: "none", background: "transparent", color: C.amberLight, fontWeight: 800, fontSize: 13, cursor: "pointer", padding: "2px 4px" } }, "Annuler"))));
+}
 /* ═══ SPORT DATA ═══ */
 const profil = [{ l: "Poids", v: "130 kg", s: "départ" }, { l: "Objectif", v: "Recompo", s: "gras ↓ muscle ↑" }, { l: "Fréquence", v: "5j/sem", s: "lever 6h45" }, { l: "Anciens max", v: "140/100", s: "squat·bench" }];
 const regles = ["Genou droit : ne jamais dépasser la pointe du pied.", "Zéro saut les 4 premières semaines.", "Douleur piquante = arrêt immédiat.", "Bas du corps : progression plus lente (genou + pied droit).", "Hydratation +++ et 7-8 h de sommeil."];
@@ -134,13 +193,11 @@ const sportConseils = [{ t: "Articulations = rythme", d: "Tendons 3× plus lents
 /* ═══ NUTRITION DATA ═══ */
 const macrosTarget = { p: 250, g: 240, l: 88, kcal: 2750 };
 const mealIds = ["pre", "shaker", "petitdej", "dejeuner", "collation", "diner", "soir"];
-const mealLabels = { pre: "Pré-séance", shaker: "Shaker whey", petitdej: "Petit-déj labo", dejeuner: "Déjeuner", collation: "Collation", diner: "Dîner", soir: "Collation soir" };
-const mealTimes = { pre: "6h50", shaker: "8h20", petitdej: "9h00", dejeuner: "12h30", collation: "16h00", diner: "19h30", soir: "21h30" };
 const mealIcons = { pre: "🍌", shaker: "🥛", petitdej: "🍳", dejeuner: "🥗", collation: "🍎", diner: "🍽️", soir: "🌙" };
 const repasTraining = [
     { "m": "Petit-déjeuner", "h": "7h00", "P": 32, "G": 42, "L": 22, "kcal": 494, "items": [{ "n": "Blancs d'œufs", "cru": 132, "p": 15, "g": 1, "l": 0, "u": "4 blancs", "fix": 1 }, { "n": "Œufs entiers", "cru": 110, "p": 14, "g": 1, "l": 12, "u": "2 œufs", "fix": 1 }, { "n": "Patate douce", "cru": 200, "p": 3, "g": 40, "l": 0, "cuit": 180 }, { "t": "Légumes verts" }, { "n": "Huile olive/colza", "cru": 10, "p": 0, "g": 0, "l": 10 }, { "t": "Collagène + vitamine C" }], "note": "Patate douce à l'air fryer (frites/cubes, 200°C 12-15 min) ou en pancakes.", "alts": [{ "label": "Pancakes patate douce", "items": [{ "n": "Blancs d'œufs", "cru": 100, "p": 11, "g": 1, "l": 0, "u": "3 blancs", "fix": 1 }, { "n": "Œufs entiers", "cru": 55, "p": 7, "g": 1, "l": 6, "u": "1 œuf", "fix": 1 }, { "n": "Patate douce", "cru": 150, "p": 2, "g": 30, "l": 0, "cuit": 135 }, { "n": "Avoine", "cru": 40, "p": 5, "g": 24, "l": 3, "cuit": 100 }, { "t": "Cannelle · mixé puis cuit en pancakes" }] }, { "label": "Overnight oats + œufs durs", "items": [{ "n": "Avoine", "cru": 80, "p": 10, "g": 48, "l": 6, "cuit": 200 }, { "n": "Fromage blanc 0%", "cru": 200, "p": 16, "g": 8, "l": 0 }, { "t": "Fruits rouges + cannelle" }, { "n": "Œufs entiers", "cru": 110, "p": 14, "g": 1, "l": 12, "u": "2 œufs durs", "fix": 1 }] }, { "label": "Wrap œufs brouillés", "items": [{ "n": "Galette wrap", "cru": 70, "p": 8, "g": 50, "l": 6, "u": "1 galette", "fix": 1 }, { "n": "Œufs entiers", "cru": 110, "p": 14, "g": 1, "l": 12, "u": "2 œufs", "fix": 1 }, { "n": "Blancs d'œufs", "cru": 66, "p": 7, "g": 1, "l": 0, "u": "2 blancs", "fix": 1 }, { "t": "Légumes" }, { "n": "Huile olive/colza", "cru": 8, "p": 0, "g": 0, "l": 8 }] }] },
     { "m": "Shaker whey", "h": "10h00", "P": 24, "G": 2, "L": 2, "kcal": 122, "items": [{ "n": "Whey (1 dose)", "cru": 30, "p": 24, "g": 2, "l": 2, "u": "1 dose", "fix": 1 }], "note": null },
-    { "m": "Pré-séance", "h": "11h45", "P": 1, "G": 28, "L": 0, "kcal": 116, "items": [{ "n": "Banane", "cru": 120, "p": 1, "g": 28, "l": 0, "u": "1 banane", "fix": 1 }, { "t": "5g créatine + eau" }], "note": "Banane 15-20 min avant la séance de midi." },
+    { "m": "Pré-séance", "h": "11h45", "P": 1, "G": 28, "L": 0, "kcal": 116, "items": [{ "n": "Banane", "cru": 120, "p": 1, "g": 28, "l": 0, "u": "1 banane", "fix": 1 }, { "t": "5g créatine + eau" }], "note": "Banane 15-20 min avant la séance." },
     { "m": "Déjeuner", "h": "13h20", "P": 47, "G": 89, "L": 9, "kcal": 625, "items": [{ "n": "Galette wrap", "cru": 70, "p": 8, "g": 50, "l": 6, "u": "1 galette", "fix": 1 }, { "n": "Poulet/dinde", "cru": 150, "p": 35, "g": 0, "l": 3, "cuit": 115 }, { "n": "Riz", "cru": 50, "p": 4, "g": 39, "l": 0, "cuit": 140 }, { "t": "Légumes crus" }, { "t": "Sauce citron + herbes" }], "note": "Post-séance — mange dans l'heure qui suit.", "alts": [{ "label": "Bowl mexicain", "items": [{ "n": "Bœuf haché 5%", "cru": 130, "p": 27, "g": 0, "l": 7, "cuit": 100 }, { "n": "Riz", "cru": 55, "p": 4, "g": 43, "l": 0, "cuit": 155 }, { "n": "Haricots rouges (conserve)", "cru": 80, "p": 6, "g": 13, "l": 0 }, { "n": "Avocat", "cru": 40, "p": 1, "g": 4, "l": 6, "u": "¼", "fix": 1 }, { "t": "Épinards + oignon" }, { "t": "Épices tex-mex" }] }, { "label": "Pâtes thon", "items": [{ "n": "Thon", "cru": 100, "p": 26, "g": 0, "l": 1, "cuit": 80 }, { "n": "Pâtes", "cru": 70, "p": 8, "g": 49, "l": 1, "cuit": 175 }, { "n": "Fromage blanc 0%", "cru": 60, "p": 5, "g": 2, "l": 0, "u": "sauce" }, { "t": "Tomates + basilic" }, { "n": "Huile olive/colza", "cru": 5, "p": 0, "g": 0, "l": 5 }] }, { "label": "Wrap poulet-cheddar", "items": [{ "n": "Galette wrap", "cru": 70, "p": 8, "g": 50, "l": 6, "u": "1 galette", "fix": 1 }, { "n": "Poulet/dinde", "cru": 130, "p": 30, "g": 0, "l": 3, "cuit": 100 }, { "n": "Cheddar", "cru": 25, "p": 6, "g": 0, "l": 8, "fix": 1 }, { "n": "Fromage blanc 0%", "cru": 50, "p": 4, "g": 2, "l": 0, "u": "sauce" }, { "t": "Salade + tomate" }] }] },
     { "m": "Collation", "h": "16h30", "P": 20, "G": 44, "L": 9, "kcal": 337, "items": [{ "n": "Fromage blanc 0%", "cru": 200, "p": 16, "g": 8, "l": 0 }, { "n": "Pomme/poire", "cru": 150, "p": 0, "g": 30, "l": 0, "u": "1 fruit", "fix": 1 }, { "n": "Noix de cajou", "cru": 20, "p": 4, "g": 6, "l": 9 }], "note": null },
     { "m": "Dîner", "h": "19h30", "P": 49, "G": 42, "L": 16, "kcal": 508, "items": [{ "n": "Cabillaud/thon", "cru": 200, "p": 40, "g": 0, "l": 2, "cuit": 160 }, { "n": "Quinoa", "cru": 65, "p": 9, "g": 42, "l": 4, "cuit": 195 }, { "t": "Légumes rôtis" }, { "n": "Huile olive/colza", "cru": 10, "p": 0, "g": 0, "l": 10 }], "note": null, "alts": [{ "label": "Bowl bœuf chili", "items": [{ "n": "Bœuf haché 5%", "cru": 150, "p": 32, "g": 0, "l": 8, "cuit": 115 }, { "n": "Riz", "cru": 65, "p": 5, "g": 51, "l": 0, "cuit": 180 }, { "n": "Haricots rouges (conserve)", "cru": 80, "p": 6, "g": 13, "l": 0 }, { "n": "Avocat", "cru": 40, "p": 1, "g": 4, "l": 6, "u": "¼", "fix": 1 }, { "t": "Épinards" }, { "t": "Cumin/paprika/ail" }] }, { "label": "Riz cantonais poulet", "items": [{ "n": "Poulet/dinde", "cru": 130, "p": 30, "g": 0, "l": 3, "cuit": 100 }, { "n": "Riz", "cru": 70, "p": 5, "g": 55, "l": 0, "cuit": 195 }, { "n": "Œufs entiers", "cru": 55, "p": 7, "g": 1, "l": 6, "u": "1 œuf", "fix": 1 }, { "t": "Légumes wok" }, { "n": "Graines de sésame", "cru": 5, "p": 1, "g": 1, "l": 3, "fix": 1 }, { "n": "Huile olive/colza", "cru": 8, "p": 0, "g": 0, "l": 8 }, { "t": "Soja + gingembre" }] }, { "label": "Pâtes bolognaise", "items": [{ "n": "Pâtes", "cru": 80, "p": 10, "g": 56, "l": 1, "cuit": 200 }, { "n": "Bœuf haché 5%", "cru": 130, "p": 27, "g": 0, "l": 7, "cuit": 100 }, { "n": "Parmesan", "cru": 15, "p": 5, "g": 0, "l": 4, "fix": 1 }, { "t": "Sauce tomate + oignon/ail" }, { "t": "Basilic" }] }, { "label": "Saumon patate douce", "items": [{ "n": "Saumon", "cru": 150, "p": 30, "g": 0, "l": 20, "cuit": 120 }, { "n": "Patate douce", "cru": 200, "p": 3, "g": 40, "l": 0, "cuit": 180 }, { "t": "Brocoli/haricots verts" }, { "t": "Citron + aneth" }] }] },
@@ -155,8 +212,89 @@ const repasRest = [
 ];
 const alimentsCats = { Protéines: ["Blancs d'œufs", "Poulet/dinde", "Cabillaud/thon", "Fromage blanc 0%", "Whey", "Lentilles"], Glucides: ["Avoine", "Patate douce", "Quinoa", "Riz", "Haricots rouges", "Fruits"], Lipides: ["Huile olive", "Huile colza", "Chia", "Noix de cajou", "Amandes", "Jaunes d'œufs"] };
 const retires = ["Granola", "Lait écrémé", "Fromage gras", "Beurre cacahuète indus.", "Pain industriel", "Sauces indus."];
-const complements = [{ n: "Whey", emoji: "🥛", quand: "Post-séance ~8h20", d: "24g protéines, absorption rapide." }, { n: "Créatine", emoji: "⚡", quand: "5g/jour tous les jours", d: "Saturation progressive, régularité prime." }, { n: "Alpha-Men", emoji: "💊", quand: "Avec un repas gras", d: "Vitamines liposolubles mieux absorbées avec lipides." }];
+const complements = [{ n: "Whey", emoji: "🥛", quand: "Shaker whey (voir horaires du jour)", d: "24g protéines, absorption rapide." }, { n: "Créatine", emoji: "⚡", quand: "5g/jour tous les jours", d: "Saturation progressive, régularité prime." }, { n: "Alpha-Men", emoji: "💊", quand: "Avec un repas gras", d: "Vitamines liposolubles mieux absorbées avec lipides." }];
 const nutritionConseils = [{ t: "Prépare la veille", d: "Patate douce, œufs, quinoa cuits la veille." }, { t: "250g protéines", d: "Whey + blancs + poulet + poisson + fromage blanc." }, { t: "Hydratation", d: "500ml au réveil + 500ml-1L pendant la séance." }, { t: "Poids ≠ vérité", d: "Mensurations et miroir comptent plus." }];
+/* ═══ PROFIL & PLANNING — source unique de tous les horaires de l'app ═══
+ * Le profil (clé "profil") décide : programme suivi, créneau de séance, heure de réveil.
+ * Menu, checklist nutrition, accueil et calendrier .ics lisent tous dayPlan(). */
+const PROFILE_DEFAULT = { programme: "auto", creneau: "midi", reveil: "6h45" };
+const PROGRAMMES = {
+    maison: { label: "Maison", days: { 1: "A", 3: "B", 5: "C", 6: "D" } },
+    salle: { label: "Salle", days: { 1: "Push", 2: "Pull", 3: "Legs", 5: "Upper", 6: "Lower" } },
+};
+const ICS_DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+/* Horaires des repas d'un jour d'entraînement selon le créneau de séance */
+const CRENEAUX = {
+    matin: { label: "Matin", seance: "7h15", times: { "Pré-séance": "6h50", "Shaker whey": "8h20", "Petit-déjeuner": "9h00", "Déjeuner": "12h30", "Collation": "16h00", "Dîner": "19h30", "Collation soir": "21h30" } },
+    midi: { label: "Midi", seance: "12h00", times: { "Petit-déjeuner": "7h00", "Shaker whey": "10h00", "Pré-séance": "11h45", "Déjeuner": "13h20", "Collation": "16h30", "Dîner": "19h30", "Collation soir": "21h30" } },
+    soir: { label: "Soir", seance: "18h30", times: { "Petit-déjeuner": "7h30", "Déjeuner": "12h30", "Collation": "16h00", "Pré-séance": "18h10", "Shaker whey": "19h45", "Dîner": "20h30", "Collation soir": "22h30" } },
+};
+/* Nom de repas du menu → identifiant de la checklist nutrition (compatible anciennes saisies) */
+const MEAL_ID = { "Pré-séance": "pre", "Shaker whey": "shaker", "Petit-déjeuner": "petitdej", "Déjeuner": "dejeuner", "Collation": "collation", "Dîner": "diner", "Collation soir": "soir" };
+const hToMin = h => { const m = String(h || "").match(/(\d{1,2})\s*[h:]\s*(\d{0,2})/); return m ? +m[1] * 60 + (+m[2] || 0) : 0; };
+const minToH = n => Math.floor(n / 60) + "h" + String(n % 60).padStart(2, "0");
+function normProfile(p) { return { ...PROFILE_DEFAULT, ...(p || {}) }; }
+/* "auto" : salle dès qu'une séance salle a été enregistrée ces 21 derniers jours, sinon maison */
+function resolveProgramme(profile, sportLogs) { const p = normProfile(profile).programme; if (p !== "auto")
+    return p; return (sportLogs || []).some(l => withinDays(l.dateISO, 21)) ? "salle" : "maison"; }
+function programmeDays(prog) { return Object.keys(PROGRAMMES[prog].days).map(Number); }
+/* Séance prévue à une date donnée (null = jour de repos) */
+function sessionForDate(iso, prog) {
+    const code = PROGRAMMES[prog].days[new Date(iso + "T12:00:00").getDay()];
+    if (!code)
+        return null;
+    if (prog === "maison") {
+        const s = maison.find(x => x.code === code);
+        return { prog, code, emoji: "🏠", label: "Maison " + code, titre: s?.titre || "" };
+    }
+    const s = salleSeances.find(x => x.id === code);
+    return { prog, code, emoji: s?.emoji || "🏋️", label: code, titre: s?.focus || "" };
+}
+/* Repas du jour (avec variante choisie) + horaires du profil, triés dans l'ordre de la journée */
+function dayPlan(dayType, profile, mealAlt) {
+    const pr = normProfile(profile), cr = CRENEAUX[pr.creneau] || CRENEAUX.midi;
+    const base = dayType === "training" ? repasTraining : repasRest;
+    const meals = base.map(m => {
+        const ai = (mealAlt || {})[dayType + ":" + m.m] || 0;
+        let out = { ...m };
+        if (ai > 0 && m.alts && m.alts[ai - 1]) {
+            const its = m.alts[ai - 1].items;
+            const P = its.reduce((a, i) => a + (i.p || 0), 0), G = its.reduce((a, i) => a + (i.g || 0), 0), L = its.reduce((a, i) => a + (i.l || 0), 0);
+            out = { ...out, items: its, P, G, L, kcal: P * 4 + G * 4 + L * 9, altLabel: m.alts[ai - 1].label };
+        }
+        if (dayType === "training")
+            out.h = cr.times[m.m] || m.h;
+        if (m.m === "Déjeuner" && dayType === "training")
+            out.note = pr.creneau === "midi" ? "Post-séance — mange dans l'heure qui suit." : null;
+        return out;
+    }).sort((a, b) => hToMin(a.h) - hToMin(b.h));
+    const timeline = [{ h: pr.reveil, t: "⏰ Réveil + créatine" }, ...meals.map(m => ({ h: m.h, t: m.m }))];
+    if (dayType === "training")
+        timeline.push({ h: cr.seance, t: "🏋️ Séance (~1h15)" });
+    timeline.sort((a, b) => hToMin(a.h) - hToMin(b.h));
+    return { meals, timeline, seance: dayType === "training" ? cr.seance : null };
+}
+/* Calendrier .ics : réveil, séances et repas, chacun aux bons jours et aux bonnes heures */
+function buildProfileICS(profile, prog) {
+    const pr = normProfile(profile), tDays = programmeDays(prog), rDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !tDays.includes(d));
+    const ev = [{ title: "Réveil + créatine", h: pr.reveil, days: [0, 1, 2, 3, 4, 5, 6] }, { title: "Séance RECOMP", h: CRENEAUX[pr.creneau].seance, days: tDays }];
+    dayPlan("training", pr).meals.forEach(m => ev.push({ title: m.m, h: m.h, days: tDays }));
+    dayPlan("rest", pr).meals.forEach(m => ev.push({ title: m.m, h: m.h, days: rDays }));
+    const now = new Date();
+    let s = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//RECOMP//FR\r\nCALSCALE:GREGORIAN\r\n";
+    ev.filter(e => e.days.length).forEach((e, i) => {
+        // 1re occurrence = prochain jour concerné (sinon iOS ajoute un événement parasite)
+        const st = new Date(now);
+        for (let k = 0; k < 7 && !e.days.includes(st.getDay()); k++)
+            st.setDate(st.getDate() + 1);
+        const mins = hToMin(e.h);
+        st.setHours(Math.floor(mins / 60), mins % 60, 0, 0);
+        const en = new Date(st.getTime() + 15 * 60000);
+        const rule = e.days.length === 7 ? "FREQ=DAILY" : "FREQ=WEEKLY;BYDAY=" + e.days.map(d => ICS_DAYS[d]).join(",");
+        s += "BEGIN:VEVENT\r\nUID:recomp-" + i + "-" + now.getTime() + "@recomp\r\nDTSTAMP:" + icsLocal(now) + "\r\nDTSTART:" + icsLocal(st) + "\r\nDTEND:" + icsLocal(en) + "\r\nRRULE:" + rule + "\r\nSUMMARY:" + e.title + "\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:" + e.title + "\r\nTRIGGER:PT0S\r\nEND:VALARM\r\nEND:VEVENT\r\n";
+    });
+    return s + "END:VCALENDAR\r\n";
+}
 /* ═══ BUDGET DATA ═══ */
 const budgetAliments = [
     { id: "poulet", nom: "Poulet / dinde", emoji: "🍗", cat: "Protéines", q: "~1,1 kg/sem", prixKg: 10, sem: 11, budget: { nom: "Cuisses sans peau", prixKg: 5.5, sem: 6 } },
@@ -244,8 +382,12 @@ function ChartLine({ data, dataKey, color, unit = "", height = 150 }) {
             unit));
 }
 /* ═══ DATE HELPERS ═══ */
-const isoToday = () => new Date().toISOString().slice(0, 10);
-const shiftISO = (iso, d) => { const x = new Date(iso + "T12:00:00"); x.setDate(x.getDate() + d); return x.toISOString().slice(0, 10); };
+/* Dates en heure LOCALE (toISOString renverrait l'heure UTC : entre minuit et 2 h
+   en France, une saisie tombait sur la veille). */
+function _isoD(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+const isoToday = () => _isoD(new Date());
+const shiftISO = (iso, d) => { const x = new Date(iso + "T12:00:00"); x.setDate(x.getDate() + d); return _isoD(x); };
+const daysBetween = (a, b) => Math.round((new Date(b + "T12:00:00") - new Date(a + "T12:00:00")) / 86400000);
 const fmtDateLong = iso => new Date(iso + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" });
 const fmtDateShort = iso => new Date(iso + "T12:00:00").toLocaleDateString("fr-FR");
 /* true si la date ISO tombe dans les `days` derniers jours */
@@ -291,7 +433,7 @@ function SuiviMaison() {
         return React.createElement(Card, null,
             React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 10 } }, "Chargement…"));
     const doSave = async () => { setSaving(true); const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, seance: sel, exercices: sm.ex.map((ex, i) => { return ({ nom: ex.split("—")[0].trim(), reps: parseInt(form[i]?.reps) || 0, tours: parseInt(form[i]?.tours) || 0 }); }) }; const u = [...logs.filter(l => !(l.dateISO === selDate && l.seance === sel)), e]; await save("maison-logs", u); setLogs(u); setSaving(false); setMode("history"); };
-    const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("maison-logs", u); setLogs(u); };
+    const doDel = id => commitWithUndo("maison-logs", logs, logs.filter(l => l.id !== id), setLogs, "🗑️ Séance maison supprimée");
     const chartData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, reps: l.exercices.reduce((a, e) => a + (e.reps || 0), 0), tours: Math.round(l.exercices.reduce((a, e) => a + (e.tours || 0), 0) / Math.max(l.exercices.length, 1)) }));
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 8 } }, [["log", "📝 Saisie"], ["history", "📋 Historique"], ["charts", "📈 Graphiques"]].map(([k, l]) => React.createElement(Pill, { key: k, active: mode === k, onClick: () => setMode(k), color: C.amber }, l))),
@@ -392,62 +534,75 @@ function bestWeightFor(logs, nom, excludeId) { let best = 0; logs.forEach(l => {
     best = e.weight; }); }); return best; }
 function fmtMMSS(s) { const m = Math.floor(s / 60), r = s % 60; return m + ":" + String(r).padStart(2, "0"); }
 /* ═══ MINUTEUR DE REPOS ═══ */
-function RestTimer({ color }) {
-    const [left, setLeft] = useState(0);
-    const [running, setRunning] = useState(false);
-    const [done, setDone] = useState(false);
-    const ref = useRef(null);
+/* "2 min" → 120, "2-3 min" → 150, "45-60 s" → 53, "90 s" → 90 */
+function parseRestSec(txt) { const n = (String(txt || "").match(/\d+/g) || ["90"]).map(Number); const v = n.length > 1 ? (n[0] + n[1]) / 2 : n[0]; return Math.round(/min/.test(txt) ? v * 60 : v); }
+/* Minuteur basé sur l'heure de fin (et non sur un compteur) : il reste juste quand l'écran
+   se verrouille ou que l'app passe en arrière-plan, et survit à un rechargement.
+   Démarrable depuis n'importe où : bus.emit("rest:start", { sec, label }). */
+const TIMER_KEY = "recomp_timer";
+function RestTimer({ color, recovery }) {
+    const read = () => { try {
+        return JSON.parse(localStorage.getItem(TIMER_KEY) || "null");
+    }
+    catch (e) {
+        return null;
+    } };
+    const [t, setT] = useState(() => { const s = read(); return s && (s.pausedLeft != null || s.endAt > Date.now() - 120000) ? s : null; });
+    const [now, setNow] = useState(Date.now());
     const ac = useRef(null);
+    const persist = v => { setT(v); try {
+        v ? localStorage.setItem(TIMER_KEY, JSON.stringify(v)) : localStorage.removeItem(TIMER_KEY);
+    }
+    catch (e) { } };
+    const left = t ? (t.pausedLeft != null ? t.pausedLeft : Math.max(0, t.endAt - now)) : 0;
+    const running = !!t && t.pausedLeft == null && left > 0;
+    const done = !!t && t.pausedLeft == null && left <= 0;
     const beep = () => { try {
         const A = ac.current;
         if (A) {
-            const o = A.createOscillator(), g = A.createGain();
-            o.connect(g);
-            g.connect(A.destination);
-            o.frequency.value = 880;
-            g.gain.setValueAtTime(0.001, A.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.3, A.currentTime + 0.02);
-            g.gain.exponentialRampToValueAtTime(0.001, A.currentTime + 0.55);
-            o.start();
-            o.stop(A.currentTime + 0.55);
+            [0, 0.35].forEach(d => { const o = A.createOscillator(), g = A.createGain(); o.connect(g); g.connect(A.destination); o.frequency.value = 880; g.gain.setValueAtTime(0.001, A.currentTime + d); g.gain.exponentialRampToValueAtTime(0.3, A.currentTime + d + 0.02); g.gain.exponentialRampToValueAtTime(0.001, A.currentTime + d + 0.3); o.start(A.currentTime + d); o.stop(A.currentTime + d + 0.3); });
         }
     }
     catch (e) { } try {
-        if (navigator.vibrate)
-            navigator.vibrate([220, 90, 220]);
+        navigator.vibrate?.([220, 90, 220]);
     }
     catch (e) { } };
     useEffect(() => { if (!running)
-        return; ref.current = setInterval(() => { setLeft(p => { if (p <= 1) {
-        clearInterval(ref.current);
-        setRunning(false);
-        setDone(true);
-        beep();
-        return 0;
-    } return p - 1; }); }, 1000); return () => clearInterval(ref.current); }, [running]);
-    const start = s => { try {
+        return; const id = setInterval(() => setNow(Date.now()), 250); return () => clearInterval(id); }, [running]);
+    useEffect(() => { const f = () => setNow(Date.now()); document.addEventListener("visibilitychange", f); return () => document.removeEventListener("visibilitychange", f); }, []);
+    // Sonnerie une seule fois, au passage à zéro
+    useEffect(() => { if (done && t && !t.rang) {
+        if (Date.now() - t.endAt < 5000)
+            beep();
+        persist({ ...t, rang: true });
+    } }, [done]);
+    const start = (sec, label) => { try {
         if (!ac.current && (window.AudioContext || window.webkitAudioContext))
             ac.current = new (window.AudioContext || window.webkitAudioContext)();
-        if (ac.current && ac.current.resume)
-            ac.current.resume();
+        ac.current?.resume?.();
     }
-    catch (e) { } setLeft(s); setDone(false); setRunning(true); };
-    const pause = () => setRunning(false);
+    catch (e) { } setNow(Date.now()); persist({ endAt: Date.now() + sec * 1000, total: sec, label: label || "", pausedLeft: null }); };
+    useEffect(() => bus.on("rest:start", ({ sec, label }) => start(sec, label)), []);
+    const pause = () => persist({ ...t, pausedLeft: left });
     const resume = () => { if (left > 0)
-        setRunning(true); };
-    const reset = () => { clearInterval(ref.current); setRunning(false); setLeft(0); setDone(false); };
+        persist({ ...t, endAt: Date.now() + left, pausedLeft: null }); };
+    const add = s => t && persist(t.pausedLeft != null ? { ...t, pausedLeft: t.pausedLeft + s * 1000, total: t.total + s } : { ...t, endAt: Math.max(t.endAt, Date.now()) + s * 1000, total: t.total + s, rang: false });
+    const reset = () => persist(null);
+    const secLeft = Math.ceil(left / 1000);
+    const pct = t && t.total ? Math.min(100, (1 - left / (t.total * 1000)) * 100) : 0;
     const btn = { padding: "6px 9px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 11, fontWeight: 800 };
-    return React.createElement(Card, { border: done ? color : color + "33", style: { padding: "10px 12px", ...(done ? { boxShadow: `0 0 0 2px ${color}` } : {}) } },
+    return React.createElement(Card, { border: done ? color : color + "33", style: { padding: "10px 12px", ...(done ? { boxShadow: `0 0 0 2px ${color}`, animation: "rcPulse 1s ease-in-out 3" } : {}) } },
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" } },
-            React.createElement("div", { style: { fontSize: 22, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: done ? color : (running ? color : C.text), minWidth: 70 } },
-                "⏱ ",
-                fmtMMSS(left)),
-            React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", flex: 1 } }, [60, 90, 120, 180].map(s => React.createElement("button", { key: s, onClick: () => start(s), style: { ...btn, background: C.surfaceAlt, color: color } },
-                s,
-                "s"))),
+            React.createElement("div", { style: { fontSize: 22, fontWeight: 800, fontVariantNumeric: "tabular-nums", color: done || running ? color : C.text, minWidth: 70 } }, "⏱ " + fmtMMSS(secLeft)),
+            React.createElement("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", flex: 1 } }, [60, 90, 120, 180].map(s => React.createElement("button", { key: s, onClick: () => start(s), style: { ...btn, background: recovery && s === 180 ? color + "33" : C.surfaceAlt, color: color } }, s + "s"))),
+            running && React.createElement("button", { onClick: () => add(15), style: { ...btn, background: C.surfaceAlt, color: C.textMut } }, "+15"),
             running && React.createElement("button", { onClick: pause, style: { ...btn, background: color, color: "#1A1505" } }, "⏸"),
             !running && left > 0 && React.createElement("button", { onClick: resume, style: { ...btn, background: color, color: "#1A1505" } }, "▶"),
-            (left > 0 || done) && React.createElement("button", { onClick: reset, style: { ...btn, background: "transparent", color: C.textMut, border: `1px solid ${C.border}` } }, "✕")),
+            t && React.createElement("button", { onClick: reset, style: { ...btn, background: "transparent", color: C.textMut, border: `1px solid ${C.border}` } }, "✕")),
+        t && !done && React.createElement("div", { style: { height: 4, borderRadius: 2, background: C.surfaceAlt, marginTop: 8, overflow: "hidden" } },
+            React.createElement("div", { style: { height: "100%", width: pct + "%", background: color, transition: "width .25s linear" } })),
+        t && t.label && !done && React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginTop: 5 } }, "Repos après " + t.label),
+        recovery && !t && React.createElement("div", { style: { fontSize: 10, color: C.gluc, marginTop: 6 } }, "🛌 Mode récupération : vise au moins 3 min entre les séries lourdes."),
         done && React.createElement("div", { style: { fontSize: 11, color: color, fontWeight: 700, marginTop: 6 } }, "Repos terminé — au boulot 💪"));
 }
 /* ═══ CALCULATEUR DE DISQUES ═══ */
@@ -511,7 +666,7 @@ function deloadAdvice(logs) {
     const recentRPE = sessRPE.length ? Math.round(sessRPE.reduce((a, b) => a + b, 0) / sessRPE.length * 10) / 10 : null;
     if (recentRPE != null && recentRPE >= 9)
         flags.push("RPE moyen " + recentRPE + "/10 (très élevé)");
-    const vol = l => (l.exercices || []).reduce((a, e) => a + (e.weight || 0) * (e.reps || 0) * (e.sets || 0), 0);
+    const vol = l => (l.exercices || []).reduce((a, e) => a + exVolume(e), 0);
     const bySeance = {};
     nonD.forEach(l => { (bySeance[l.seance] = bySeance[l.seance] || []).push(l); });
     let regress = 0, assessed = 0;
@@ -528,6 +683,37 @@ function deloadAdvice(logs) {
         level = "deload";
     return { level, canAssess: true, reasons: flags, weeksSince, recentRPE };
 }
+/* ═══ OUTILS SÉANCE — volume réel, séries détaillées, douleurs, suggestions ═══ */
+const SCI_DEFAULT = { weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false };
+const exVolume = e => e.setsDetail?.length ? e.setsDetail.reduce((a, s) => a + (s.w || 0) * (s.r || 0), 0) : (e.weight || 0) * (e.reps || 0) * (e.sets || 0);
+const exBest1RM = e => e.setsDetail?.length ? Math.max(...e.setsDetail.map(s => epley1RM(s.w, s.r))) : epley1RM(e.weight, e.reps);
+const fmtSets = e => e.setsDetail?.length ? e.setsDetail.map(s => s.w + "×" + s.r).join(" · ") : e.sets + "×" + e.reps;
+/* Zone douloureuse → groupes musculaires à ménager */
+const PAIN_IMPACT = { "Genou droit": ["Quadriceps", "Ischios", "Fessiers"], "Pied droit": ["Mollets", "Quadriceps"], "Hanche": ["Fessiers", "Quadriceps", "Ischios"], "Épaule": ["Pecs", "Épaules", "Triceps"], "Bas du dos": ["Dos", "Ischios"], "Poignet": ["Biceps", "Triceps", "Pecs"], "Coude": ["Biceps", "Triceps"] };
+/* Douleurs ≥ 4/10 des `days` derniers jours : intensité max par zone */
+function recentPains(dLogs, days) { const m = {}; (dLogs || []).filter(l => withinDays(l.dateISO, days || 10) && (l.intensite || 0) >= 4).forEach(l => { const c = m[l.zone]; if (!c || l.intensite > c.i || (l.intensite === c.i && l.dateISO > c.d))
+    m[l.zone] = { i: l.intensite, d: l.dateISO }; }); return m; }
+function painFor(nom, pains) { const mu = muscleMap[nom]; return Object.entries(pains).filter(([z]) => (PAIN_IMPACT[z] || []).includes(mu)).map(([z, v]) => ({ zone: z, ...v })); }
+/* Valeurs proposées pour un exercice : ajustement Science > suggestion coach > cible de phase, puis −40 % en décharge */
+function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
+    const d = parseDetail(ex.detail), ov = sci?.weightOverrides?.[seanceId + ":" + ex.nom], last = lastExerciseLog(logs, seanceId, ex.nom);
+    let weight = null, reps = d ? d.reps : null, src = "phase";
+    if (ov) {
+        weight = ov;
+        src = "science";
+    }
+    else if (last) {
+        const p = progressFor(seanceId, last, sci?.recovery);
+        weight = p.weight;
+        reps = p.reps || reps;
+        src = "coach";
+    }
+    else
+        weight = parseTargetKg(ex.charges[phaseIdx]);
+    if (sci?.deload && weight)
+        weight = Math.round(weight * 0.6 * 2) / 2;
+    return { weight, sets: d ? d.sets : null, reps, src };
+}
 function SuiviSport() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -538,28 +724,74 @@ function SuiviSport() {
     const [saving, setSaving] = useState(false);
     const [selDate, setSelDate] = useState(isoToday());
     const [histF, setHistF] = useState("all");
-    const [selPhase, setSelPhase] = useState(0);
+    const [selPhase, setPhase] = useStored("sport-phase", 0);
+    const [sci, setSci] = useStored("science-config", SCI_DEFAULT);
+    const [dLogs] = useStored("douleur-logs", []);
     const [pr, setPr] = useState([]);
     const [showCalc, setShowCalc] = useState(false);
     const [chartExo, setChartExo] = useState("");
     const [deloadDay, setDeloadDay] = useState(false);
     const [openAlt, setOpenAlt] = useState({});
+    const [openDet, setOpenDet] = useState({});
     useEffect(() => { load("sport-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
-    useEffect(() => { load("sport-phase", 0).then(p => setSelPhase(typeof p === "number" ? p : 0)); }, []);
+    // Proposer automatiquement la séance prévue ce jour-là (programme salle)
+    useEffect(() => { const s = sessionForDate(selDate, "salle"); if (s && !logs.some(l => l.dateISO === selDate && l.seance === sel))
+        setSel(s.code); }, [selDate]);
     const se = salleSeances.find(s => s.id === sel);
+    const blank = { weight: "", reps: "", sets: "", restSets: "", restExo: "", rpe: "", detail: null };
     const initF = useCallback(() => { const existing = logs.find(l => l.dateISO === selDate && l.seance === sel); const fd = {}; if (se)
-        se.exercices.forEach((_, i) => { const ex = existing?.exercices?.[i]; fd[i] = ex ? { weight: ex.weight ? String(ex.weight) : "", reps: ex.reps ? String(ex.reps) : "", sets: ex.sets ? String(ex.sets) : "", restSets: ex.restSets ? String(ex.restSets) : "", restExo: ex.restExo ? String(ex.restExo) : "", rpe: ex.rpe ? String(ex.rpe) : "" } : { weight: "", reps: "", sets: "", restSets: "", restExo: "", rpe: "" }; }); setForm(fd); setDeloadDay(!!(existing?.deload)); }, [se, logs, selDate, sel]);
+        se.exercices.forEach((_, i) => { const ex = existing?.exercices?.[i]; fd[i] = ex ? { weight: ex.weight ? String(ex.weight) : "", reps: ex.reps ? String(ex.reps) : "", sets: ex.sets ? String(ex.sets) : "", restSets: ex.restSets ? String(ex.restSets) : "", restExo: ex.restExo ? String(ex.restExo) : "", rpe: ex.rpe ? String(ex.rpe) : "", detail: ex.setsDetail?.length ? ex.setsDetail.map(s => ({ w: String(s.w), r: String(s.r), done: true })) : null } : { ...blank }; }); setForm(fd); setOpenDet(Object.fromEntries(Object.entries(fd).filter(([, v]) => v.detail).map(([k]) => [k, true]))); setDeloadDay(existing ? !!existing.deload : !!sci.deload); }, [se, logs, selDate, sel]);
     useEffect(() => { initF(); }, [initF]);
-    const doSave = async () => { setSaving(true); const exs = se.exercices.map((ex, i) => { return ({ nom: ex.nom, weight: parseFloat(form[i]?.weight) || 0, reps: parseInt(form[i]?.reps) || 0, sets: parseInt(form[i]?.sets) || 0, restSets: parseInt(form[i]?.restSets) || 0, restExo: parseInt(form[i]?.restExo) || 0, rpe: parseFloat(form[i]?.rpe) || 0 }); }); const replacedId = logs.find(l => l.dateISO === selDate && l.seance === sel)?.id; const newPRs = deloadDay ? [] : exs.filter(x => x.weight > 0 && x.weight > bestWeightFor(logs, x.nom, replacedId)).map(x => ({ nom: x.nom, weight: x.weight })); const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, seance: sel, deload: deloadDay, exercices: exs }; const u = [...logs.filter(l => !(l.dateISO === selDate && l.seance === sel)), e]; await save("sport-logs", u); setLogs(u); setSaving(false); setPr(newPRs); setMode("history"); };
-    const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("sport-logs", u); setLogs(u); };
-    const doReset = async () => { await save("sport-logs", []); setLogs([]); };
+    useEffect(() => { if (!logs.some(l => l.dateISO === selDate && l.seance === sel))
+        setDeloadDay(!!sci.deload); }, [sci.deload]);
+    const setF = (i, patch) => setForm(p => ({ ...p, [i]: { ...p[i], ...patch } }));
+    /* Séries détaillées : chaque ligne = charge × reps, ✓ lance le minuteur de repos */
+    const openDetail = (i, ex) => { const f = form[i] || {}; if (!f.detail) {
+        const n = parseInt(f.sets) || parseDetail(ex.detail)?.sets || 3;
+        setF(i, { detail: Array.from({ length: n }, () => ({ w: f.weight || "", r: f.reps || "", done: false })) });
+    } setOpenDet(o => ({ ...o, [i]: !o[i] })); };
+    const setRow = (i, k, patch) => setForm(p => { const det = [...(p[i].detail || [])]; det[k] = { ...det[k], ...patch }; return { ...p, [i]: { ...p[i], detail: det } }; });
+    const doSave = async () => {
+        setSaving(true);
+        const exs = se.exercices.map((ex, i) => {
+            const f = form[i] || {};
+            const det = (f.detail || []).map(s => ({ w: parseFloat(s.w) || 0, r: parseInt(s.r) || 0 })).filter(s => s.w > 0 && s.r > 0);
+            const base = { nom: ex.nom, restSets: parseInt(f.restSets) || 0, restExo: parseInt(f.restExo) || 0, rpe: parseFloat(f.rpe) || 0 };
+            if (det.length) {
+                const top = Math.max(...det.map(s => s.w));
+                return { ...base, weight: top, reps: Math.min(...det.filter(s => s.w === top).map(s => s.r)), sets: det.length, setsDetail: det };
+            }
+            return { ...base, weight: parseFloat(f.weight) || 0, reps: parseInt(f.reps) || 0, sets: parseInt(f.sets) || 0 };
+        });
+        const replacedId = logs.find(l => l.dateISO === selDate && l.seance === sel)?.id;
+        const newPRs = deloadDay ? [] : exs.filter(x => x.weight > 0 && x.weight > bestWeightFor(logs, x.nom, replacedId)).map(x => ({ nom: x.nom, weight: x.weight }));
+        const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, seance: sel, deload: deloadDay, exercices: exs };
+        const u = [...logs.filter(l => !(l.dateISO === selDate && l.seance === sel)), e];
+        const ok = await save("sport-logs", u);
+        setSaving(false);
+        if (!ok)
+            return toast("❌ Séance non enregistrée (stockage plein ?)", { tone: "danger" });
+        setLogs(u);
+        setPr(newPRs);
+        toast(newPRs.length ? "🏆 Séance enregistrée — " + newPRs.length + " record" + (newPRs.length > 1 ? "s" : "") + " !" : "✅ Séance " + sel + " enregistrée");
+        setMode("history");
+    };
+    const doDel = id => commitWithUndo("sport-logs", logs, logs.filter(l => l.id !== id), setLogs, "🗑️ Séance supprimée");
+    const doReset = () => resetWithConfirm("sport-logs", logs, setLogs, "séances salle");
+    const toggleDeload = () => { const v = !deloadDay; setDeloadDay(v); setSci({ ...sci, deload: v }); toast(v ? "🪶 Décharge activée partout (−40 %)" : "Décharge désactivée"); };
     const seanceInfo = salleSeances.find(s => s.id === chartSel) || salleSeances[0];
-    const chartData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, vol: l.exercices.reduce((a, e) => a + e.weight * e.reps * e.sets, 0), charge: Math.max(...l.exercices.map(e => e.weight || 0)) }));
+    const chartData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, vol: Math.round(l.exercices.reduce((a, e) => a + exVolume(e), 0)), charge: Math.max(...l.exercices.map(e => e.weight || 0)) }));
     const prevLog = useMemo(() => prevSessionFor(logs, sel, selDate), [logs, sel, selDate]);
     const advice = useMemo(() => deloadAdvice(logs), [logs]);
+    const pains = useMemo(() => recentPains(dLogs, 10), [dLogs]);
     const effExo = seanceInfo.exercices.find(e => e.nom === chartExo) ? chartExo : ((seanceInfo.exercices[0]?.nom) || "");
-    const rmData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => { const ex = l.exercices.find(e => e.nom === effExo); return { date: l.date, rm: ex ? epley1RM(ex.weight, ex.reps) : 0 }; }).filter(d => d.rm > 0);
-    const prefillTargets = () => { setForm(p => { const n = { ...p }; se.exercices.forEach((ex, i) => { const cur = n[i] || {}; const t = parseTargetKg(ex.charges[selPhase]); const d = parseDetail(ex.detail); n[i] = { ...cur, weight: cur.weight || (t != null ? String(t) : ""), sets: cur.sets || (d ? String(d.sets) : ""), reps: cur.reps || (d ? String(d.reps) : "") }; }); return n; }); };
+    const rmData = logs.filter(l => l.seance === chartSel).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => { const ex = l.exercices.find(e => e.nom === effExo); return { date: l.date, rm: ex ? exBest1RM(ex) : 0 }; }).filter(d => d.rm > 0);
+    /* Pré-remplissage intelligent des champs vides */
+    const prefillTargets = () => { let n = 0; setForm(p => { const nf = { ...p }; se.exercices.forEach((ex, i) => { const cur = nf[i] || {}; const s = suggestFor(logs, sel, ex, selPhase, { ...sci, deload: deloadDay }); const upd = { ...cur, weight: cur.weight || (s.weight != null ? String(s.weight) : ""), sets: cur.sets || (s.sets != null ? String(s.sets) : ""), reps: cur.reps || (s.reps != null ? String(s.reps) : "") }; if (upd.weight !== cur.weight || upd.sets !== cur.sets || upd.reps !== cur.reps)
+        n++; nf[i] = upd; }); return nf; }); toast("✨ Champs pré-remplis (coach, ajustements Science" + (deloadDay ? ", décharge −40 %" : "") + ")"); };
+    const copyLast = () => { if (!prevLog)
+        return toast("Aucune séance " + sel + " précédente"); setForm(p => { const nf = { ...p }; se.exercices.forEach((ex, i) => { const e = prevLog.exercices.find(x => x.nom === ex.nom); if (!e)
+        return; nf[i] = { weight: e.weight ? String(e.weight) : "", reps: e.reps ? String(e.reps) : "", sets: e.sets ? String(e.sets) : "", restSets: e.restSets ? String(e.restSets) : "", restExo: e.restExo ? String(e.restExo) : "", rpe: "", detail: e.setsDetail?.length ? e.setsDetail.map(s => ({ w: String(s.w), r: String(s.r), done: false })) : null }; }); return nf; }); toast("⟲ Valeurs du " + prevLog.date + " reprises"); };
     if (loading)
         return React.createElement("div", { style: { color: C.textMut, padding: 20 } }, "Chargement…");
     return React.createElement("div", null,
@@ -603,15 +835,22 @@ function SuiviSport() {
             React.createElement(Card, { border: C.amber + "33", style: { padding: "10px 12px" } },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
                     React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.textMut } }, "🎯 Phase du programme"),
-                    React.createElement("button", { onClick: prefillTargets, style: { padding: "5px 11px", borderRadius: 8, border: `1px solid ${C.amber}55`, background: C.amber + "15", color: C.amber, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "Pré-remplir les cibles")),
-                React.createElement("div", { style: { display: "flex", gap: 5 } }, phases.map((p, i) => React.createElement("button", { key: i, onClick: () => { setSelPhase(i); save("sport-phase", i); }, style: { flex: 1, padding: "6px 3px", borderRadius: 8, border: `2px solid ${selPhase === i ? p.c : "transparent"}`, cursor: "pointer", fontWeight: 700, background: selPhase === i ? p.c + "22" : C.surfaceAlt, color: selPhase === i ? p.c : C.textMut } },
+                    React.createElement("div", { style: { display: "flex", gap: 6 } },
+                        prevLog && React.createElement("button", { onClick: copyLast, style: { padding: "5px 9px", borderRadius: 8, border: `1px solid ${C.border}`, background: "transparent", color: C.textMut, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "⟲ Reprendre"),
+                        React.createElement("button", { onClick: prefillTargets, style: { padding: "5px 11px", borderRadius: 8, border: `1px solid ${C.amber}55`, background: C.amber + "15", color: C.amber, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "✨ Pré-remplir"))),
+                React.createElement("div", { style: { display: "flex", gap: 5 } }, phases.map((p, i) => React.createElement("button", { key: i, onClick: () => setPhase(i), style: { flex: 1, padding: "6px 3px", borderRadius: 8, border: `2px solid ${selPhase === i ? p.c : "transparent"}`, cursor: "pointer", fontWeight: 700, background: selPhase === i ? p.c + "22" : C.surfaceAlt, color: selPhase === i ? p.c : C.textMut } },
                     React.createElement("div", { style: { fontSize: 11 } }, p.ph.replace("Phase ", "P")),
                     React.createElement("div", { style: { fontSize: 8, fontWeight: 400, color: C.textDim } }, p.sem))))),
-            React.createElement("button", { onClick: () => setDeloadDay(v => !v), style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${deloadDay ? "#818CF8" : C.border}`, background: deloadDay ? "#818CF822" : "transparent", color: deloadDay ? "#A5B4FC" : C.textMut, fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: deloadDay ? 6 : 10 } },
+            React.createElement("button", { onClick: toggleDeload, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${deloadDay ? "#818CF8" : C.border}`, background: deloadDay ? "#818CF822" : "transparent", color: deloadDay ? "#A5B4FC" : C.textMut, fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: deloadDay ? 6 : 10 } },
                 "🪶 Semaine de décharge ",
                 deloadDay ? "✓" : ""),
-            deloadDay && React.createElement("div", { style: { fontSize: 10, color: "#A5B4FC", marginBottom: 10 } }, "Charges réduites (~40-50 %), volume maintenu. Les PR ne sont pas comptabilisés ce jour."),
-            React.createElement(RestTimer, { color: C.amber }),
+            deloadDay && React.createElement("div", { style: { fontSize: 10, color: "#A5B4FC", marginBottom: 10 } }, "Charges réduites de 40 %, volume maintenu. Réglage partagé avec l'onglet Salle et Science. Les PR ne sont pas comptabilisés."),
+            React.createElement(RestTimer, { color: C.amber, recovery: !!sci.recovery }),
+            (() => { const hit = se.exercices.map(ex => ({ ex, p: painFor(ex.nom, pains) })).filter(x => x.p.length); if (!hit.length)
+                return null; const zones = [...new Set(hit.flatMap(x => x.p.map(p => p.zone + " " + p.i + "/10")))]; return React.createElement(Card, { border: C.danger + "66", style: { background: `linear-gradient(135deg,${C.danger}18,${C.surface})` } },
+                React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: C.danger, marginBottom: 4 } }, "🩹 Douleur récente : " + zones.join(" · ")),
+                React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, lineHeight: 1.5 } }, hit.length + " exercice" + (hit.length > 1 ? "s" : "") + " de cette séance sollicite" + (hit.length > 1 ? "nt" : "") + " la zone : " + hit.map(x => x.ex.nom).join(", ") + ". Baisse la charge, garde une amplitude indolore ou prends une alternative (ouvertes ci-dessous)."),
+                React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 4 } }, "Douleur piquante = arrêt de l'exercice. Données de l'onglet 🩹 Douleur (10 derniers jours, ≥ 4/10).")); })(),
             React.createElement("button", { onClick: () => setShowCalc(v => !v), style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${C.amber}33`, background: showCalc ? C.amber + "15" : "transparent", color: C.amber, fontSize: 12, fontWeight: 700, cursor: "pointer", marginBottom: 10 } },
                 "🔩 Calculateur de disques ",
                 showCalc ? "▲" : "▼"),
@@ -633,23 +872,38 @@ function SuiviSport() {
                     (() => { const last = (prevLog?.exercices?.[i]?.weight) || 0; const cur = parseFloat(form[i]?.weight) || 0; const ar = last > 0 && cur > 0 ? (cur > last ? { t: "↑", c: C.green } : cur < last ? { t: "↓", c: C.danger } : { t: "=", c: C.textMut }) : null; return React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 6, fontSize: 10 } },
                         React.createElement("span", { style: { color: C.amberLight } },
                             "🎯 ",
-                            ex.charges[selPhase]),
+                            sci.weightOverrides?.[sel + ":" + ex.nom] ? sci.weightOverrides[sel + ":" + ex.nom] + "kg 🔬" : ex.charges[selPhase]),
+                        painFor(ex.nom, pains).map(pp => React.createElement("span", { key: pp.zone, style: { color: C.danger, fontWeight: 700 } }, "🩹 " + pp.zone + " " + pp.i + "/10")),
                         last > 0 && React.createElement("span", { style: { color: C.textMut } },
                             "⟲ Dernière : ",
                             last,
                             "kg",
                             ar && React.createElement("b", { style: { color: ar.c, marginLeft: 4 } }, ar.t))); })(),
-                    React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 6 } }, [["weight", "Charge (kg)"], ["sets", "Séries"], ["reps", "Reps"]].map(([k, lb]) => { return React.createElement("div", { key: k, style: { flex: 1 } },
+                    !(openDet[i] && form[i]?.detail) && React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 6 } }, [["weight", "Charge (kg)"], ["sets", "Séries"], ["reps", "Reps"]].map(([k, lb]) => { return React.createElement("div", { key: k, style: { flex: 1 } },
                         React.createElement("div", { style: { fontSize: 9, color: C.textDim, marginBottom: 2 } }, lb),
                         React.createElement("input", { type: "number", inputMode: "decimal", value: (form[i]?.[k]) || "", onChange: e => setForm(p => ({ ...p, [i]: { ...p[i], [k]: e.target.value } })), style: inputStyle, placeholder: "—" })); })),
                     React.createElement("div", { style: { display: "flex", gap: 6 } }, [["restSets", "⏱ Repos séries (s)", "90"], ["restExo", "⏱ Repos → exo (s)", "90"], ["rpe", "🔥 RPE /10", "8"]].map(([k, lb, ph]) => { return React.createElement("div", { key: k, style: { flex: 1 } },
                         React.createElement("div", { style: { fontSize: 9, color: C.amber, marginBottom: 2 } }, lb),
                         React.createElement("input", { type: "number", inputMode: "decimal", value: (form[i]?.[k]) || "", onChange: e => setForm(p => ({ ...p, [i]: { ...p[i], [k]: e.target.value } })), style: { ...inputStyle, border: `1px solid ${C.amber}33`, color: C.amberLight }, placeholder: ph })); })),
+                    React.createElement("button", { onClick: () => openDetail(i, ex), style: { background: "none", border: "none", color: C.amber, fontSize: 10.5, fontWeight: 700, cursor: "pointer", padding: "6px 0 0" } }, (openDet[i] ? "▲ " : "▼ ") + "Détail par série" + (form[i]?.detail?.length ? " (" + form[i].detail.filter(r => r.done).length + "/" + form[i].detail.length + " ✓)" : "")),
+                    openDet[i] && form[i]?.detail && React.createElement("div", { style: { marginTop: 6, background: C.surfaceAlt, borderRadius: 10, padding: "8px 8px 4px" } },
+                        form[i].detail.map((row, k) => React.createElement("div", { key: k, style: { display: "flex", alignItems: "center", gap: 6, marginBottom: 6 } },
+                            React.createElement("span", { style: { width: 22, fontSize: 10, color: C.textDim, fontWeight: 700 } }, "S" + (k + 1)),
+                            React.createElement("input", { type: "number", inputMode: "decimal", value: row.w, placeholder: "kg", onChange: e => setRow(i, k, { w: e.target.value }), style: { ...inputStyle, padding: "7px 8px", flex: 1 } }),
+                            React.createElement("span", { style: { fontSize: 11, color: C.textDim } }, "×"),
+                            React.createElement("input", { type: "number", inputMode: "decimal", value: row.r, placeholder: "reps", onChange: e => setRow(i, k, { r: e.target.value }), style: { ...inputStyle, padding: "7px 8px", flex: 1 } }),
+                            React.createElement("button", { onClick: () => { const done = !row.done; setRow(i, k, { done }); if (done)
+                                    bus.emit("rest:start", { sec: parseInt(form[i]?.restSets) || parseRestSec(reposFor(sel, ex.nom)), label: ex.nom + " · série " + (k + 1) }); }, "aria-label": "Série faite", style: { width: 38, height: 34, borderRadius: 9, border: `1.5px solid ${row.done ? C.green : C.border}`, background: row.done ? C.green + "28" : "transparent", color: row.done ? C.green : C.textDim, fontSize: 15, fontWeight: 800, cursor: "pointer" } }, "✓"))),
+                        React.createElement("div", { style: { display: "flex", gap: 6, justifyContent: "space-between", alignItems: "center" } },
+                            React.createElement("span", { style: { fontSize: 9.5, color: C.textDim } }, "✓ = série faite → lance le repos (" + reposFor(sel, ex.nom) + ")"),
+                            React.createElement("div", { style: { display: "flex", gap: 4 } },
+                                form[i].detail.length > 1 && React.createElement("button", { onClick: () => setF(i, { detail: form[i].detail.slice(0, -1) }), style: { padding: "3px 9px", borderRadius: 7, border: `1px solid ${C.border}`, background: "transparent", color: C.textMut, fontSize: 12, cursor: "pointer" } }, "−"),
+                                React.createElement("button", { onClick: () => { const lastRow = form[i].detail[form[i].detail.length - 1] || {}; setF(i, { detail: [...form[i].detail, { w: lastRow.w || "", r: lastRow.r || "", done: false }] }); }, style: { padding: "3px 9px", borderRadius: 7, border: `1px solid ${C.amber}55`, background: "transparent", color: C.amber, fontSize: 12, cursor: "pointer" } }, "+ série")))),
                     substitutions[ex.nom] && React.createElement("div", { style: { marginTop: 6 } },
-                        React.createElement("button", { onClick: () => setOpenAlt(o => ({ ...o, [i]: !o[i] })), style: { background: "none", border: "none", color: C.danger, fontSize: 10, fontWeight: 700, cursor: "pointer", padding: 0 } },
+                        React.createElement("button", { onClick: () => setOpenAlt(o => ({ ...o, [i]: !(o[i] ?? painFor(ex.nom, pains).length > 0) })), style: { background: "none", border: "none", color: C.danger, fontSize: 10, fontWeight: 700, cursor: "pointer", padding: 0 } },
                             "🔁 Alternatives si douleur ",
-                            openAlt[i] ? "▲" : "▼"),
-                        openAlt[i] && React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 } }, substitutions[ex.nom].map((a, ai) => React.createElement("span", { key: ai, style: { fontSize: 10, background: C.danger + "12", border: `1px solid ${C.danger}33`, color: "#E0A0A0", borderRadius: 8, padding: "3px 8px" } }, a)))))),
+                            (openAlt[i] ?? painFor(ex.nom, pains).length > 0) ? "▲" : "▼"),
+                        (openAlt[i] ?? painFor(ex.nom, pains).length > 0) &&React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginTop: 5 } }, substitutions[ex.nom].map((a, ai) => React.createElement("span", { key: ai, style: { fontSize: 10, background: C.danger + "12", border: `1px solid ${C.danger}33`, color: "#E0A0A0", borderRadius: 8, padding: "3px 8px" } }, a)))))),
                 React.createElement("button", { onClick: doSave, disabled: saving, style: { width: "100%", marginTop: 12, padding: "11px 0", borderRadius: 12, border: "none", cursor: "pointer", background: C.amber, color: "#1A1505", fontSize: 13, fontWeight: 800, opacity: saving ? .6 : 1 } }, saving ? "Enregistrement…" : (logs.some(l => l.dateISO === selDate && l.seance === sel) ? "Mettre à jour la séance" : "Enregistrer la séance")))),
         mode === "history" && React.createElement("div", null, !logs.length ? React.createElement(Card, null,
             React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 10 } }, "Aucune séance.")) : React.createElement(React.Fragment, null,
@@ -673,10 +927,7 @@ function SuiviSport() {
                         e.weight,
                         "kg"),
                     " ",
-                    React.createElement("span", { style: { color: C.textDim } },
-                        e.sets,
-                        "×",
-                        e.reps),
+                    React.createElement("span", { style: { color: C.textDim } }, e.setsDetail?.length ? "(" + fmtSets(e) + ")" : e.sets + "×" + e.reps),
                     e.restSets > 0 && React.createElement("span", { style: { color: C.amber, marginLeft: 3 } },
                         "⏱",
                         e.restSets,
@@ -799,6 +1050,7 @@ function SuiviCorps() {
     useEffect(() => { Promise.all([load("taille-corps", ""), load("nutri-logs", [])]).then(([h, n]) => { setHeight((h || h === 0) && h !== "" ? String(h) : ""); setNLogs(n || []); }); }, []);
     useEffect(() => { load("mensurations", []).then(d => { setMens(d); setMLoad(false); }); }, []);
     const [pErr, setPErr] = useState("");
+    const [pDate, setPDate] = useState(isoToday());
     useEffect(() => { load("photos-index", []).then(d => { setIdx(d); setPLoad(false); }); }, []);
     // Les images (lourdes) ne sont lues que quand on ouvre l'onglet Photos, une par une
     const photosRequested = useRef(false);
@@ -816,12 +1068,12 @@ function SuiviCorps() {
     useEffect(() => { const ex = mens.find(x => x.dateISO === selDate); setVals(ex ? { ...ex.vals } : {}); }, [selDate, mens]);
     const saveMens = async () => { setMSaving(true); const clean = {}; mensuresCfg.forEach(c => { const v = parseFloat(vals[c.k]); if (!isNaN(v))
         clean[c.k] = v; }); const e = { id: Date.now(), dateISO: selDate, date: fmtDateShort(selDate), vals: clean }; const u = upsertByDate(mens, e); await save("mensurations", u); setMens(u); setMSaving(false); setMMode("history"); };
-    const delMens = async (id) => { const u = mens.filter(x => x.id !== id); await save("mensurations", u); setMens(u); };
+    const delMens = id => commitWithUndo("mensurations", mens, mens.filter(x => x.id !== id), setMens, "🗑️ Mesure supprimée");
     const addPhoto = async (file) => { if (!file)
         return; setPBusy(true); setPErr(""); try {
         const data = await compressImage(file);
         const id = Date.now();
-        const ne = { id, dateISO: isoToday(), date: fmtDateShort(isoToday()), type: ptype };
+        const ne = { id, dateISO: pDate, date: fmtDateShort(pDate), type: ptype };
         const ni = [...idx, ne];
         // On n'affiche la photo que si l'image ET l'index ont bien été enregistrés
         if (!(await save("photo:" + id, data)) || !(await save("photos-index", ni))) {
@@ -840,10 +1092,15 @@ function SuiviCorps() {
         console.error(e);
         setPErr("❌ Impossible de lire cette image.");
     } setPBusy(false); };
-    const delPhoto = async (id) => { try {
+    /* Suppression avec « Annuler » : l'image reste en mémoire quelques secondes pour être restaurée */
+    const delPhoto = async (id) => { const data = blobs[id], prevIdx = idx; try {
         await window.storage.delete("photo:" + id);
     }
-    catch (e) { } const ni = idx.filter(p => p.id !== id); await save("photos-index", ni); setIdx(ni); setBlobs(b => { const n = { ...b }; delete n[id]; return n; }); };
+    catch (e) { } const ni = idx.filter(p => p.id !== id); await save("photos-index", ni); setIdx(ni); setBlobs(b => { const n = { ...b }; delete n[id]; return n; }); toast("🗑️ Photo supprimée", { undo: data ? async () => { if (await save("photo:" + id, data) && await save("photos-index", prevIdx)) {
+            setIdx(prevIdx);
+            setBlobs(b => ({ ...b, [id]: data }));
+            toast("↩️ Photo restaurée");
+        } } : null }); };
     const chartData = mens.filter(m => m.vals[chartK] != null).map(m => ({ date: m.date, v: m.vals[chartK] }));
     const saveHeight = async (v) => { setHeight(v); await save("taille-corps", parseFloat(v) || 0); };
     const heightN = parseFloat(height) || 0;
@@ -961,7 +1218,9 @@ function SuiviCorps() {
                         " · ",
                         photoTypeLabel[p.type] || p.type)); }))),
             React.createElement(Card, null,
-                React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 8 } }, "📸 Nouvelle photo"),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8, gap: 8 } },
+                    React.createElement("div", { style: { fontSize: 13, fontWeight: 800 } }, "📸 Nouvelle photo"),
+                    React.createElement("input", { type: "date", value: pDate, max: isoToday(), onChange: e => e.target.value && setPDate(e.target.value), style: { ...inputStyle, width: 150, padding: "6px 8px", fontSize: 12, colorScheme: "dark" } })),
                 React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, [["face", "Face"], ["profil", "Profil"], ["dos", "Dos"]].map(([k, l]) => React.createElement("button", { key: k, onClick: () => setPtype(k), style: { flex: 1, padding: "7px 0", borderRadius: 9, border: `2px solid ${ptype === k ? C.green : "transparent"}`, cursor: "pointer", fontSize: 12, fontWeight: 700, background: ptype === k ? C.green + "22" : C.surfaceAlt, color: ptype === k ? C.green : C.textMut } }, l))),
                 React.createElement("label", { style: { display: "block", width: "100%", padding: "11px 0", borderRadius: 12, background: C.green, color: "#04130B", fontSize: 13, fontWeight: 800, textAlign: "center", cursor: "pointer", opacity: pBusy ? .6 : 1 } },
                     pBusy ? "Compression…" : "📷 Ajouter (" + photoTypeLabel[ptype] + ")",
@@ -981,6 +1240,9 @@ const foodDB = [
     { nom: "Blancs d'œufs", cat: "prot", p: 11, g: 0.7, l: 0.2, kcal: 52 }, { nom: "Poulet/dinde", cat: "prot", p: 31, g: 0, l: 3.6, kcal: 165 }, { nom: "Cabillaud/thon", cat: "prot", p: 24, g: 0, l: 1, kcal: 110 }, { nom: "Fromage blanc 0%", cat: "prot", p: 8, g: 4, l: 0.2, kcal: 50 }, { nom: "Whey (poudre)", cat: "prot", p: 80, g: 8, l: 6, kcal: 390 }, { nom: "Lentilles cuites", cat: "prot", p: 9, g: 20, l: 0.4, kcal: 116 },
     { nom: "Avoine", cat: "gluc", p: 13, g: 60, l: 7, kcal: 370 }, { nom: "Patate douce", cat: "gluc", p: 1.6, g: 20, l: 0.1, kcal: 86 }, { nom: "Quinoa cuit", cat: "gluc", p: 4.4, g: 21, l: 1.9, kcal: 120 }, { nom: "Riz cuit", cat: "gluc", p: 2.7, g: 28, l: 0.3, kcal: 130 }, { nom: "Haricots rouges cuits", cat: "gluc", p: 9, g: 22, l: 0.5, kcal: 127 }, { nom: "Banane", cat: "gluc", p: 1.1, g: 23, l: 0.3, kcal: 89 },
     { nom: "Huile d'olive", cat: "lip", p: 0, g: 0, l: 100, kcal: 884 }, { nom: "Huile de colza", cat: "lip", p: 0, g: 0, l: 100, kcal: 884 }, { nom: "Graines de chia", cat: "lip", p: 17, g: 42, l: 31, kcal: 486 }, { nom: "Noix de cajou", cat: "lip", p: 18, g: 30, l: 44, kcal: 553 }, { nom: "Amandes", cat: "lip", p: 21, g: 22, l: 49, kcal: 579 }, { nom: "Jaunes d'œufs", cat: "lip", p: 16, g: 3.6, l: 27, kcal: 322 },
+    { nom: "Œufs entiers", cat: "prot", p: 13, g: 1.1, l: 11, kcal: 155 }, { nom: "Saumon", cat: "prot", p: 20, g: 0, l: 13, kcal: 208 }, { nom: "Bœuf haché 5%", cat: "prot", p: 21, g: 0, l: 5, kcal: 137 }, { nom: "Skyr nature", cat: "prot", p: 11, g: 4, l: 0.2, kcal: 63 }, { nom: "Thon en boîte (naturel)", cat: "prot", p: 26, g: 0, l: 1, kcal: 116 }, { nom: "Jambon blanc", cat: "prot", p: 21, g: 1, l: 3, kcal: 115 },
+    { nom: "Pâtes cuites", cat: "gluc", p: 5.8, g: 30, l: 0.9, kcal: 158 }, { nom: "Pain complet", cat: "gluc", p: 9, g: 41, l: 3.4, kcal: 247 }, { nom: "Galette wrap", cat: "gluc", p: 8.5, g: 50, l: 7, kcal: 310 }, { nom: "Pomme de terre cuite", cat: "gluc", p: 2, g: 17, l: 0.1, kcal: 77 }, { nom: "Pomme", cat: "gluc", p: 0.3, g: 14, l: 0.2, kcal: 52 }, { nom: "Fruits rouges", cat: "gluc", p: 1, g: 10, l: 0.3, kcal: 50 }, { nom: "Lait demi-écrémé", cat: "gluc", p: 3.3, g: 4.8, l: 1.6, kcal: 46 },
+    { nom: "Avocat", cat: "lip", p: 2, g: 9, l: 15, kcal: 160 }, { nom: "Cheddar", cat: "lip", p: 25, g: 1.3, l: 33, kcal: 403 }, { nom: "Beurre de cacahuète", cat: "lip", p: 25, g: 20, l: 50, kcal: 588 },
 ];
 const catMacro = { prot: "p", gluc: "g", lip: "l" };
 const catLabel = { prot: "Protéines", gluc: "Glucides", lip: "Lipides" };
@@ -1053,12 +1315,21 @@ function SuiviNutrition() {
     const [sleep, setSleep] = useState("");
     const [stress, setStress] = useState(5);
     useEffect(() => { load("nutri-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
-    useEffect(() => { const ex = logs.find(l => l.dateISO === selDate); setMeals(ex ? { ...ex.meals } : {}); setWeight(ex && ex.weight != null ? String(ex.weight) : ""); setSupps(ex ? { ...(ex.supps || {}) } : {}); setWater((ex?.water) || 0); setSleep(ex && ex.sleep != null ? String(ex.sleep) : ""); setStress(ex && ex.stress != null ? ex.stress : 5); }, [selDate, logs]);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [sLogsN] = useStored("sport-logs", []);
+    const [dayType, setDayType] = useState("training");
+    const plannedType = d => sessionForDate(d, resolveProgramme(profile, sLogsN)) ? "training" : "rest";
+    useEffect(() => { const ex = logs.find(l => l.dateISO === selDate); setMeals(ex ? { ...ex.meals } : {}); setWeight(ex && ex.weight != null ? String(ex.weight) : ""); setSupps(ex ? { ...(ex.supps || {}) } : {}); setWater((ex?.water) || 0); setSleep(ex && ex.sleep != null ? String(ex.sleep) : ""); setStress(ex && ex.stress != null ? ex.stress : 5); setDayType(ex?.dayType || plannedType(selDate)); }, [selDate, logs, profile, sLogsN]);
     const selLabel = fmtDateShort(selDate);
     const toggle = id => setMeals(p => ({ ...p, [id]: !p[id] }));
-    const doSave = async () => { setSaving(true); const ok = mealIds.filter(id => meals[id]).length; const e = { id: Date.now(), date: selLabel, dateISO: selDate, meals: { ...meals }, mealsOk: ok, mealsTotal: mealIds.length, compliance: Math.round(ok / mealIds.length * 100), weight: parseFloat(weight) || null, supps: { ...supps }, water, sleep: parseFloat(sleep) || null, stress }; const u = [...logs.filter(l => l.dateISO !== selDate), e]; await save("nutri-logs", u); setLogs(u); setSaving(false); setMode("history"); };
-    const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("nutri-logs", u); setLogs(u); };
-    const doReset = async () => { await save("nutri-logs", []); setLogs([]); };
+    /* Checklist = repas réellement prévus ce jour-là (7 en entraînement, 5 en repos), aux heures du profil */
+    const dayMeals = dayPlan(dayType, profile).meals.map(m => ({ id: MEAL_ID[m.m], label: m.m + (m.altLabel ? " · " + m.altLabel : ""), h: m.h, icon: mealIcons[MEAL_ID[m.m]] })).filter(m => m.id);
+    const dayIds = dayMeals.map(m => m.id);
+    const logIds = l => l.dayType ? dayPlan(l.dayType, profile).meals.map(m => MEAL_ID[m.m]).filter(Boolean) : mealIds;
+    const doSave = async () => { setSaving(true); const clean = Object.fromEntries(dayIds.map(id => [id, !!meals[id]])); const ok = dayIds.filter(id => meals[id]).length; const e = { id: Date.now(), date: selLabel, dateISO: selDate, dayType, meals: clean, mealsOk: ok, mealsTotal: dayIds.length, compliance: Math.round(ok / dayIds.length * 100), weight: parseFloat(String(weight).replace(",", ".")) || null, supps: { ...supps }, water, sleep: parseFloat(String(sleep).replace(",", ".")) || null, stress }; const u = [...logs.filter(l => l.dateISO !== selDate), e]; const okSave = await save("nutri-logs", u); setSaving(false); if (!okSave)
+        return toast("❌ Journée non enregistrée", { tone: "danger" }); setLogs(u); toast("✅ Journée du " + selLabel + " enregistrée · " + e.compliance + " %"); setMode("history"); };
+    const doDel = id => commitWithUndo("nutri-logs", logs, logs.filter(l => l.id !== id), setLogs, "🗑️ Journée supprimée");
+    const doReset = () => resetWithConfirm("nutri-logs", logs, setLogs, "journées de suivi nutrition");
     const weightData = logs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, dateISO: l.dateISO, kg: l.weight }));
     const wAvg = movingAvg7(weightData);
     const weightTrend = weightData.map((d, i) => ({ ...d, avg: wAvg[i] }));
@@ -1078,17 +1349,17 @@ function SuiviNutrition() {
             React.createElement(DateNav, { value: selDate, onChange: setSelDate, color: C.green }),
             React.createElement(Card, null,
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, marginBottom: 2 } }, "📋 Repas du jour"),
-                React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 12 } }, selLabel),
-                mealIds.map(id => React.createElement("div", { key: id, onClick: () => toggle(id), style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", cursor: "pointer", borderTop: `1px solid ${C.borderSoft}` } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, margin: "4px 0 12px" } },
+                    [["training", "🏋️ Entraînement"], ["rest", "🛌 Repos"]].map(([k, lb]) => React.createElement("button", { key: k, onClick: () => setDayType(k), style: { flex: 1, padding: "7px 0", borderRadius: 9, border: `2px solid ${dayType === k ? C.green : "transparent"}`, background: dayType === k ? C.green + "22" : C.surfaceAlt, color: dayType === k ? C.green : C.textMut, fontSize: 11.5, fontWeight: 700, cursor: "pointer" } }, lb, plannedType(selDate) === k ? " · prévu" : ""))),
+                dayMeals.map(({ id, label, h, icon }) => React.createElement("div", { key: id, onClick: () => toggle(id), style: { display: "flex", alignItems: "center", gap: 10, padding: "9px 0", cursor: "pointer", borderTop: `1px solid ${C.borderSoft}` } },
                     React.createElement("div", { style: { width: 26, height: 26, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", border: `2px solid ${meals[id] ? C.green : C.borderSoft}`, background: meals[id] ? C.green + "22" : "transparent", fontSize: 13 } }, meals[id] ? "✓" : ""),
                     React.createElement("span", { style: { fontSize: 15 } }, mealIcons[id]),
                     React.createElement("div", { style: { flex: 1 } },
-                        React.createElement("div", { style: { fontSize: 12.5, fontWeight: meals[id] ? 700 : 400, color: meals[id] ? C.text : C.textMut } }, mealLabels[id]),
-                        React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, mealTimes[id])))),
-                React.createElement("div", { style: { fontSize: 11, color: C.greenLight, fontWeight: 700, marginTop: 6 } },
-                    mealIds.filter(id => meals[id]).length,
-                    "/",
-                    mealIds.length)),
+                        React.createElement("div", { style: { fontSize: 12.5, fontWeight: meals[id] ? 700 : 400, color: meals[id] ? C.text : C.textMut } }, label),
+                        React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, h)))),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 6 } },
+                    React.createElement("span", { style: { fontSize: 11, color: C.greenLight, fontWeight: 700 } }, dayIds.filter(id => meals[id]).length + "/" + dayIds.length),
+                    React.createElement("button", { onClick: () => setMeals(Object.fromEntries(dayIds.map(id => [id, true]))), style: { border: "none", background: "transparent", color: C.green, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, "✓ Tout cocher"))),
             React.createElement(Card, null,
                 React.createElement("div", { style: { fontSize: 14, fontWeight: 800, marginBottom: 2 } }, "⚖️ Pesée"),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, marginTop: 8 } },
@@ -1151,7 +1422,7 @@ function SuiviNutrition() {
                             l.weight,
                             "kg")),
                     React.createElement("button", { onClick: () => doDel(l.id), style: { background: "none", border: "none", color: C.danger, cursor: "pointer", fontSize: 15 } }, "✕")),
-                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 } }, mealIds.map(id => React.createElement("span", { key: id, style: { fontSize: 10, borderRadius: 6, padding: "3px 6px", background: l.meals[id] ? C.green + "22" : C.surfaceAlt, color: l.meals[id] ? C.green : C.textDim, border: `1px solid ${l.meals[id] ? C.green + "44" : C.borderSoft}` } },
+                React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 4 } }, l.dayType && React.createElement("span", { style: { fontSize: 10, padding: "3px 6px", color: C.textDim } }, l.dayType === "rest" ? "🛌" : "🏋️"), logIds(l).map(id => React.createElement("span", { key: id, style: { fontSize: 10, borderRadius: 6, padding: "3px 6px", background: l.meals[id] ? C.green + "22" : C.surfaceAlt, color: l.meals[id] ? C.green : C.textDim, border: `1px solid ${l.meals[id] ? C.green + "44" : C.borderSoft}` } },
                     mealIcons[id],
                     l.meals[id] ? "✓" : "✗"))),
                 React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6, fontSize: 10, color: C.textMut } },
@@ -1202,8 +1473,8 @@ function SuiviBudget() {
     const [selDate, setSelDate] = useState(isoToday());
     useEffect(() => { load("budget-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
     const doSave = async () => { setSaving(true); const e = { id: Date.now(), date: fmtDateShort(selDate), dateISO: selDate, prodId: selProd, prodNom: budgetAliments.find(a => a.id === selProd)?.nom, prix: parseFloat(prix) || 0, poids: parseFloat(poids) || 0, prixKg: poids && prix ? Math.round(parseFloat(prix) / parseFloat(poids) * 1000 * 100) / 100 : 0 }; const u = [...logs, e]; await save("budget-logs", u); setLogs(u); setPrix(""); setPoids(""); setSaving(false); setMode("history"); };
-    const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("budget-logs", u); setLogs(u); };
-    const doReset = async () => { await save("budget-logs", []); setLogs([]); };
+    const doDel = id => commitWithUndo("budget-logs", logs, logs.filter(l => l.id !== id), setLogs, "🗑️ Achat supprimé");
+    const doReset = () => resetWithConfirm("budget-logs", logs, setLogs, "achats enregistrés");
     // Prix moyen par produit
     const avgPrices = {};
     budgetAliments.forEach(a => { const entries = logs.filter(l => l.prodId === a.id && l.prixKg > 0); if (entries.length)
@@ -1305,7 +1576,7 @@ function SuiviDouleur() {
     const [chartZone, setChartZone] = useState(painZones[0]);
     useEffect(() => { load("douleur-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
     const doSave = async () => { setSaving(true); const e = { id: Date.now(), dateISO: selDate, date: fmtDateShort(selDate), zone, intensite: intens, note: note.trim() }; const u = [...logs, e]; await save("douleur-logs", u); setLogs(u); setNote(""); setSaving(false); setMode("history"); };
-    const doDel = async (id) => { const u = logs.filter(l => l.id !== id); await save("douleur-logs", u); setLogs(u); };
+    const doDel = id => commitWithUndo("douleur-logs", logs, logs.filter(l => l.id !== id), setLogs, "🗑️ Entrée supprimée");
     const chartData = logs.filter(l => l.zone === chartZone).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ date: l.date, v: l.intensite }));
     const intColor = v => v <= 3 ? C.green : v <= 6 ? C.gluc : C.danger;
     if (loading)
@@ -1507,24 +1778,51 @@ function weeklyMuscleVolume(logs, days) { const c = new Date(); c.setDate(c.getD
 function parseRepRange(detail) { const d = String(detail || ""); if (/\ds\s*$/.test(d.trim()) || /\d\s*s\b/.test(d))
     return null; const m = d.match(/(\d+)\s*[×xX]\s*(\d+)(?:\s*[-–]\s*(\d+))?/); if (!m)
     return null; return { sets: +m[1], lo: +m[2], hi: m[3] ? +m[3] : +m[2] }; }
-function nextSuggestions(logs) { const nonD = (logs || []).filter(l => !l.deload).sort((a, b) => a.dateISO.localeCompare(b.dateISO)); if (!nonD.length)
-    return null; const last = nonD[nonD.length - 1]; const seance = salleSeances.find(s => s.id === last.seance); if (!seance)
-    return null; const sugg = (last.exercices || []).filter(e => e.weight > 0).map(e => { const prog = seance.exercices.find(x => x.nom === e.nom); const rr = prog ? parseRepRange(prog.detail) : null; const muscle = muscleMap[e.nom]; const inc = (muscle === "Quadriceps" || muscle === "Ischios" || muscle === "Fessiers") ? 5 : 2.5; let action, txt; if (!rr) {
-    action = "keep";
-    txt = "garde " + e.weight + " kg";
+/* ═══ MOTEUR DE PROGRESSION UNIQUE (Coach, Log « ✨ Pré-remplir », Science « Surcharge ») ═══
+ * Double progression : tu montes la charge quand TOUTES les séries atteignent le haut de la
+ * fourchette à RPE ≤ 8 ; sinon +1 rep ; RPE ≥ 9,5 ou sous le bas de fourchette = consolider. */
+const loadIncrement = nom => ["Quadriceps", "Ischios", "Fessiers"].includes(muscleMap[nom]) ? 5 : 2.5;
+/* Reps « limitantes » : la plus faible des séries à la charge max quand le détail existe */
+const effReps = e => e.setsDetail?.length ? Math.min(...e.setsDetail.filter(s => s.w === e.weight).map(s => s.r)) : e.reps;
+function lastExerciseLog(logs, seanceId, nom) {
+    const l = (logs || []).filter(x => !x.deload && x.seance === seanceId && (x.exercices || []).some(e => e.nom === nom && e.weight > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
+    return l ? { ...l.exercices.find(e => e.nom === nom), date: l.date, dateISO: l.dateISO } : null;
 }
-else if (e.reps >= rr.hi && (e.rpe === 0 || e.rpe <= 8)) {
-    action = "up";
-    txt = "+" + inc + " kg → " + (e.weight + inc) + " kg";
+function progressFor(seanceId, e, recovery) {
+    const prog = salleSeances.find(s => s.id === seanceId)?.exercices.find(x => x.nom === e.nom);
+    const rr = prog ? parseRepRange(prog.detail) : null, inc = loadIncrement(e.nom), reps = effReps(e);
+    if (recovery)
+        return { action: "hold", weight: e.weight, reps, txt: "mode récup : garde " + e.weight + " kg" };
+    if (!rr)
+        return { action: "keep", weight: e.weight, reps, txt: "garde " + e.weight + " kg" };
+    if (reps >= rr.hi && (!e.rpe || e.rpe <= 8))
+        return { action: "up", weight: e.weight + inc, reps: rr.lo, txt: "+" + inc + " kg → " + (e.weight + inc) + " kg × " + rr.lo };
+    if (e.rpe >= 9.5 || reps < rr.lo)
+        return { action: "hold", weight: e.weight, reps: Math.max(reps, rr.lo), txt: "reste à " + e.weight + " kg (consolide)" };
+    return { action: "reps", weight: e.weight, reps: reps + 1, txt: "garde " + e.weight + " kg, vise " + (reps + 1) + " reps" };
 }
-else if (e.rpe >= 9.5 || e.reps < rr.lo) {
-    action = "hold";
-    txt = "reste à " + e.weight + " kg (consolide)";
+/* Suggestions pour la PROCHAINE séance salle prévue (ou la dernière faite à défaut) */
+function nextSuggestions(logs, recovery) {
+    const nonD = (logs || []).filter(l => !l.deload);
+    if (!nonD.length)
+        return null;
+    let seanceId = null, when = null;
+    for (let d = 0; d < 7 && !seanceId; d++) {
+        const iso = shiftISO(isoToday(), d), s = sessionForDate(iso, "salle");
+        if (s && nonD.some(l => l.seance === s.code) && !(d === 0 && nonD.some(l => l.dateISO === iso && l.seance === s.code))) {
+            seanceId = s.code;
+            when = d === 0 ? "aujourd'hui" : d === 1 ? "demain" : fmtDateLong(iso);
+        }
+    }
+    if (!seanceId)
+        seanceId = [...nonD].sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0].seance;
+    const seance = salleSeances.find(s => s.id === seanceId);
+    if (!seance)
+        return null;
+    const sugg = seance.exercices.map(ex => { const e = lastExerciseLog(logs, seanceId, ex.nom); if (!e)
+        return null; const p = progressFor(seanceId, e, recovery); return { nom: e.nom, action: p.action, txt: p.txt, last: (e.setsDetail?.length ? fmtSets(e) : e.reps + "×" + e.weight + "kg") + (e.rpe ? " @RPE" + e.rpe : "") + " · " + e.date }; }).filter(Boolean);
+    return { seance: seanceId, emoji: seance.emoji, date: when || "dernière séance", sugg };
 }
-else {
-    action = "reps";
-    txt = "garde " + e.weight + " kg, +1 rep (vise " + rr.hi + ")";
-} return { nom: e.nom, action, txt, last: e.reps + "×" + e.weight + "kg" + (e.rpe ? " @RPE" + e.rpe : "") }; }); return { seance: last.seance, emoji: seance.emoji, date: last.date, sugg }; }
 function maisonGate(maisonLogs, douleurLogs) { const sessions = (maisonLogs || []).length; let weeks = 0; if (sessions) {
     const ds = maisonLogs.map(l => new Date(l.dateISO + "T12:00:00").getTime());
     weeks = Math.round((Math.max(...ds) - Math.min(...ds)) / (7 * 86400000) * 10) / 10;
@@ -1535,10 +1833,13 @@ function CoachSport() {
     const [dLogs, setDLogs] = useState([]);
     const [loading, setLoading] = useState(true);
     useEffect(() => { Promise.all([load("sport-logs", []), load("maison-logs", []), load("douleur-logs", [])]).then(([s, m, d]) => { setSLogs(s || []); setMLogs(m || []); setDLogs(d || []); setLoading(false); }); }, []);
+    const [sci] = useStored("science-config", SCI_DEFAULT);
+    const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
     const A = C.amber;
     const vol = weeklyMuscleVolume(sLogs, 7);
-    const sugg = nextSuggestions(sLogs);
+    const sugg = nextSuggestions(sLogs, !!sci.recovery);
     const gate = maisonGate(mLogs, dLogs);
+    const prog = resolveProgramme(profile, sLogs);
     if (loading)
         return React.createElement("div", { style: { color: C.textMut, padding: 20 } }, "Chargement…");
     const actionCfg = { up: { c: C.green, e: "⬆️" }, reps: { c: A, e: "🔁" }, hold: { c: C.gluc, e: "⏸️" }, keep: { c: C.textMut, e: "✓" } };
@@ -1553,7 +1854,11 @@ function CoachSport() {
                 React.createElement("div", { style: { flex: 1 } },
                     React.createElement("div", { style: { fontSize: 11.5, fontWeight: 600, color: c.ok ? C.text : C.textMut } }, c.label),
                     React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, c.val)))),
-            !gate.hasPainData && React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 8 } }, "💡 Note tes douleurs genou/pied (onglet 🩹 Douleur) pour fiabiliser ce critère.")),
+            !gate.hasPainData && React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 8 } }, "💡 Note tes douleurs genou/pied (onglet 🩹 Douleur) pour fiabiliser ce critère."),
+            gate.ready && prog === "maison" && React.createElement("button", { onClick: async () => { if (await askConfirm({ title: "Passer en programme salle ?", message: "L'accueil, le calendrier et la checklist suivront le planning salle (lun/mar/mer/ven/sam). Modifiable à tout moment dans Accueil → ⚙️ Mon profil.", confirmLabel: "Passer en salle" })) {
+                    await setProfile({ ...normProfile(profile), programme: "salle" });
+                    toast("🏋️ Programme salle activé");
+                } }, style: { width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 10, border: "none", background: C.green, color: "#04130B", fontSize: 12.5, fontWeight: 800, cursor: "pointer" } }, "🏋️ Passer en programme salle")),
         React.createElement("div", { style: { fontSize: 12, fontWeight: 800, margin: "18px 0 8px" } },
             "💪 Volume par muscle ",
             React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, "· 7 j (séries travaillées)")),
@@ -1581,7 +1886,7 @@ function CoachSport() {
         React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, padding: "2px 4px 0", lineHeight: 1.5 } }, "MEV (min. efficace, trait gris) → MAV (max. utile, trait rouge) par semaine. Vise la zone."),
         React.createElement("div", { style: { fontSize: 12, fontWeight: 800, margin: "18px 0 8px" } },
             "🎯 Prochaine séance ",
-            React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, sugg ? "· " + sugg.emoji + " " + sugg.seance + " (d'après le " + sugg.date + ")" : "")),
+            React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, sugg ? "· " + sugg.emoji + " " + sugg.seance + " (" + sugg.date + ")" : "")),
         !sugg ? React.createElement(Card, null,
             React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 12, fontSize: 12 } }, "Enregistre une séance salle pour des suggestions de progression."))
             : React.createElement(Card, null, sugg.sugg.map((s, i) => { const cf = actionCfg[s.action]; return React.createElement("div", { key: i, style: { display: "flex", alignItems: "center", gap: 9, padding: "8px 0", borderTop: i > 0 ? `1px solid ${C.borderSoft}` : "none" } },
@@ -1600,17 +1905,37 @@ function SportSection() {
     const [tab, setTab] = useState("resume");
     const [openS, setOpenS] = useState("A");
     const [actS, setActS] = useState("Push");
-    const [actP, setActP] = useState(0);
-    const [suiviProg, setSuiviProg] = useState("maison");
-    const [sciCfg, setSciCfg] = useState({});
-    useEffect(() => { load("science-config", { weightOverrides: {}, caloricAdjust: 0, deload: false }).then(c => setSciCfg(c)); }, [tab]);
-    const saveSci = async (patch) => { const nc = { ...sciCfg, ...patch }; setSciCfg(nc); await save("science-config", nc); };
+    const [actP, setActP] = useStored("sport-phase", 0);
+    const [sciCfg, setSciCfg] = useStored("science-config", SCI_DEFAULT);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [sLogs] = useStored("sport-logs", []);
+    const [mLogs] = useStored("maison-logs", []);
+    const [nLogs] = useStored("nutri-logs", []);
+    const prog = resolveProgramme(profile, sLogs);
+    const [suiviProg, setSuiviProg] = useState(prog);
+    const saveSci = (patch) => setSciCfg({ ...sciCfg, ...patch });
+    // Semaine du programme depuis la toute première séance (maison ou salle) → phase conseillée
+    const firstISO = [...sLogs, ...mLogs].map(l => l.dateISO).sort()[0];
+    const weekN = firstISO ? Math.floor(daysBetween(firstISO, isoToday()) / 7) + 1 : null;
+    const suggestedP = weekN == null ? null : weekN <= 4 ? 0 : weekN <= 8 ? 1 : weekN <= 12 ? 2 : 3;
+    const weighs = nLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    const startW = weighs.length ? weighs[0].weight : 130, curW = weighs.length ? weighs[weighs.length - 1].weight : null;
+    const pr = normProfile(profile);
+    const profilCards = [
+        { l: "Poids", v: (curW || startW) + " kg", s: curW && curW !== startW ? "départ " + startW + " kg (" + (curW - startW > 0 ? "+" : "") + Math.round((curW - startW) * 10) / 10 + ")" : "départ" },
+        { l: "Semaine", v: weekN ? "S" + weekN : "—", s: suggestedP != null ? phases[suggestedP].ph + " conseillée" : "aucune séance" },
+        { l: "Fréquence", v: programmeDays(prog).length + "j/sem", s: PROGRAMMES[prog].label.toLowerCase() + " · lever " + pr.reveil },
+        profil[3],
+    ];
+    const phaseHint = suggestedP != null && suggestedP !== actP && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, color: C.textMut, background: C.surfaceAlt, borderRadius: 10, padding: "7px 10px", marginBottom: 10 } },
+        React.createElement("span", { style: { flex: 1 } }, "📆 Semaine " + weekN + " du programme → ", React.createElement("b", { style: { color: phases[suggestedP].c } }, phases[suggestedP].ph), " conseillée."),
+        React.createElement("button", { onClick: () => { setActP(suggestedP); toast("🎯 " + phases[suggestedP].ph + " appliquée"); }, style: { padding: "4px 10px", borderRadius: 8, border: `1px solid ${phases[suggestedP].c}`, background: "transparent", color: phases[suggestedP].c, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "Appliquer"));
     const se = salleSeances.find(s => s.id === actS);
     const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", "Salle"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["rm", "💪 Plan RM"], ["coach", "🧠 Coach"], ["douleur", "🩹 Douleur"], ["conseils", "Conseils"]];
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.amber }, l))),
         tab === "resume" && React.createElement("div", null,
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } }, profil.map(p => React.createElement(Card, { key: p.l },
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } }, profilCards.map(p => React.createElement(Card, { key: p.l },
                 React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, p.l),
                 React.createElement("div", { style: { fontSize: 20, fontWeight: 800, color: C.amberLight, margin: "3px 0 1px" } }, p.v),
                 React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, p.s)))),
@@ -1642,6 +1967,7 @@ function SportSection() {
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.green, marginBottom: 8 } }, "🧘 Étirements"),
                 etirements.map((e, i) => React.createElement("div", { key: i, style: { fontSize: 11.5, color: C.textMut, lineHeight: 1.7 } }, e)))),
         tab === "salle" && React.createElement("div", null,
+            phaseHint,
             React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" } }, phases.map((p, i) => React.createElement("button", { key: i, onClick: () => setActP(i), style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${actP === i ? p.c : "transparent"}`, cursor: "pointer", fontSize: 10, fontWeight: 700, background: actP === i ? p.c + "22" : C.surfaceAlt, color: actP === i ? p.c : C.textDim } }, p.sem))),
             React.createElement("div", { style: { background: C.surfaceAlt, border: `1px solid ${phases[actP].c}44`, borderRadius: 10, padding: "6px 12px", marginBottom: 12, fontSize: 11, color: phases[actP].c, fontWeight: 700 } },
                 phases[actP].ph,
@@ -1798,6 +2124,20 @@ function mealScaling(meals, target) {
         return 1; const d = dom(it); return d ? f[d] : flat; };
     return { itemF, factors: f };
 }
+/* Menu complet d'un jour : repas + horaires du profil, cible du jour (−400 kcal les jours de repos)
+   et portions recalées pour que la somme des repas = cible. Partagé par Repas et Journal. */
+const REST_CUT = 400;
+function dayMenu(dayType, profile, mealAlt, bt) {
+    const plan = dayPlan(dayType, profile, mealAlt);
+    const base = bt?.cal ? bt.cal.target : macrosTarget.kcal;
+    const dayTgt = dayType === "rest" ? Math.max(base - REST_CUT, bt?.cal ? bt.cal.bmr : 0) : base;
+    const dayMacros = macrosFor(dayTgt, bt?.cal ? bt.prot : macrosTarget.p);
+    const { itemF } = mealScaling(plan.meals, { ...dayMacros, kcal: dayTgt });
+    const mealMacros = plan.meals.map(r => r.items.reduce((a, it) => it.t ? a : { p: a.p + it.p * itemF(it), g: a.g + it.g * itemF(it), l: a.l + it.l * itemF(it) }, { p: 0, g: 0, l: 0 }));
+    const menuTot = mealMacros.reduce((a, m) => ({ p: a.p + m.p, g: a.g + m.g, l: a.l + m.l }), { p: 0, g: 0, l: 0 });
+    const menuKcal = Math.round(menuTot.p * 4 + menuTot.g * 4 + menuTot.l * 9);
+    return { ...plan, dayTgt, dayMacros, itemF, mealMacros, menuTot, menuKcal };
+}
 const activityOpts = [{ l: "Sédentaire", v: 1.2 }, { l: "Léger", v: 1.375 }, { l: "Modéré", v: 1.55 }, { l: "Élevé", v: 1.725 }];
 const objectifOpts = [{ l: "−500 kcal", v: 500 }, { l: "−550 kcal", v: 550 }, { l: "−700 kcal", v: 700 }, { l: "−1000 kcal", v: 1000 }, { l: "Maintien", v: 0 }];
 function NutritionCalories() {
@@ -1808,7 +2148,7 @@ function NutritionCalories() {
     const [loading, setLoading] = useState(true);
     useEffect(() => { Promise.all([load("nutri-logs", []), load("mensurations", []), load("taille-corps", ""), load("nutri-cal-cfg", null)]).then(([n, m, h, c]) => { setNLogs(n || []); setMens(m || []); setHeight((h || h === 0) && h !== "" ? String(h) : ""); if (c)
         setCfg({ ...normCalCfg(c), age: c.age != null ? String(c.age) : "" }); setLoading(false); }); }, []);
-    const saveCfg = async (patch) => { const nc = { ...cfg, ...patch }; setCfg(nc); await save("nutri-cal-cfg", { sex: nc.sex, age: parseInt(nc.age) || null, activity: nc.activity, deficit: nc.deficit, protMode: nc.protMode || "lean" }); };
+    const saveCfg = async (patch) => { const nc = { ...cfg, ...patch }; setCfg(nc); const raw = await load("nutri-cal-cfg", {}); await save("nutri-cal-cfg", { ...(raw || {}), sex: nc.sex, age: parseInt(nc.age) || null, activity: nc.activity, deficit: nc.deficit, protMode: nc.protMode || "lean" }); };
     const saveHeight = async (v) => { setHeight(v); await save("taille-corps", parseFloat(v) || 0); };
     const G = C.green;
     const cm = parseFloat(height) || 0;
@@ -1840,7 +2180,7 @@ function NutritionCalories() {
             React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginBottom: 3 } }, "Niveau d'activité"),
             React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5, marginBottom: 10 } }, activityOpts.map(o => React.createElement("button", { key: o.v, onClick: () => saveCfg({ activity: o.v }), style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${cfg.activity === o.v ? G : "transparent"}`, background: cfg.activity === o.v ? G + "22" : C.surfaceAlt, color: cfg.activity === o.v ? G : C.textMut, fontWeight: 700, fontSize: 10.5, cursor: "pointer" } }, o.l))),
             React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginBottom: 3 } }, "Objectif"),
-            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, objectifOpts.map(o => React.createElement("button", { key: o.l, onClick: () => saveCfg({ deficit: o.v }), style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${cfg.deficit === o.v ? G : "transparent"}`, background: cfg.deficit === o.v ? G + "22" : C.surfaceAlt, color: cfg.deficit === o.v ? G : C.textMut, fontWeight: 700, fontSize: 10.5, cursor: "pointer" } }, o.l))),
+            React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, objectifOpts.map(o => React.createElement("button", { key: o.l, onClick: () => saveCfg({ deficit: o.v }), style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${cfg.deficit === o.v ? G : "transparent"}`, background: cfg.deficit === o.v ? G + "22" : C.surfaceAlt, color: cfg.deficit === o.v ? G : C.textMut, fontWeight: 700, fontSize: 10.5, cursor: "pointer" } }, o.l)), !objectifOpts.some(o => o.v === cfg.deficit) && React.createElement("span", { style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${G}`, background: G + "22", color: G, fontWeight: 700, fontSize: 10.5 } }, "−" + cfg.deficit + " kcal · ajusté 🔬")),
             React.createElement("div", { style: { fontSize: 10, color: C.textDim, margin: "10px 0 3px" } },
                 "Protéines ",
                 React.createElement("span", { style: { color: C.textDim } }, "(base de calcul)")),
@@ -1924,161 +2264,151 @@ function NutritionCalories() {
                             " kcal")); })),
                 React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, padding: "2px 4px 0", lineHeight: 1.5 } }, "Estimation par formule (Mifflin-St Jeor). Ajuste l'objectif si tu perds trop vite (>1 % du poids/sem) ou si tu stagnes >2-3 semaines. Cette cible pilote aussi le Résumé et le menu Repas, mis à l'échelle automatiquement.")));
 }
+/* ═══ JOURNAL ALIMENTAIRE — ce que tu manges réellement, comparé à la cible du jour ═══ */
 function NutritionJournal() {
     const [log, setLog] = useState({});
     const [nLogs, setNLogs] = useState([]);
     const [cfg, setCfg] = useState(null);
     const [cm, setCm] = useState(0);
     const [mens, setMens] = useState([]);
+    const [alts, setAlts] = useState({});
     const [loading, setLoading] = useState(true);
     const [grams, setGrams] = useState("100");
     const [q, setQ] = useState("");
-    const today = isoToday();
+    const [selDate, setSelDate] = useState(isoToday());
+    const [showNew, setShowNew] = useState(false);
+    const [nf, setNf] = useState({ nom: "", p: "", g: "", l: "" });
+    const [custom, setCustom] = useStored("foods-custom", []);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [sLogs] = useStored("sport-logs", []);
     const G = C.green;
-    useEffect(() => { Promise.all([load("food-log", {}), load("nutri-logs", []), load("nutri-cal-cfg", null), load("taille-corps", ""), load("mensurations", [])]).then(([lg, n, c, h, m]) => { setLog(lg || {}); setNLogs(n || []); setCfg(normCalCfg(c)); setCm(parseFloat(h) || 0); setMens(m || []); setLoading(false); }); }, []);
-    const { cal: calRes, macros: target } = bodyTargets(nLogs, mens, cm, cfg);
-    const foods = log[today] || [];
+    useEffect(() => { Promise.all([load("food-log", {}), load("nutri-logs", []), load("nutri-cal-cfg", null), load("taille-corps", ""), load("mensurations", []), load("repas-alts", {})]).then(([lg, n, c, h, m, a]) => { setLog(lg || {}); setNLogs(n || []); setCfg(normCalCfg(c)); setCm(parseFloat(h) || 0); setMens(m || []); setAlts(a || {}); setLoading(false); }); }, []);
+    const dayType = sessionForDate(selDate, resolveProgramme(profile, sLogs)) ? "training" : "rest";
+    const bt = bodyTargets(nLogs, mens, cm, cfg);
+    const menu = dayMenu(dayType, profile, alts, bt);
+    const target = { ...menu.dayMacros, kcal: menu.dayTgt };
+    const foods = log[selDate] || [];
     const tot = foods.reduce((a, f) => ({ p: a.p + f.p, gl: a.gl + f.gl, l: a.l + f.l, kcal: a.kcal + f.kcal }), { p: 0, gl: 0, l: 0, kcal: 0 });
     const r1 = x => Math.round(x * 10) / 10;
-    const results = foodDB.filter(f => !q || f.nom.toLowerCase().includes(q.toLowerCase()));
-    const add = async (food) => { const g = parseFloat(grams); if (!g || g <= 0)
-        return; const e = { id: Date.now(), nom: food.nom, grams: g, p: r1(food.p * g / 100), gl: r1(food.g * g / 100), l: r1(food.l * g / 100), kcal: Math.round(food.kcal * g / 100) }; const u = { ...log, [today]: [...(log[today] || []), e] }; setLog(u); await save("food-log", u); };
-    const del = async (id) => { const u = { ...log, [today]: (log[today] || []).filter(x => x.id !== id) }; setLog(u); await save("food-log", u); };
+    const db = [...custom.map(f => ({ ...f, custom: true })), ...foodDB];
+    const results = db.filter(f => !q || f.nom.toLowerCase().includes(q.toLowerCase()));
+    const commit = async (u) => { setLog(u); if (!(await save("food-log", u)))
+        toast("❌ Journal non enregistré", { tone: "danger" }); };
+    const add = (food) => { const g = parseFloat(String(grams).replace(",", ".")); if (!g || g <= 0)
+        return toast("Indique une quantité en grammes"); const e = { id: Date.now(), nom: food.nom, grams: g, p: r1(food.p * g / 100), gl: r1(food.g * g / 100), l: r1(food.l * g / 100), kcal: Math.round(food.kcal * g / 100) }; commit({ ...log, [selDate]: [...foods, e] }); toast("+ " + food.nom + " " + g + " g · " + e.kcal + " kcal"); };
+    const addMeal = (m, i) => { const mt = menu.mealMacros[i]; const e = { id: Date.now(), nom: "🍽️ " + m.m + (m.altLabel ? " · " + m.altLabel : ""), plan: m.m, grams: null, p: r1(mt.p), gl: r1(mt.g), l: r1(mt.l), kcal: Math.round(mt.p * 4 + mt.g * 4 + mt.l * 9) }; commit({ ...log, [selDate]: [...foods, e] }); toast("+ " + m.m + " du menu · " + e.kcal + " kcal"); };
+    const del = id => commitWithUndo("food-log", log, { ...log, [selDate]: foods.filter(x => x.id !== id) }, setLog, "🗑️ Aliment retiré");
+    const prevDay = shiftISO(selDate, -1);
+    const copyPrev = () => { const pf = log[prevDay] || []; if (!pf.length)
+        return toast("Rien à copier la veille"); commit({ ...log, [selDate]: [...foods, ...pf.map((f, k) => ({ ...f, id: Date.now() + k }))] }); toast("⟲ " + pf.length + " élément(s) de la veille copiés"); };
+    const createFood = async () => { const p = parseFloat(nf.p) || 0, g = parseFloat(nf.g) || 0, l = parseFloat(nf.l) || 0; if (!nf.nom.trim() || (p + g + l) <= 0)
+        return toast("Nom et macros pour 100 g requis"); const f = { nom: nf.nom.trim(), cat: p * 4 >= g * 4 && p * 4 >= l * 9 ? "prot" : l * 9 >= g * 4 ? "lip" : "gluc", p, g, l, kcal: Math.round(p * 4 + g * 4 + l * 9) }; await setCustom([f, ...custom.filter(x => x.nom !== f.nom)]); setNf({ nom: "", p: "", g: "", l: "" }); setShowNew(false); setQ(f.nom); toast("⭐ " + f.nom + " ajouté à tes aliments"); };
+    const delCustom = nom => commitWithUndo("foods-custom", custom, custom.filter(x => x.nom !== nom), setCustom, "🗑️ Aliment perso supprimé");
     if (loading)
         return React.createElement("div", { style: { color: C.textMut, padding: 20 } }, "Chargement…");
-    const bar = (v, t, c) => { const pct = t > 0 ? Math.min(100, v / t * 100) : 0; const over = t > 0 && v > t * 1.05; return React.createElement("div", { style: { marginBottom: 9 } },
+    const bar = (lab, v, t, c) => { const pct = t > 0 ? Math.min(100, v / t * 100) : 0; const over = t > 0 && v > t * 1.05; return React.createElement("div", { style: { marginBottom: 9 } },
         React.createElement("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 } },
-            React.createElement("span", { style: { color: c, fontWeight: 700 } },
-                Math.round(v),
-                t ? " / " + t : "",
-                " g"),
-            React.createElement("span", { style: { color: over ? C.danger : C.textDim } }, t ? Math.round(pct) + "%" : "")),
+            React.createElement("span", { style: { color: c, fontWeight: 700 } }, lab + " " + Math.round(v) + " / " + t + " g"),
+            React.createElement("span", { style: { color: over ? C.danger : C.textDim } }, Math.round(pct) + "%")),
         React.createElement("div", { style: { height: 7, borderRadius: 4, background: C.surfaceAlt, overflow: "hidden" } },
-            React.createElement("div", { style: { height: "100%", width: pct + "%", background: over ? C.danger : c } }))); };
+            React.createElement("div", { style: { height: "100%", width: pct + "%", background: over ? C.danger : c, transition: "width .3s" } }))); };
+    const left = target.kcal - tot.kcal;
+    const chip = (v) => React.createElement("button", { key: v, onClick: () => setGrams(String(v)), style: { padding: "4px 8px", borderRadius: 7, border: `1px solid ${String(grams) === String(v) ? G : C.borderSoft}`, background: String(grams) === String(v) ? G + "22" : "transparent", color: String(grams) === String(v) ? G : C.textMut, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, v + "g");
+    const added = new Set(foods.filter(f => f.plan).map(f => f.plan));
     return React.createElement("div", null,
+        React.createElement(DateNav, { value: selDate, onChange: setSelDate, color: G }),
         React.createElement(Card, { border: G + "44" },
-            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 } },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.greenLight } }, "📓 Aujourd'hui"),
-                React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: G } },
-                    tot.kcal,
-                    React.createElement("span", { style: { fontSize: 11, color: C.textMut } },
-                        calRes ? " / " + calRes.target : "",
-                        " kcal"))),
-            target ? React.createElement("div", null,
-                bar(tot.p, target.p, C.prot),
-                bar(tot.gl, target.g, C.gluc),
-                bar(tot.l, target.l, C.amberLight),
-                React.createElement("div", { style: { fontSize: 9, color: C.textDim, marginTop: 2 } }, "Protéines · Glucides · Lipides vs ta cible du jour."))
-                : React.createElement("div", { style: { fontSize: 11, color: C.textMut } },
-                    "Total : ",
-                    Math.round(tot.p),
-                    "P / ",
-                    Math.round(tot.gl),
-                    "G / ",
-                    Math.round(tot.l),
-                    "L. Renseigne 🔥 Calories pour comparer à ta cible.")),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.greenLight } }, "📓 " + (dayType === "rest" ? "Jour de repos" : "Jour d'entraînement")),
+                React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: G } }, tot.kcal, React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, " / " + target.kcal + " kcal"))),
+            React.createElement("div", { style: { fontSize: 10.5, color: left >= 0 ? C.textMut : C.danger, marginBottom: 10 } }, left >= 0 ? "Reste " + left + " kcal" : "Dépassement de " + (-left) + " kcal", bt.cal ? "" : " · cible de base (renseigne 🔥 Calories)"),
+            bar("Protéines", tot.p, target.p, C.prot),
+            bar("Glucides", tot.gl, target.g, C.gluc),
+            bar("Lipides", tot.l, target.l, C.lip)),
         React.createElement(Card, null,
-            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 8 } },
-                React.createElement("input", { value: q, onChange: e => setQ(e.target.value), placeholder: "🔍 Chercher un aliment", style: { ...inputStyle, flex: 1 } }),
-                React.createElement("div", { style: { width: 84 } },
-                    React.createElement("input", { type: "number", inputMode: "decimal", value: grams, onChange: e => setGrams(e.target.value), style: { ...inputStyle, textAlign: "right" } }),
-                    React.createElement("div", { style: { fontSize: 9, color: C.textDim, textAlign: "right", marginTop: 2 } }, "grammes"))),
-            React.createElement("div", { style: { maxHeight: 210, overflowY: "auto" } },
-                results.map(f => React.createElement("div", { key: f.nom, onClick: () => add(f), style: { display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", borderTop: `1px solid ${C.borderSoft}`, cursor: "pointer" } },
-                    React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                        React.createElement("div", { style: { fontSize: 12, fontWeight: 600 } }, f.nom),
-                        React.createElement("div", { style: { fontSize: 9, color: C.textDim } },
-                            f.p,
-                            "P/",
-                            f.g,
-                            "G/",
-                            f.l,
-                            "L · ",
-                            f.kcal,
-                            "kcal /100g")),
-                    React.createElement("div", { style: { fontSize: 20, color: G, fontWeight: 800, lineHeight: 1 } }, "+"))),
-                results.length === 0 && React.createElement("div", { style: { fontSize: 11, color: C.textDim, textAlign: "center", padding: 10 } }, "Aucun aliment trouvé."))),
-        React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.textMut, margin: "4px 0 8px" } }, "Mangé aujourd'hui"),
-        !foods.length ? React.createElement(Card, null,
-            React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 10, fontSize: 12 } }, "Rien encore. Cherche un aliment ci-dessus, règle les grammes, et tape +.")) : foods.slice().reverse().map(f => React.createElement(Card, { key: f.id, style: { padding: "9px 12px" } },
-            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+            React.createElement("div", { style: { fontSize: 12, fontWeight: 800, marginBottom: 8 } }, "🍽️ Ajouter un repas du menu"),
+            menu.meals.map((m, i) => { const kc = Math.round(menu.mealMacros[i].p * 4 + menu.mealMacros[i].g * 4 + menu.mealMacros[i].l * 9); const done = added.has(m.m); return React.createElement("div", { key: m.m, style: { display: "flex", alignItems: "center", gap: 8, padding: "7px 0", borderTop: i ? `1px solid ${C.borderSoft}` : "none" } },
+                React.createElement("span", { style: { fontSize: 10.5, color: C.greenLight, fontWeight: 700, width: 40 } }, m.h),
                 React.createElement("div", { style: { flex: 1, minWidth: 0 } },
-                    React.createElement("div", { style: { fontSize: 12.5, fontWeight: 700 } },
-                        f.nom,
-                        " ",
-                        React.createElement("span", { style: { fontSize: 10, color: C.textDim } },
-                            f.grams,
-                            "g")),
-                    React.createElement("div", { style: { fontSize: 9.5, color: C.textDim } },
-                        f.p,
-                        "P/",
-                        f.gl,
-                        "G/",
-                        f.l,
-                        "L")),
-                React.createElement("span", { style: { fontSize: 13, fontWeight: 800, color: C.greenLight } }, f.kcal),
-                React.createElement("button", { onClick: () => del(f.id), style: { background: "none", border: "none", color: C.textMut, cursor: "pointer", fontSize: 14, marginLeft: 2 } }, "✕")))));
+                    React.createElement("div", { style: { fontSize: 12, fontWeight: 600 } }, m.m, m.altLabel ? React.createElement("span", { style: { color: C.textDim, fontWeight: 400 } }, " · " + m.altLabel) : null),
+                    React.createElement("div", { style: { fontSize: 9.5, color: C.textDim } }, kc + " kcal · " + Math.round(menu.mealMacros[i].p) + "P/" + Math.round(menu.mealMacros[i].g) + "G/" + Math.round(menu.mealMacros[i].l) + "L")),
+                React.createElement("button", { onClick: () => addMeal(m, i), style: { padding: "5px 10px", borderRadius: 8, border: `1px solid ${done ? G : G + "55"}`, background: done ? G + "22" : "transparent", color: G, fontSize: 11, fontWeight: 800, cursor: "pointer" } }, done ? "✓ +" : "+")); })),
+        React.createElement(Card, null,
+            React.createElement("div", { style: { display: "flex", gap: 8, marginBottom: 6 } },
+                React.createElement("input", { value: q, onChange: e => setQ(e.target.value), placeholder: "🔍 Chercher un aliment", style: { ...inputStyle, flex: 1 } }),
+                React.createElement("input", { type: "number", inputMode: "decimal", value: grams, onChange: e => setGrams(e.target.value), style: { ...inputStyle, width: 74, textAlign: "right" } })),
+            React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 8, flexWrap: "wrap" } }, [30, 50, 100, 150, 200, 250].map(chip)),
+            React.createElement("div", { style: { maxHeight: 230, overflowY: "auto" } },
+                results.map(f => React.createElement("div", { key: (f.custom ? "c:" : "") + f.nom, style: { display: "flex", alignItems: "center", gap: 8, padding: "7px 4px", borderTop: `1px solid ${C.borderSoft}` } },
+                    React.createElement("div", { onClick: () => add(f), style: { flex: 1, minWidth: 0, cursor: "pointer" } },
+                        React.createElement("div", { style: { fontSize: 12, fontWeight: 600 } }, (f.custom ? "⭐ " : "") + f.nom),
+                        React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, f.p + "P/" + f.g + "G/" + f.l + "L · " + f.kcal + " kcal /100 g")),
+                    f.custom && React.createElement("button", { onClick: () => delCustom(f.nom), "aria-label": "Supprimer", style: { border: "none", background: "transparent", color: C.textDim, fontSize: 12, cursor: "pointer" } }, "✕"),
+                    React.createElement("button", { onClick: () => add(f), style: { border: "none", background: "transparent", fontSize: 20, color: G, fontWeight: 800, lineHeight: 1, cursor: "pointer" } }, "+"))),
+                results.length === 0 && React.createElement("div", { style: { fontSize: 11, color: C.textDim, textAlign: "center", padding: 10 } }, "Aucun aliment trouvé — crée-le ci-dessous.")),
+            React.createElement("button", { onClick: () => setShowNew(v => !v), style: { width: "100%", marginTop: 8, padding: "8px 0", borderRadius: 9, border: `1px dashed ${C.border}`, background: "transparent", color: C.textMut, fontSize: 11.5, fontWeight: 700, cursor: "pointer" } }, showNew ? "Annuler" : "⭐ Créer un aliment"),
+            showNew && React.createElement("div", { style: { marginTop: 8 } },
+                React.createElement("input", { value: nf.nom, onChange: e => setNf({ ...nf, nom: e.target.value }), placeholder: "Nom (ex : Skyr vanille)", style: { ...inputStyle, marginBottom: 6 } }),
+                React.createElement("div", { style: { display: "flex", gap: 6 } }, [["p", "Prot."], ["g", "Gluc."], ["l", "Lip."]].map(([k, lb]) => React.createElement("div", { key: k, style: { flex: 1 } },
+                    React.createElement("div", { style: { fontSize: 9, color: C.textDim, marginBottom: 2 } }, lb + " /100 g"),
+                    React.createElement("input", { type: "number", inputMode: "decimal", value: nf[k], onChange: e => setNf({ ...nf, [k]: e.target.value }), style: inputStyle })))),
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 } },
+                    React.createElement("span", { style: { fontSize: 10.5, color: C.textMut } }, "≈ " + Math.round((parseFloat(nf.p) || 0) * 4 + (parseFloat(nf.g) || 0) * 4 + (parseFloat(nf.l) || 0) * 9) + " kcal /100 g"),
+                    React.createElement("button", { onClick: createFood, style: { padding: "8px 14px", borderRadius: 9, border: "none", background: G, color: "#04130B", fontSize: 12, fontWeight: 800, cursor: "pointer" } }, "Créer")))),
+        React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", margin: "4px 0 8px" } },
+            React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.textMut } }, "Mangé " + (selDate === isoToday() ? "aujourd'hui" : "le " + fmtDateShort(selDate))),
+            (log[prevDay] || []).length > 0 && React.createElement("button", { onClick: copyPrev, style: { border: "none", background: "transparent", color: G, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, "⟲ Copier la veille")),
+        !foods.length ? React.createElement(Card, null,
+            React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 10, fontSize: 12 } }, "Rien encore. Ajoute un repas du menu en un tap, ou cherche un aliment."))
+            : foods.slice().reverse().map(f => React.createElement(Card, { key: f.id, style: { padding: "9px 12px" } },
+                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    React.createElement("div", { style: { flex: 1, minWidth: 0 } },
+                        React.createElement("div", { style: { fontSize: 12.5, fontWeight: 700 } }, f.nom, f.grams ? React.createElement("span", { style: { fontSize: 10, color: C.textDim } }, " " + f.grams + "g") : null),
+                        React.createElement("div", { style: { fontSize: 9.5, color: C.textDim } }, f.p + "P/" + f.gl + "G/" + f.l + "L")),
+                    React.createElement("span", { style: { fontSize: 13, fontWeight: 800, color: C.greenLight } }, f.kcal),
+                    React.createElement("button", { onClick: () => del(f.id), style: { background: "none", border: "none", color: C.textMut, cursor: "pointer", fontSize: 14, marginLeft: 2 } }, "✕")))));
 }
 function NutritionSection() {
     const [tab, setTab] = useState("resume");
     const [day, setDay] = useState("training");
-    const [sciCfg, setSciCfg] = useState({ caloricAdjust: 0 });
+    const [sLogsNS] = useStored("sport-logs", []);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
     const [nLogsN, setNLogsN] = useState([]);
     const [calCfg, setCalCfg] = useState(null);
     const [hCm, setHCm] = useState(0);
     const [mensC, setMensC] = useState([]);
     const [mealAlt, setMealAlt] = useState({});
-    useEffect(() => { load("science-config", { caloricAdjust: 0 }).then(c => setSciCfg(c)); }, [tab]);
+    // Onglet Repas : type de jour prévu aujourd'hui par défaut
+    useEffect(() => { setDay(sessionForDate(isoToday(), resolveProgramme(profile, sLogsNS)) ? "training" : "rest"); }, [profile, sLogsNS.length]);
     useEffect(() => { Promise.all([load("nutri-logs", []), load("nutri-cal-cfg", null), load("taille-corps", ""), load("mensurations", []), load("repas-alts", {})]).then(([n, c, h, m, ma]) => { setNLogsN(n || []); setCalCfg(normCalCfg(c)); setHCm(parseFloat(h) || 0); setMensC(m || []); setMealAlt(ma || {}); }); }, [tab]);
     const setAlt = async (key, idx) => { const na = { ...mealAlt, [key]: idx }; setMealAlt(na); await save("repas-alts", na); };
-    const kcalCible = macrosTarget.kcal + ((sciCfg?.caloricAdjust) || 0);
-    const repas = day === "training" ? repasTraining : repasRest;
-    const repasEff = repas.map(m => { const k = day + ":" + m.m; const ai = mealAlt[k] || 0; if (ai > 0 && m.alts && m.alts[ai - 1]) {
-        const its = m.alts[ai - 1].items;
-        const P = its.reduce((a, i) => a + (i.p || 0), 0), G = its.reduce((a, i) => a + (i.g || 0), 0), L = its.reduce((a, i) => a + (i.l || 0), 0);
-        return { ...m, items: its, P, G, L, kcal: P * 4 + G * 4 + L * 9 };
-    } return m; });
-    const planning = (() => { const b = repasEff.map(m => [m.h, m.m]); if (day === "training") {
-        const idx = b.findIndex(x => x[1] === "Pré-séance");
-        if (idx >= 0)
-            b.splice(idx + 1, 0, ["12h00", "🏋️ Séance (~1h15)"]);
-    } return b; })();
-    const { cal: calRes, prot: _prot, macros: calMacros } = bodyTargets(nLogsN, mensC, hCm, calCfg);
+    const bt = bodyTargets(nLogsN, mensC, hCm, calCfg);
+    const { cal: calRes, macros: calMacros } = bt;
     const calTgt = calRes ? calRes.target : null;
-    const REST_CUT = 400;
-    // Total calorique du jour : cible personnalisée (onglet 🔥 Calories) sinon objectif de base
-    const baseTgt = calTgt != null ? calTgt : kcalCible;
-    const dayTgt = day === "rest" ? Math.max(baseTgt - REST_CUT, calRes ? calRes.bmr : 0) : baseTgt;
-    const dayMacros = macrosFor(dayTgt, calRes ? _prot : macrosTarget.p);
-    // Menu recalé sur les macros du jour, en tenant compte des repas/variantes sélectionnés
-    const { itemF } = mealScaling(repasEff, { ...dayMacros, kcal: dayTgt });
-    const mealMacros = repasEff.map(r => r.items.reduce((a, it) => it.t ? a : { p: a.p + it.p * itemF(it), g: a.g + it.g * itemF(it), l: a.l + it.l * itemF(it) }, { p: 0, g: 0, l: 0 }));
-    const menuTot = mealMacros.reduce((a, m) => ({ p: a.p + m.p, g: a.g + m.g, l: a.l + m.l }), { p: 0, g: 0, l: 0 });
-    const menuKcal = Math.round(menuTot.p * 4 + menuTot.g * 4 + menuTot.l * 9);
-    const tabs = [["resume", "Résumé"], ["cal", "🔥 Calories"], ["repas", "Repas"], ["aliments", "Aliments"], ["complements", "Compléments"], ["suivi", "📊 Suivi"], ["corps", "📐 Corps"], ["conseils", "Conseils"]];
+    const kcalCible = macrosTarget.kcal;
+    const menu = dayMenu(day, profile, mealAlt, bt);
+    const { meals: repasEff, dayTgt, dayMacros, itemF, mealMacros, menuTot, menuKcal } = menu;
+    const planning = menu.timeline.map(x => [x.h, x.t]);
+    const tabs = [["resume", "Résumé"], ["cal", "🔥 Calories"], ["repas", "Repas"], ["journal", "📓 Journal"], ["aliments", "Aliments"], ["complements", "Compléments"], ["suivi", "📊 Suivi"], ["corps", "📐 Corps"], ["conseils", "Conseils"]];
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.green }, l))),
         tab === "resume" && React.createElement("div", null,
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 10 } },
+                React.createElement(Pill, { active: day === "training", onClick: () => setDay("training"), color: C.green }, "🏋️ Entraînement"),
+                React.createElement(Pill, { active: day === "rest", onClick: () => setDay("rest"), color: C.green }, "🛌 Repos")),
             React.createElement(Card, null,
-                React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 8 } }, "⏰ Journée type"),
-                planning.map(([h, t]) => React.createElement("div", { key: h, style: { display: "flex", gap: 10, fontSize: 12, lineHeight: 1.8 } },
-                    React.createElement("span", { style: { color: C.greenLight, fontWeight: 700, minWidth: 58 } }, h),
-                    React.createElement("span", { style: { color: C.textMut } }, t)))),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 } }, [{ l: "Métabo", v: calRes ? calRes.bmr : 2314, c: C.prot }, { l: "Dépense", v: calRes ? calRes.tdee : 3240, c: C.blue }, { l: "Objectif", v: calRes ? calRes.target : kcalCible, c: C.green }].map(s => React.createElement(Card, { key: s.l, style: { marginBottom: 0 } },
+                React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 8 } }, "⏰ Journée type · " + (day === "rest" ? "repos" : "entraînement (" + CRENEAUX[normProfile(profile).creneau].label.toLowerCase() + ")")),
+                planning.map(([h, t], i) => React.createElement("div", { key: i, style: { display: "flex", gap: 10, fontSize: 12, lineHeight: 1.8 } },
+                    React.createElement("span", { style: { color: /Séance/.test(t) ? C.amber : C.greenLight, fontWeight: 700, minWidth: 58 } }, h),
+                    React.createElement("span", { style: { color: /Séance/.test(t) ? C.text : C.textMut, fontWeight: /Séance/.test(t) ? 700 : 400 } }, t))),
+                React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 6 } }, "Horaires réglables dans Accueil → ⚙️ Mon profil (créneau de séance, réveil).")),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 } }, [{ l: "Métabo", v: calRes ? calRes.bmr : "—", c: C.prot }, { l: "Dépense", v: calRes ? calRes.tdee : "—", c: C.blue }, { l: day === "rest" ? "Objectif repos" : "Objectif", v: dayTgt, c: C.green }].map(s => React.createElement(Card, { key: s.l, style: { marginBottom: 0 } },
                 React.createElement("div", { style: { fontSize: 16, fontWeight: 800, color: s.c } }, s.v),
                 React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, "kcal"),
                 React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 2 } }, s.l)))),
-            !calRes && ((sciCfg?.caloricAdjust) || 0) !== 0 && React.createElement("div", { style: { fontSize: 10, color: C.blue, background: C.blue + "12", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "5px 10px", marginBottom: 10 } },
-                "🔬 Ajustement science actif : base 2 750 ",
-                sciCfg.caloricAdjust > 0 ? "+" : "",
-                sciCfg.caloricAdjust,
-                " kcal = ",
-                React.createElement("b", null,
-                    kcalCible,
-                    " kcal/j")),
             React.createElement(Card, null,
                 React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: C.green, marginBottom: 10 } }, "🎯 Macros du jour"),
-                [["Protéines", calMacros ? calMacros.p : macrosTarget.p, C.prot], ["Glucides", calMacros ? calMacros.g : macrosTarget.g, C.gluc], ["Lipides", calMacros ? calMacros.l : macrosTarget.l, C.lip]].map(([n, v, c]) => React.createElement("div", { key: n, style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 8 } },
+                [["Protéines", dayMacros.p, C.prot], ["Glucides", dayMacros.g, C.gluc], ["Lipides", dayMacros.l, C.lip]].map(([n, v, c]) => React.createElement("div", { key: n, style: { display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 8 } },
                     React.createElement("span", { style: { color: c, fontWeight: 700 } }, n),
                     React.createElement("span", { style: { fontWeight: 800 } },
                         v,
@@ -2086,8 +2416,8 @@ function NutritionSection() {
                 !calRes && React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 2 } }, "Renseigne l'onglet 🔥 Calories pour tes valeurs personnalisées."))),
         tab === "repas" && React.createElement("div", null,
             React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 12 } },
-                React.createElement(Pill, { active: day === "training", onClick: () => setDay("training"), color: C.green }, "Entraînement"),
-                React.createElement(Pill, { active: day === "rest", onClick: () => setDay("rest"), color: C.green }, "Repos")),
+                React.createElement(Pill, { active: day === "training", onClick: () => setDay("training"), color: C.green }, "🏋️ Entraînement"),
+                React.createElement(Pill, { active: day === "rest", onClick: () => setDay("rest"), color: C.green }, "🛌 Repos")),
             calTgt ? React.createElement("div", { style: { background: C.green + "14", border: `1px solid ${C.green}44`, borderRadius: 12, padding: "9px 12px", marginBottom: 12, fontSize: 11, color: C.textMut } },
                 "Menu ",
                 React.createElement("b", { style: { color: C.greenLight } }, "ajusté à ta cible"),
@@ -2166,6 +2496,7 @@ function NutritionSection() {
             React.createElement("div", { style: { fontSize: 11, color: C.greenLight, fontWeight: 700, marginBottom: 6 } }, c.quand),
             React.createElement("div", { style: { fontSize: 12, color: C.textMut, lineHeight: 1.5 } }, c.d)))),
         tab === "suivi" && React.createElement(SuiviNutrition, null),
+        tab === "journal" && React.createElement(NutritionJournal, null),
         tab === "cal" && React.createElement(NutritionCalories, null),
         tab === "corps" && React.createElement(SuiviCorps, null),
         tab === "conseils" && React.createElement("div", null, nutritionConseils.map(c => React.createElement(Card, { key: c.t, style: { borderLeft: `3px solid ${C.green}`, borderRadius: "0 14px 14px 0" } },
@@ -2234,8 +2565,8 @@ function FinancePerso() {
     }
     catch (err) { } };
     const cancelEdit = () => { setEditId(null); setEditType(null); setMontant(""); setLabel(""); };
-    const delInc = async (id) => { const u = inc.filter(x => x.id !== id); await save("fin-income", u); setInc(u); };
-    const delExp = async (id) => { const u = exp.filter(x => x.id !== id); await save("fin-expenses", u); setExp(u); };
+    const delInc = id => commitWithUndo("fin-income", inc, inc.filter(x => x.id !== id), setInc, "🗑️ Revenu supprimé");
+    const delExp = id => commitWithUndo("fin-expenses", exp, exp.filter(x => x.id !== id), setExp, "🗑️ Dépense supprimée");
     const setCap = async (c, v) => { const u = { ...caps, [c]: v }; setCaps(u); await save("fin-caps", u); };
     const saveGoal = async (v) => { setGoal(v); await save("fin-goal", parseFloat(v) || 0); };
     const rev = sumMonth(inc, ym), dep = sumMonth(exp, ym), solde = Math.round((rev - dep) * 100) / 100;
@@ -2500,194 +2831,147 @@ function BudgetSection() {
 }
 /* ═══ REVIEW DATA ═══ */
 /* ═══ AJUSTEMENTS SCIENTIFIQUES ═══ */
+/* ═══ AJUSTEMENTS SCIENTIFIQUES ═══
+ * Rythme de perte jugé en % du poids de corps (−0,5 à −1 %/sem), mesuré par régression sur
+ * les dernières pesées ; le bouton « Appliquer » modifie VRAIMENT le déficit de l'onglet Calories.
+ * La surcharge utilise le même moteur que le Coach et le pré-remplissage du log. */
+const PACE_MIN = -1.0, PACE_MAX = -0.5, PACE_SLOW = -0.25, ADJUST_COOLDOWN = 10;
 function ScienceSection() {
     const [sportLogs, setSportLogs] = useState([]);
+    const [maisonLogs, setMaisonLogs] = useState([]);
     const [nutriLogs, setNutriLogs] = useState([]);
-    const [cfg, setCfg] = useState({ weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false });
+    const [calRaw, setCalRaw] = useState(null);
+    const [cfg, setCfg] = useStored("science-config", SCI_DEFAULT);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState("bilan");
-    const [applying, setApplying] = useState("");
-    useEffect(() => { Promise.all([load("sport-logs", []), load("nutri-logs", []), load("science-config", { weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false })]).then(([s, n, c]) => { setSportLogs(s); setNutriLogs(n); setCfg(c); setLoading(false); }); }, []);
-    const saveCfg = async (nc) => { await save("science-config", nc); setCfg(nc); };
-    /* ── Analyse surcharge progressive ── */
-    const overloadRecs = salleSeances.flatMap(seance => {
-        const sessions = sportLogs.filter(l => l.seance === seance.id).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).slice(-4);
-        if (sessions.length < 2)
-            return [];
-        return seance.exercices.flatMap(ex => {
-            const ws = sessions.map(s => { return (s.exercices.find(e => e.nom === ex.nom)?.weight) || 0; }).filter(w => w > 0);
-            if (ws.length < 2)
-                return [];
-            const last = ws[ws.length - 1], prev = ws[ws.length - 2];
-            const key = seance.id + ":" + ex.nom;
-            const inc = /squat|leg press|hip thrust|rdl|roumain/i.test(ex.nom) ? 5 : 2.5;
-            const applied = cfg.weightOverrides[key] === last + inc;
-            if (last === prev)
-                return [{ seance: seance.id, emoji: seance.couleur, seanceEmoji: seance.emoji, exo: ex.nom, current: last, suggested: last + inc, key, stagnant: true, applied, count: ws.length }];
-            if (last > prev)
-                return [{ seance: seance.id, emoji: seance.couleur, seanceEmoji: seance.emoji, exo: ex.nom, current: last, previous: prev, key, progressing: true }];
-            return [];
-        });
-    });
-    /* ── Tendance poids ── */
-    const wEntries = nutriLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
-    let weightTrend = null;
-    if (wEntries.length >= 3) {
-        const r = wEntries.slice(-5);
-        const days = (new Date(r[r.length - 1].dateISO) - new Date(r[0].dateISO)) / (86400000) || 1;
-        const wChange = (r[r.length - 1].weight - r[0].weight) / days * 7;
-        weightTrend = { weekly: Math.round(wChange * 100) / 100, last: r[r.length - 1].weight, first: r[0].weight, n: r.length };
+    useEffect(() => { Promise.all([load("sport-logs", []), load("maison-logs", []), load("nutri-logs", []), load("nutri-cal-cfg", null)]).then(([s, m, n, c]) => { setSportLogs(s || []); setMaisonLogs(m || []); setNutriLogs(n || []); setCalRaw(c); setLoading(false); }); }, []);
+    const overrides = cfg.weightOverrides || {};
+    const setOverride = (key, v) => { const ov = { ...overrides }; if (v == null)
+        delete ov[key];
+    else
+        ov[key] = v; setCfg({ ...cfg, weightOverrides: ov }); };
+    /* ── Surcharge : moteur de progression partagé ── */
+    const recs = salleSeances.flatMap(seance => seance.exercices.map(ex => { const e = lastExerciseLog(sportLogs, seance.id, ex.nom); if (!e)
+        return null; const p = progressFor(seance.id, e, cfg.recovery); const key = seance.id + ":" + ex.nom; return { key, seance: seance.id, emoji: seance.emoji, exo: ex.nom, last: e, p, applied: overrides[key] === p.weight }; }).filter(Boolean));
+    const ups = recs.filter(r => r.p.action === "up");
+    /* ── Rythme de perte ── */
+    const weighIns = nutriLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
+    const curW = avgRecent(weighIns, 7);
+    const span = weighIns.length >= 2 ? daysBetween(weighIns[Math.max(0, weighIns.length - 8)].dateISO, weighIns[weighIns.length - 1].dateISO) : 0;
+    const rate = weighIns.length >= 3 && span >= 10 ? weeklyRate(weighIns) : null;
+    const pct = rate != null && curW ? Math.round(rate / curW * 1000) / 10 : null;
+    const band = curW ? [Math.round(curW * PACE_MIN / 100 * 10) / 10, Math.round(curW * PACE_MAX / 100 * 10) / 10] : null;
+    const cal = normCalCfg(calRaw);
+    const sinceAdjust = calRaw?.lastAdjust ? daysBetween(calRaw.lastAdjust, isoToday()) : null;
+    const cooling = sinceAdjust != null && sinceAdjust < ADJUST_COOLDOWN;
+    let pace = null;
+    if (pct != null) {
+        if (pct < PACE_MIN)
+            pace = { tone: C.gluc, title: "Perte trop rapide (" + pct + " %/sem)", why: "Au-delà de 1 %/semaine, le risque de perdre du muscle et de la force augmente.", newDef: cal ? Math.max(0, cal.deficit - 150) : null };
+        else if (pct > PACE_SLOW)
+            pace = { tone: C.danger, title: pct > 0 ? "Prise de poids (+" + pct + " %/sem)" : "Perte trop lente (" + pct + " %/sem)", why: "Sous 0,25 %/semaine sur 10 jours et plus, le déficit réel est trop faible.", newDef: cal ? Math.min(1000, cal.deficit + 150) : null };
+        else if (pct > PACE_MAX)
+            pace = { tone: C.gluc, title: "Rythme un peu lent (" + pct + " %/sem)", why: "Acceptable en recomposition (la masse musculaire compense), surveille 1-2 semaines de plus.", newDef: null };
+        else
+            pace = { tone: C.green, title: "Rythme idéal (" + pct + " %/sem)", why: "Tu es dans la zone −0,5 à −1 %/sem : garde ce déficit.", newDef: null };
     }
-    let caloricRec = null;
-    if (weightTrend) {
-        const wc = weightTrend.weekly;
-        if (wc < -0.5)
-            caloricRec = { delta: +200, reason: `Perte trop rapide (${wc} kg/sem) — risque de LBM`, color: "#F59E0B" };
-        else if (wc < -0.4)
-            caloricRec = { delta: +150, reason: `Perte légèrement trop rapide (${wc} kg/sem)`, color: "#FBBF24" };
-        else if (wc > 0.1)
-            caloricRec = { delta: -150, reason: `Prise de poids (${wc} kg/sem) — réduire`, color: "#EF4444" };
-        else if (wc > -0.05)
-            caloricRec = { delta: -100, reason: `Perte trop lente (${wc} kg/sem)`, color: "#F59E0B" };
-    }
-    /* ── Stats semaine ── */
-    const weekISO = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
-    const wSport = sportLogs.filter(l => l.dateISO >= weekISO);
-    const wNutri = nutriLogs.filter(l => l.dateISO >= weekISO);
+    const applyDeficit = async (newDef) => { if (!calRaw)
+        return; const ok = await askConfirm({ title: "Ajuster le déficit ?", message: "Déficit −" + cal.deficit + " → −" + newDef + " kcal/jour. Ta cible calorique, le menu Repas et le journal se recalculent. Prochain ajustement conseillé dans " + ADJUST_COOLDOWN + " jours, le temps que le poids se stabilise.", confirmLabel: "Appliquer" }); if (!ok)
+        return; const nc = { ...calRaw, deficit: newDef, lastAdjust: isoToday() }; if (await save("nutri-cal-cfg", nc)) {
+        setCalRaw(nc);
+        toast("🔬 Déficit ajusté à −" + newDef + " kcal");
+    } };
+    /* ── Semaine ── */
+    const prog = resolveProgramme(profile, sportLogs);
+    const nDays = programmeDays(prog).length;
+    const train7 = new Set([...sportLogs, ...maisonLogs].filter(l => withinDays(l.dateISO, 7)).map(l => l.dateISO)).size;
+    const wNutri = nutriLogs.filter(l => withinDays(l.dateISO, 7));
     const avgComp = wNutri.length ? Math.round(wNutri.reduce((a, l) => a + l.compliance, 0) / wNutri.length) : null;
-    const activeCount = Object.keys(cfg.weightOverrides).length + (cfg.caloricAdjust !== 0 ? 1 : 0) + (cfg.deload ? 1 : 0) + (cfg.recovery ? 1 : 0);
+    const activeCount = Object.keys(overrides).length + (cfg.deload ? 1 : 0) + (cfg.recovery ? 1 : 0);
     if (loading)
-        return React.createElement(Card, null,
-            React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 20 } }, "Chargement des données…"));
+        return React.createElement(Card, null, React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 20 } }, "Chargement des données…"));
+    const stat = (label, value, color, sub) => React.createElement(Card, null,
+        React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, label),
+        React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color, margin: "4px 0 1px" } }, value),
+        React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, sub));
+    const toggleCard = (k, icon, title, desc, color) => React.createElement(Card, { key: k, border: cfg[k] ? color + "44" : C.borderSoft },
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+            React.createElement("span", { style: { fontSize: 20 } }, icon),
+            React.createElement("div", { style: { flex: 1 } },
+                React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, title),
+                React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 1, lineHeight: 1.4 } }, desc)),
+            React.createElement("button", { onClick: () => { setCfg({ ...cfg, [k]: !cfg[k] }); toast(title + (cfg[k] ? " désactivé" : " activé")); }, style: { padding: "7px 14px", borderRadius: 99, border: `1.5px solid ${cfg[k] ? color : C.borderSoft}`, background: cfg[k] ? color + "22" : "transparent", color: cfg[k] ? color : C.textMut, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, cfg[k] ? "Actif" : "Inactif")));
     return React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 12, overflowX: "auto" } }, [["bilan", "📊 Bilan"], ["surcharge", "🏋️ Surcharge"], ["config", "🔧 Config"]].map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.blue }, l))),
+        React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 12, overflowX: "auto" } }, [["bilan", "📊 Bilan"], ["surcharge", "🏋️ Surcharge" + (ups.filter(r => !r.applied).length ? " · " + ups.filter(r => !r.applied).length : "")], ["config", "🔧 Config"]].map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.blue }, l))),
         tab === "bilan" && React.createElement("div", null,
-            activeCount > 0 && React.createElement(Card, { border: C.blue + "44", style: { marginBottom: 12, background: "#080E18" } },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } },
-                    "🔬 Ajustements actifs (",
-                    activeCount,
-                    ")"),
+            activeCount > 0 && React.createElement(Card, { border: C.blue + "44", style: { background: "#080E18" } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } }, "🔬 Ajustements actifs (" + activeCount + ")"),
                 React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
-                    Object.entries(cfg.weightOverrides).map(([k, v]) => React.createElement("span", { key: k, style: { fontSize: 10, background: C.blue + "15", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "3px 8px", color: C.blueLight } },
-                        k.split(":")[1],
-                        " → ",
-                        React.createElement("b", null,
-                            v,
-                            "kg"))),
-                    cfg.caloricAdjust !== 0 && React.createElement("span", { style: { fontSize: 10, background: C.green + "15", border: `1px solid ${C.green}33`, borderRadius: 8, padding: "3px 8px", color: C.greenLight } },
-                        cfg.caloricAdjust > 0 ? "+" : "",
-                        cfg.caloricAdjust,
-                        " kcal/jour"),
-                    cfg.deload && React.createElement("span", { style: { fontSize: 10, background: "#818CF815", border: "1px solid #818CF833", borderRadius: 8, padding: "3px 8px", color: "#818CF8" } }, "Décharge active"),
-                    cfg.recovery && React.createElement("span", { style: { fontSize: 10, background: "#F59E0B15", border: "1px solid #F59E0B33", borderRadius: 8, padding: "3px 8px", color: "#FBBF24" } }, "Mode récupération"))),
+                    Object.entries(overrides).map(([k, v]) => React.createElement("span", { key: k, style: { fontSize: 10, background: C.blue + "15", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "3px 8px", color: C.blueLight } }, k.split(":")[1] + " → ", React.createElement("b", null, v + "kg"))),
+                    cfg.deload && React.createElement("span", { style: { fontSize: 10, background: "#818CF815", border: "1px solid #818CF833", borderRadius: 8, padding: "3px 8px", color: "#818CF8" } }, "🪶 Décharge active"),
+                    cfg.recovery && React.createElement("span", { style: { fontSize: 10, background: "#F59E0B15", border: "1px solid #F59E0B33", borderRadius: 8, padding: "3px 8px", color: "#FBBF24" } }, "🛌 Mode récupération"))),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } },
-                React.createElement(Card, null,
-                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Séances / 7j"),
-                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: wSport.length >= 4 ? C.green : wSport.length >= 2 ? "#F59E0B" : C.danger, margin: "4px 0 1px" } },
-                        wSport.length,
-                        React.createElement("span", { style: { fontSize: 12, color: C.textMut, fontWeight: 400 } }, "/5")),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, wSport.length >= 4 ? "✅ Objectif atteint" : wSport.length >= 2 ? "🟡 En cours" : "🔴 Peu de séances")),
-                React.createElement(Card, null,
-                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Compliance nutri"),
-                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: avgComp === null ? C.textMut : avgComp >= 85 ? C.green : avgComp >= 65 ? "#F59E0B" : C.danger, margin: "4px 0 1px" } }, avgComp !== null ? avgComp + "%" : "—"),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, avgComp === null ? "Pas de données" : avgComp >= 85 ? "✅ Excellente" : avgComp >= 65 ? "🟡 Correcte" : "🔴 Faible")),
-                React.createElement(Card, null,
-                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Poids actuel"),
-                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: C.amberLight, margin: "4px 0 1px" } }, weightTrend ? weightTrend.last + "kg" : "—"),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, weightTrend ? `Départ : ${weightTrend.first} kg` : "Pas de pesée")),
-                React.createElement(Card, null,
-                    React.createElement("div", { style: { fontSize: 10, color: C.textDim, textTransform: "uppercase", letterSpacing: .5 } }, "Tendance / sem"),
-                    React.createElement("div", { style: { fontSize: 22, fontWeight: 800, color: weightTrend ? weightTrend.weekly < -0.05 && weightTrend.weekly > -0.5 ? C.green : C.danger : C.textMut, margin: "4px 0 1px" } }, weightTrend ? (weightTrend.weekly > 0 ? "+" : "") + weightTrend.weekly + " kg" : "—"),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, weightTrend ? "Cible : -0.1 à -0.4 kg/sem" : "En attente de pesées"))),
-            overloadRecs.filter(r => r.stagnant).length > 0 && React.createElement(Card, { border: "#F59E0B33" },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: "#FBBF24", marginBottom: 8 } },
-                    "⚠️ ",
-                    overloadRecs.filter(r => r.stagnant).length,
-                    " stagnation(s) détectée(s)"),
-                React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, "Va dans l'onglet 🏋️ Surcharge pour voir les recommandations.")),
-            caloricRec && React.createElement(Card, { border: caloricRec.color + "33" },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: caloricRec.color, marginBottom: 6 } }, "⚡ Rythme de perte"),
-                React.createElement("div", { style: { fontSize: 11, color: C.textMut, lineHeight: 1.5 } },
-                    caloricRec.reason,
-                    ". Ajuste ton ",
-                    React.createElement("b", { style: { color: C.text } }, "objectif"),
-                    " dans Nutrition → 🔥 Calories (",
-                    caloricRec.delta > 0 ? "déficit plus doux" : "déficit un peu plus marqué",
-                    ")."))),
-        tab === "surcharge" && React.createElement("div", null, overloadRecs.length === 0 ? React.createElement(Card, null,
-            React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 14, fontSize: 12 } }, "Enregistre au moins 2 séances du même type pour voir les recommandations.")) : React.createElement(React.Fragment, null,
-            overloadRecs.filter(r => r.stagnant).length > 0 && React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 10 } }, "💡 Principe : même charge 2 séances consécutives = signal pour augmenter."),
-            overloadRecs.filter(r => r.stagnant).map(r => React.createElement(Card, { key: r.key, border: r.applied ? "#10B98133" : "#F59E0B33" },
-                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
-                    React.createElement("div", null,
-                        React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } },
-                            r.seanceEmoji,
-                            " ",
-                            r.seance),
-                        React.createElement("span", { style: { fontSize: 11, color: C.textMut, marginLeft: 6 } }, r.exo)),
-                    r.applied && React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: "#10B981", background: "#10B98115", padding: "2px 7px", borderRadius: 99 } }, "✅ Appliqué")),
-                React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", marginBottom: 10 } },
-                    React.createElement("div", { style: { textAlign: "center" } },
-                        React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, "Actuel"),
-                        React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.textMut } },
-                            r.current,
-                            React.createElement("span", { style: { fontSize: 11 } }, "kg"))),
-                    React.createElement("div", { style: { fontSize: 16, color: C.blue } }, "→"),
-                    React.createElement("div", { style: { textAlign: "center" } },
-                        React.createElement("div", { style: { fontSize: 10, color: C.blue } }, "Suggéré"),
-                        React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.blue } },
-                            r.suggested,
-                            React.createElement("span", { style: { fontSize: 11 } }, "kg"))),
-                    React.createElement("div", { style: { flex: 1 } }),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textDim } },
-                        "Stagnant",
-                        React.createElement("br", null),
-                        r.count,
-                        " séances")),
-                !r.applied ? React.createElement("button", { disabled: applying === r.key, onClick: async () => { setApplying(r.key); const nc = { ...cfg, weightOverrides: { ...cfg.weightOverrides, [r.key]: r.suggested } }; await saveCfg(nc); setApplying(""); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", background: C.blue, color: "#fff", fontSize: 12, fontWeight: 700, opacity: applying === r.key ? .6 : 1 } }, applying === r.key ? "Application…" : "Appliquer +" + ((r.suggested - r.current)) + "kg →")
-                    : React.createElement("button", { onClick: async () => { const ov = { ...cfg.weightOverrides }; delete ov[r.key]; await saveCfg({ ...cfg, weightOverrides: ov }); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${C.textDim}44`, background: "transparent", color: C.textDim, fontSize: 11, cursor: "pointer" } }, "Annuler l'ajustement"))),
-            overloadRecs.filter(r => r.progressing).length > 0 && React.createElement("div", { style: { marginTop: 10 } },
-                React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 8 } }, "✅ En progression"),
-                overloadRecs.filter(r => r.progressing).map(r => React.createElement("div", { key: r.key, style: { display: "flex", justifyContent: "space-between", alignItems: "center", background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: "8px 12px", marginBottom: 6 } },
-                    React.createElement("span", { style: { fontSize: 12 } },
-                        r.seanceEmoji,
-                        " ",
-                        r.seance,
-                        " — ",
-                        r.exo),
-                    React.createElement("span", { style: { fontSize: 11, color: C.green, fontWeight: 700 } },
-                        r.previous,
-                        "→",
-                        r.current,
-                        "kg ✓")))))),
+                stat("Séances / 7j", React.createElement(Fragment, null, train7, React.createElement("span", { style: { fontSize: 12, color: C.textMut, fontWeight: 400 } }, "/" + nDays)), train7 >= nDays ? C.green : train7 >= Math.ceil(nDays / 2) ? C.gluc : C.danger, PROGRAMMES[prog].label + " · " + (train7 >= nDays ? "✅ objectif atteint" : "objectif " + nDays)),
+                stat("Compliance nutri", avgComp != null ? avgComp + "%" : "—", avgComp == null ? C.textMut : avgComp >= 85 ? C.green : avgComp >= 65 ? C.gluc : C.danger, avgComp == null ? "Pas de données" : avgComp >= 85 ? "✅ Excellente" : avgComp >= 65 ? "🟡 Correcte" : "🔴 Faible"),
+                stat("Poids (moy. 7j)", curW ? curW + "kg" : "—", C.amberLight, weighIns.length ? "Départ : " + weighIns[0].kg + " kg" : "Pas de pesée"),
+                stat("Tendance / sem", rate != null ? (rate > 0 ? "+" : "") + rate + " kg" : "—", pct == null ? C.textMut : pct >= PACE_MIN && pct <= PACE_MAX ? C.green : pct > PACE_SLOW ? C.danger : C.gluc, band ? "Cible : " + band[0] + " à " + band[1] + " kg/sem" : "En attente de pesées")),
+            React.createElement(Card, { border: (pace ? pace.tone : C.border) + "55" },
+                React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: pace ? pace.tone : C.textMut, marginBottom: 4 } }, "⚡ " + (pace ? pace.title : "Rythme de perte")),
+                React.createElement("div", { style: { fontSize: 11, color: C.textMut, lineHeight: 1.5 } }, pace ? pace.why : "Il faut au moins 3 pesées sur 10 jours pour mesurer une tendance fiable (régression sur tes 8 dernières pesées)."),
+                pace && pace.newDef != null && (cooling
+                    ? React.createElement("div", { style: { fontSize: 10.5, color: C.textDim, marginTop: 8 } }, "⏳ Déficit ajusté il y a " + sinceAdjust + " j : attends encore " + (ADJUST_COOLDOWN - sinceAdjust) + " j que le poids se stabilise avant de réajuster.")
+                    : React.createElement("button", { onClick: () => applyDeficit(pace.newDef), style: { width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 10, border: "none", background: pace.tone, color: "#0B0B0B", fontSize: 12.5, fontWeight: 800, cursor: "pointer" } }, "Appliquer : déficit −" + cal.deficit + " → −" + pace.newDef + " kcal")),
+                !cal && React.createElement("div", { style: { fontSize: 10.5, color: C.textDim, marginTop: 8 } }, "💡 Configure Nutrition → 🔥 Calories pour que l'ajustement s'applique à ta cible.")),
+            ups.filter(r => !r.applied).length > 0 && React.createElement(Card, { border: C.green + "44" },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.greenLight, marginBottom: 4 } }, "⬆️ " + ups.filter(r => !r.applied).length + " exercice(s) prêt(s) à monter en charge"),
+                React.createElement("button", { onClick: () => setTab("surcharge"), style: { border: "none", background: "transparent", color: C.green, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0 } }, "Voir dans l'onglet Surcharge →"))),
+        tab === "surcharge" && React.createElement("div", null, recs.length === 0 ? React.createElement(Card, null,
+            React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 14, fontSize: 12 } }, "Enregistre des séances salle (charge + reps) pour obtenir des recommandations."))
+            : React.createElement(Fragment, null,
+                React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10, lineHeight: 1.5 } }, "💡 Double progression : haut de la fourchette atteint à RPE ≤ 8 → on monte (+5 kg jambes, +2,5 kg ailleurs). « Appliquer » fixe la nouvelle cible dans le log (✨ Pré-remplir) et l'onglet Salle." + (cfg.recovery ? " Mode récupération actif : aucune hausse proposée." : "")),
+                ups.map(r => React.createElement(Card, { key: r.key, border: r.applied ? C.green + "44" : C.amber + "44" },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
+                        React.createElement("div", null,
+                            React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } }, r.emoji + " " + r.seance),
+                            React.createElement("span", { style: { fontSize: 11, color: C.textMut, marginLeft: 6 } }, r.exo)),
+                        r.applied && React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: C.green, background: C.green + "15", padding: "2px 7px", borderRadius: 99 } }, "✅ Appliqué")),
+                    React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", marginBottom: 10 } },
+                        React.createElement("div", { style: { textAlign: "center" } },
+                            React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, "Dernière"),
+                            React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.textMut } }, r.last.weight, React.createElement("span", { style: { fontSize: 11 } }, "kg"))),
+                        React.createElement("div", { style: { fontSize: 16, color: C.blue } }, "→"),
+                        React.createElement("div", { style: { textAlign: "center" } },
+                            React.createElement("div", { style: { fontSize: 10, color: C.blue } }, "Prochaine"),
+                            React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.blue } }, r.p.weight, React.createElement("span", { style: { fontSize: 11 } }, "kg × " + r.p.reps))),
+                        React.createElement("div", { style: { flex: 1 } }),
+                        React.createElement("div", { style: { fontSize: 10, color: C.textDim, textAlign: "right" } }, (r.last.setsDetail?.length ? fmtSets(r.last) : r.last.sets + "×" + r.last.reps), React.createElement("br"), r.last.rpe ? "RPE " + r.last.rpe : r.last.date)),
+                    !r.applied ? React.createElement("button", { onClick: () => { setOverride(r.key, r.p.weight); toast("🔬 " + r.exo + " → " + r.p.weight + " kg"); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", background: C.blue, color: "#fff", fontSize: 12, fontWeight: 700 } }, "Appliquer " + r.p.weight + " kg")
+                        : React.createElement("button", { onClick: () => setOverride(r.key, null), style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${C.textDim}44`, background: "transparent", color: C.textDim, fontSize: 11, cursor: "pointer" } }, "Annuler l'ajustement"))),
+                React.createElement("div", { style: { fontSize: 11, color: C.textMut, margin: "6px 0 8px" } }, "Les autres exercices"),
+                recs.filter(r => r.p.action !== "up").map(r => React.createElement("div", { key: r.key, style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: "8px 12px", marginBottom: 6 } },
+                    React.createElement("span", { style: { fontSize: 11.5 } }, r.emoji + " " + r.exo),
+                    React.createElement("span", { style: { fontSize: 10.5, color: r.p.action === "hold" ? C.gluc : C.textMut, fontWeight: 700, textAlign: "right" } }, r.p.txt))))),
         tab === "config" && React.createElement("div", null,
-            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 12 } }, "Protocoles spéciaux modifiant l'affichage de l'app. À activer selon la situation."),
-            [
-                { k: "deload", icon: "🔄", title: "Semaine de décharge", desc: "Toutes les charges réduites de 40% sur le programme salle. À faire toutes les 4-6 semaines.", color: "#818CF8" },
-                { k: "recovery", icon: "🛌", title: "Mode récupération", desc: "Rappels de repos 3 min minimum, indicateur de récupération dans le bilan. En cas de fatigue accumulée.", color: "#F59E0B" },
-            ].map(p => React.createElement(Card, { key: p.k, border: cfg[p.k] ? p.color + "44" : C.borderSoft },
-                React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 6 } },
-                    React.createElement("span", { style: { fontSize: 20 } }, p.icon),
-                    React.createElement("div", { style: { flex: 1 } },
-                        React.createElement("div", { style: { fontSize: 13, fontWeight: 700 } }, p.title),
-                        React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 1 } }, p.desc)),
-                    React.createElement("button", { onClick: async () => saveCfg({ ...cfg, [p.k]: !cfg[p.k] }), style: { padding: "7px 14px", borderRadius: 99, border: `1.5px solid ${cfg[p.k] ? p.color : C.borderSoft}`, background: cfg[p.k] ? p.color + "22" : "transparent", color: cfg[p.k] ? p.color : C.textMut, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, cfg[p.k] ? "Actif" : "Inactif")))),
-            Object.keys(cfg.weightOverrides).length > 0 && React.createElement(Card, { border: C.blue + "33" },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } },
-                    "Surcharges appliquées (",
-                    Object.keys(cfg.weightOverrides).length,
-                    ")"),
-                Object.entries(cfg.weightOverrides).map(([k, v]) => React.createElement("div", { key: k, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderTop: `1px solid ${C.borderSoft}` } },
-                    React.createElement("span", { style: { fontSize: 11 } }, k),
+            React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 12 } }, "Protocoles partagés avec le log et l'onglet Salle."),
+            toggleCard("deload", "🪶", "Semaine de décharge", "Charges −40 % dans le programme salle et le pré-remplissage du log. PR non comptés. À faire toutes les 4-6 semaines.", "#818CF8"),
+            toggleCard("recovery", "🛌", "Mode récupération", "Fatigue accumulée : plus aucune hausse de charge proposée, repos ≥ 3 min mis en avant sur le minuteur.", "#F59E0B"),
+            Object.keys(overrides).length > 0 && React.createElement(Card, { border: C.blue + "33" },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 } },
+                    React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight } }, "Charges ajustées (" + Object.keys(overrides).length + ")"),
+                    React.createElement("button", { onClick: async () => { if (await askConfirm({ title: "Retirer tous les ajustements ?", message: "Les cibles reviendront aux suggestions du coach et aux charges de phase.", confirmLabel: "Tout retirer", danger: true })) {
+                            const prev = cfg;
+                            setCfg({ ...cfg, weightOverrides: {} });
+                            toast("Ajustements retirés", { undo: () => setCfg(prev) });
+                        } }, style: { border: "none", background: "transparent", color: C.danger, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "Tout retirer")),
+                Object.entries(overrides).map(([k, v]) => React.createElement("div", { key: k, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderTop: `1px solid ${C.borderSoft}` } },
+                    React.createElement("span", { style: { fontSize: 11 } }, k.replace(":", " · ")),
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-                        React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.blue } },
-                            v,
-                            "kg"),
-                        React.createElement("button", { onClick: async () => { const ov = { ...cfg.weightOverrides }; delete ov[k]; await saveCfg({ ...cfg, weightOverrides: ov }); }, style: { padding: "2px 7px", borderRadius: 6, border: `1px solid ${C.danger}44`, background: "transparent", color: C.danger, fontSize: 10, cursor: "pointer" } }, "✕")))))));
+                        React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.blue } }, v + "kg"),
+                        React.createElement("button", { onClick: () => setOverride(k, null), style: { padding: "2px 7px", borderRadius: 6, border: `1px solid ${C.danger}44`, background: "transparent", color: C.danger, fontSize: 10, cursor: "pointer" } }, "✕")))))));
 }
 /* ═══ HOME SCREEN ═══ */
 /* ═══ HELPERS LOT 5 (habitudes & technique) ═══ */
-function _isoD(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function streakFromDates(isoDates) { const set = new Set(isoDates); if (!set.size)
     return { current: 0, best: 0 }; const sorted = [...set].sort(); const D = s => new Date(s + "T12:00:00"); let best = 1, run = 1; for (let i = 1; i < sorted.length; i++) {
     const diff = Math.round((D(sorted[i]) - D(sorted[i - 1])) / 86400000);
@@ -2716,23 +3000,66 @@ catch (e) {
 } }
 const _ip = n => String(n).padStart(2, "0");
 function icsLocal(d) { return d.getFullYear() + _ip(d.getMonth() + 1) + _ip(d.getDate()) + "T" + _ip(d.getHours()) + _ip(d.getMinutes()) + "00"; }
-function buildRoutineICS(events) { const now = new Date(); let s = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//RECOMP//FR\r\nCALSCALE:GREGORIAN\r\n"; events.forEach((e, i) => { const st = new Date(now); st.setHours(e.h, e.m, 0, 0); const en = new Date(st.getTime() + 15 * 60000); s += "BEGIN:VEVENT\r\nUID:recomp-" + i + "-" + now.getTime() + "@recomp\r\nDTSTAMP:" + icsLocal(now) + "\r\nDTSTART:" + icsLocal(st) + "\r\nDTEND:" + icsLocal(en) + "\r\nRRULE:" + e.rrule + "\r\nSUMMARY:" + e.title + "\r\nBEGIN:VALARM\r\nACTION:DISPLAY\r\nDESCRIPTION:" + e.title + "\r\nTRIGGER:PT0S\r\nEND:VALARM\r\nEND:VEVENT\r\n"; }); return s + "END:VCALENDAR\r\n"; }
-const routineEvents = [{ title: "Réveil + créatine", h: 6, m: 45, rrule: "FREQ=DAILY" }, { title: "Séance RECOMP", h: 7, m: 15, rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" }, { title: "Shaker whey", h: 8, m: 20, rrule: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR" }, { title: "Déjeuner", h: 12, m: 30, rrule: "FREQ=DAILY" }, { title: "Collation", h: 16, m: 0, rrule: "FREQ=DAILY" }, { title: "Dîner", h: 19, m: 30, rrule: "FREQ=DAILY" }];
-const STORAGE_KEYS = ["sport-logs", "sport-phase", "nutri-logs", "budget-logs", "mensurations", "photos-index", "douleur-logs", "science-config", "maison-logs", "fin-income", "fin-expenses", "fin-caps", "fin-goal", "taille-corps", "nutri-cal-cfg", "repas-alts", "food-log"];
-function downloadText(filename, text, mime) { try {
-    const blob = new Blob([text], { type: mime || "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 1500);
+const STORAGE_KEYS = ["sport-logs", "sport-phase", "nutri-logs", "budget-logs", "mensurations", "photos-index", "douleur-logs", "science-config", "maison-logs", "fin-income", "fin-expenses", "fin-caps", "fin-goal", "taille-corps", "nutri-cal-cfg", "repas-alts", "food-log", "foods-custom", "profil"];
+/* Sur iPhone (app installée), un lien de téléchargement est souvent ignoré :
+   on passe par la feuille de partage (Enregistrer dans Fichiers, AirDrop, mail…),
+   et on retombe sur le téléchargement classique ailleurs. */
+async function shareOrDownload(filename, text, mime) {
+    const type = mime || "text/plain";
+    try {
+        const file = new File([text], filename, { type });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+            await navigator.share({ files: [file], title: filename });
+            return "shared";
+        }
+    }
+    catch (e) {
+        if (e && e.name === "AbortError")
+            return "cancelled";
+    }
+    try {
+        const url = URL.createObjectURL(new Blob([text], { type }));
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1500);
+        return "downloaded";
+    }
+    catch (e) {
+        console.error(e);
+        return "error";
+    }
 }
-catch (e) {
-    console.error(e);
-} }
+/* Sauvegarde complète (photos comprises) + mémorise la date pour le rappel de l'accueil */
+async function exportAll() {
+    let keys = [];
+    try {
+        keys = (await window.storage.list()).keys || [];
+    }
+    catch (e) { }
+    if (!keys.length)
+        keys = STORAGE_KEYS;
+    const data = {};
+    for (const k of keys) {
+        if (k === "last-export")
+            continue;
+        try {
+            const r = await window.storage.get(k);
+            if (r && r.value != null)
+                data[k] = r.value;
+        }
+        catch (e) { }
+    }
+    const out = JSON.stringify({ app: "RECOMP", version: 3, exportedAt: new Date().toISOString(), data }, null, 2);
+    const res = await shareOrDownload("recomp-sauvegarde-" + isoToday() + ".json", out, "application/json");
+    if (res === "shared" || res === "downloaded") {
+        await save("last-export", isoToday());
+    }
+    return { res, count: Object.keys(data).length };
+}
 /* ═══ PROJECTION ═══ */
 function ProjectionCard({ weighIns }) {
     const [target, setTarget] = useState("");
@@ -2773,60 +3100,80 @@ function ProjectionCard({ weighIns }) {
 function DataCard() {
     const [msg, setMsg] = useState("");
     const [busy, setBusy] = useState(false);
-    const doExport = async () => { setBusy(true); try {
-        let keys = [];
-        try {
-            const l = await window.storage.list();
-            keys = (l && l.keys) || [];
-        }
-        catch (e) {
-            keys = [];
-        }
-        if (!keys.length)
-            keys = STORAGE_KEYS;
-        const data = {};
-        for (const k of keys) {
-            try {
-                const r = await window.storage.get(k);
-                if (r && r.value != null)
-                    data[k] = r.value;
-            }
-            catch (e) { }
-        }
-        const out = JSON.stringify({ app: "RECOMP", exportedAt: new Date().toISOString(), data }, null, 2);
-        downloadText("recomp-sauvegarde-" + isoToday() + ".json", out, "application/json");
-        setMsg("✅ Sauvegarde téléchargée (" + Object.keys(data).length + " éléments).");
+    const [last] = useStored("last-export", null);
+    const [usage, setUsage] = useState(null);
+    useEffect(() => { try {
+        navigator.storage?.estimate?.().then(e => setUsage(e));
+    }
+    catch (e) { } }, [msg]);
+    const doExport = async () => { setBusy(true); setMsg(""); try {
+        const r = await exportAll();
+        setMsg(r.res === "cancelled" ? "Export annulé." : r.res === "error" ? "❌ Échec de l'export." : "✅ Sauvegarde créée (" + r.count + " éléments). Range-la dans Fichiers / iCloud.");
     }
     catch (e) {
         setMsg("❌ Échec de l'export.");
     } setBusy(false); };
     const doImport = async (file) => { if (!file)
-        return; setBusy(true); try {
-        const text = await file.text();
-        const parsed = JSON.parse(text);
-        const data = parsed.data || parsed;
+        return; setBusy(true); setMsg(""); try {
+        const parsed = JSON.parse(await file.text());
+        const data = parsed && (parsed.data || parsed);
+        const keys = data && typeof data === "object" ? Object.keys(data) : [];
+        if (!keys.length || (parsed.app && parsed.app !== "RECOMP"))
+            throw new Error("format");
+        const when = parsed.exportedAt ? " du " + fmtDateFR(_isoD(new Date(parsed.exportedAt))) : "";
+        const ok = await askConfirm({ title: "Restaurer la sauvegarde" + when + " ?", message: keys.length + " éléments vont remplacer les données actuelles de cet appareil. Les éléments absents de la sauvegarde ne sont pas touchés.", confirmLabel: "Restaurer" });
+        if (!ok) {
+            setBusy(false);
+            return;
+        }
         let n = 0;
-        for (const k of Object.keys(data)) {
+        for (const k of keys) {
             try {
                 await window.storage.set(k, typeof data[k] === "string" ? data[k] : JSON.stringify(data[k]));
                 n++;
             }
             catch (e) { }
         }
-        setMsg("✅ " + n + " éléments restaurés. Recharge l'application pour les voir.");
+        setMsg("✅ " + n + " éléments restaurés. Redémarrage…");
+        setTimeout(() => location.reload(), 900);
     }
     catch (e) {
-        setMsg("❌ Fichier invalide.");
+        setMsg("❌ Fichier invalide : choisis un fichier recomp-sauvegarde-….json.");
     } setBusy(false); };
-    return React.createElement(Card, { border: C.border },
+    const age = last ? daysBetween(last, isoToday()) : null;
+    const mb = v => (v / 1048576).toFixed(1).replace(".", ",") + " Mo";
+    return React.createElement(Card, { border: age == null || age > 7 ? C.amber + "55" : C.border },
         React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 4 } }, "💾 Sauvegarde des données"),
-        React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10 } }, "Tes données vivent sur cet appareil. Exporte régulièrement pour ne rien perdre (vidage de cache, changement de tél.)."),
+        React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10, lineHeight: 1.5 } },
+            "Tes données vivent uniquement sur cet appareil. ",
+            React.createElement("b", { style: { color: age == null || age > 7 ? C.amberLight : C.greenLight } }, age == null ? "Aucune sauvegarde pour l'instant." : age === 0 ? "Dernière sauvegarde : aujourd'hui." : "Dernière sauvegarde : il y a " + age + " jour" + (age > 1 ? "s" : "") + "."),
+            usage && usage.usage ? " Stockage utilisé : " + mb(usage.usage) + "." : ""),
         React.createElement("div", { style: { display: "flex", gap: 8 } },
             React.createElement("button", { onClick: doExport, disabled: busy, style: { flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.amber}55`, background: C.amber + "15", color: C.amber, fontSize: 12, fontWeight: 700, cursor: "pointer", opacity: busy ? .6 : 1 } }, "⬇️ Exporter"),
             React.createElement("label", { style: { flex: 1, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.border}`, background: "transparent", color: C.text, fontSize: 12, fontWeight: 700, cursor: "pointer", textAlign: "center" } },
                 "⬆️ Importer",
                 React.createElement("input", { type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: e => { doImport(e.target.files && e.target.files[0]); e.target.value = ""; } }))),
         msg && React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginTop: 8 } }, msg));
+}
+/* Bandeau en haut de l'accueil quand la dernière sauvegarde date de plus de 7 jours */
+function BackupReminder({ hasData }) {
+    const [last, , ready] = useStored("last-export", null);
+    const [busy, setBusy] = useState(false);
+    const [hidden, setHidden] = useState(false);
+    if (!ready || !hasData || hidden)
+        return null;
+    const age = last ? daysBetween(last, isoToday()) : null;
+    if (age != null && age <= 7)
+        return null;
+    return React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, background: C.amber + "14", border: `1px solid ${C.amber}55`, borderRadius: 14, padding: "10px 12px", marginBottom: 14 } },
+        React.createElement("span", { style: { fontSize: 20 } }, "💾"),
+        React.createElement("div", { style: { flex: 1, fontSize: 11, color: C.text, lineHeight: 1.4 } },
+            React.createElement("b", null, age == null ? "Aucune sauvegarde" : "Dernière sauvegarde il y a " + age + " j"),
+            React.createElement("br"),
+            React.createElement("span", { style: { color: C.textMut } }, "Tes données ne sont que sur ce téléphone.")),
+        React.createElement("button", { disabled: busy, onClick: async () => { setBusy(true); const r = await exportAll(); setBusy(false); if (r.res === "shared" || r.res === "downloaded")
+                toast("✅ Sauvegarde créée"); }, style: { padding: "8px 12px", borderRadius: 10, border: "none", background: C.amber, color: "#1A1505", fontSize: 12, fontWeight: 800, cursor: "pointer", opacity: busy ? .6 : 1 } }, "Exporter"),
+        React.createElement("button", { onClick: () => setHidden(true), "aria-label": "Masquer", style: { border: "none", background: "transparent", color: C.textDim, fontSize: 14, cursor: "pointer", padding: 2 } }, "✕"));
 }
 function HomeScreen({ goTo }) {
     const [sLogs, setSLogs] = useState([]);
@@ -2845,19 +3192,22 @@ function HomeScreen({ goTo }) {
     const creaStreak = streakFromDates(nLogs.filter(l => l.supps && l.supps["Créatine"]).map(l => l.dateISO));
     const weighIns = nLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
     const { cal: hCalRes, macros: hMacros } = bodyTargets(nLogs, hMens, hCm, hCalCfg);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const prog = resolveProgramme(profile, sLogs);
+    const nDays = programmeDays(prog).length;
     const todayISO = isoToday();
-    const jourMap = { 1: "Push", 2: "Pull", 3: "Legs", 5: "Upper", 6: "Lower" };
-    const todaySeance = jourMap[new Date().getDay()] || null;
-    const seanceToday = todaySeance ? salleSeances.find(s => s.id === todaySeance) : null;
-    const isRest = !todaySeance;
+    const seanceToday = sessionForDate(todayISO, prog);
+    const todaySeance = seanceToday ? seanceToday.label : null;
+    const isRest = !seanceToday;
+    const plan = dayPlan(isRest ? "rest" : "training", profile);
     const didTrain = sLogs.some(l => l.dateISO === todayISO) || mLogs.some(l => l.dateISO === todayISO);
     const todayN = nLogs.find(l => l.dateISO === todayISO);
     const didNutri = !!todayN;
     const didWeigh = !!(todayN && todayN.weight);
     const doneCount = ((isRest || didTrain) ? 1 : 0) + (didNutri ? 1 : 0) + (didWeigh ? 1 : 0);
     const todayTgt = hCalRes ? (isRest ? Math.max(hCalRes.target - 400, hCalRes.bmr) : hCalRes.target) : null;
-    const lastW = sLogs.length ? sLogs[sLogs.length - 1] : null;
-    const totalS = sLogs.length;
+    const lastW = [...sLogs.map(l => ({ ...l, emoji: salleSeances.find(s => s.id === l.seance)?.emoji || "🏋️", nom: l.seance })), ...mLogs.map(l => ({ ...l, emoji: "🏠", nom: "Maison " + l.seance }))].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).pop() || null;
+    const totalS = sLogs.length + mLogs.length;
     const wE = nLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
     const latW = wE.length ? wE[wE.length - 1].weight : null;
     const fstW = wE.length ? wE[0].weight : null;
@@ -2873,11 +3223,12 @@ function HomeScreen({ goTo }) {
             React.createElement("div", { style: { fontSize: 32, fontWeight: 900, letterSpacing: -1, marginBottom: 4 } }, "RECOMP"),
             React.createElement("div", { style: { fontSize: 12, color: C.textMut, letterSpacing: 3, textTransform: "uppercase" } }, "Programme personnel"),
             React.createElement("div", { style: { display: "inline-flex", gap: 8, marginTop: 14, padding: "6px 16px", background: C.surface, borderRadius: 999, border: `1px solid ${C.border}` } },
-                React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, "130 kg"),
+                React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, latW ? latW + " kg" : (fstW || 130) + " kg"),
                 React.createElement("span", { style: { fontSize: 11, color: C.borderSoft } }, "·"),
-                React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, "Recomposition"),
+                React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, PROGRAMMES[prog].label),
                 React.createElement("span", { style: { fontSize: 11, color: C.borderSoft } }, "·"),
-                React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, "5j/sem"))),
+                React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, nDays + "j/sem"))),
+        React.createElement(BackupReminder, { hasData: ok && (sLogs.length + nLogs.length + mLogs.length) > 0 }),
         ok && (totalS > 0 || nLogs.length > 0) && React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 20 } },
             React.createElement(Card, { style: { marginBottom: 0, textAlign: "center", padding: "10px 6px" } },
                 React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.amberLight } }, totalS),
@@ -2914,9 +3265,9 @@ function HomeScreen({ goTo }) {
                     "j")),
             React.createElement(Card, { style: { marginBottom: 0, textAlign: "center", padding: "12px 6px" } },
                 React.createElement("div", { style: { fontSize: 20 } }, "💪"),
-                React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: train7 >= 5 ? C.green : C.amberLight } },
+                React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: train7 >= nDays ? C.green : C.amberLight } },
                     train7,
-                    React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, "/5")),
+                    React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, "/" + nDays)),
                 React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, "Séances 7j"))),
         ok && React.createElement("div", { style: { background: `linear-gradient(135deg,${C.surface},#12100A)`, border: `1px solid ${C.amber}44`, borderRadius: 18, padding: 16, marginBottom: 12 } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 } },
@@ -2951,9 +3302,9 @@ function HomeScreen({ goTo }) {
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, background: C.surfaceAlt, borderRadius: 11, padding: "9px 11px" } },
                     React.createElement("span", { style: { fontSize: 18 } }, "🏋️"),
                     React.createElement("div", null,
-                        React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: train7 >= 5 ? C.green : C.amberLight } },
+                        React.createElement("div", { style: { fontSize: 15, fontWeight: 800, color: train7 >= nDays ? C.green : C.amberLight } },
                             train7,
-                            React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, "/5")),
+                            React.createElement("span", { style: { fontSize: 10, color: C.textDim, fontWeight: 400 } }, "/" + nDays)),
                         React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, "séances"))),
                 React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 9, background: C.surfaceAlt, borderRadius: 11, padding: "9px 11px" } },
                     React.createElement("span", { style: { fontSize: 18 } }, "⚖️"),
@@ -2976,12 +3327,10 @@ function HomeScreen({ goTo }) {
                 React.createElement("div", { style: { width: 40, height: 40, borderRadius: 12, background: `linear-gradient(135deg, ${C.amber}22, ${C.amber}44)`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 } }, "🏋️"),
                 React.createElement("div", null,
                     React.createElement("div", { style: { fontSize: 16, fontWeight: 800 } }, "Programme Sport"),
-                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, "Maison + Salle · PPL Upper Lower"))),
+                    React.createElement("div", { style: { fontSize: 10, color: C.textMut } }, PROGRAMMES[prog].label + " · " + (seanceToday ? "aujourd'hui : " + seanceToday.emoji + " " + seanceToday.label : "repos aujourd'hui")))),
             lastW && React.createElement("div", { style: { fontSize: 10, color: C.textMut } },
                 "Dernière séance : ",
-                React.createElement("span", { style: { color: C.amberLight, fontWeight: 700 } }, salleSeances.find(s => s.id === lastW.seance)?.emoji,
-                    " ",
-                    lastW.seance),
+                React.createElement("span", { style: { color: C.amberLight, fontWeight: 700 } }, lastW.emoji, " ", lastW.nom),
                 " — ",
                 lastW.date),
             React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 10, fontSize: 12, fontWeight: 700, color: C.amber } }, "Accéder →")),
@@ -3032,18 +3381,50 @@ function HomeScreen({ goTo }) {
                 lb))),
             React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", marginTop: 6, fontSize: 12, fontWeight: 700, color: C.blue } }, "Accéder →")),
         React.createElement(Card, { style: { marginTop: 6 } },
-            React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.textMut, marginBottom: 8 } }, "⏰ Planning matin"),
-            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 12 } }, [["6h45", "Réveil + créatine"], ["6h50", "Banane"], ["7h15", "Séance"], ["8h20", "Shaker whey"], ["9h00", "Petit-déj labo"]].map(([h, t]) => React.createElement(Fragment, { key: h },
-                React.createElement("span", { style: { color: C.amberLight, fontWeight: 700 } }, h),
-                React.createElement("span", { style: { color: C.textDim } }, t)))),
-            React.createElement("button", { onClick: () => downloadText("recomp-routine.ics", buildRoutineICS(routineEvents), "text/calendar"), style: { width: "100%", marginTop: 12, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.amber}55`, background: C.amber + "15", color: C.amber, fontSize: 12, fontWeight: 700, cursor: "pointer" } }, "📅 Ajouter les rappels au calendrier"),
-            React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 6 } }, "Télécharge un fichier .ics : ouvre-le pour ajouter réveil, séance et repas (récurrents) à ton calendrier iPhone.")),
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8 } },
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.textMut } }, "⏰ Planning du jour"),
+                React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, isRest ? "🛌 repos" : seanceToday.emoji + " " + seanceToday.label + " · créneau " + CRENEAUX[normProfile(profile).creneau].label.toLowerCase())),
+            React.createElement("div", { style: { display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 12px", fontSize: 12 } }, plan.timeline.map((x, i) => React.createElement(Fragment, { key: i },
+                React.createElement("span", { style: { color: /Séance/.test(x.t) ? C.amber : C.amberLight, fontWeight: 700 } }, x.h),
+                React.createElement("span", { style: { color: /Séance/.test(x.t) ? C.text : C.textDim, fontWeight: /Séance/.test(x.t) ? 700 : 400 } }, x.t)))),
+            React.createElement("button", { onClick: async () => { const r = await shareOrDownload("recomp-routine.ics", buildProfileICS(profile, prog), "text/calendar"); if (r === "shared" || r === "downloaded")
+                    toast("📅 Ouvre le fichier pour l'ajouter à ton calendrier"); }, style: { width: "100%", marginTop: 12, padding: "10px 0", borderRadius: 10, border: `1px solid ${C.amber}55`, background: C.amber + "15", color: C.amber, fontSize: 12, fontWeight: 700, cursor: "pointer" } }, "📅 Ajouter les rappels au calendrier"),
+            React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginTop: 6 } }, "Réveil, séances (" + PROGRAMMES[prog].label.toLowerCase() + ", " + nDays + " j/sem) et repas, aux horaires de ton profil — jours d'entraînement et de repos distincts.")),
+        React.createElement(ProfileCard, { prog }),
         React.createElement(ProjectionCard, { weighIns: weighIns }),
         React.createElement(DataCard, null));
+}
+/* ═══ PROFIL — programme, créneau de séance, réveil ═══ */
+function ProfileCard({ prog }) {
+    const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
+    const [open, setOpen] = useState(false);
+    const pr = normProfile(profile);
+    const upd = patch => setProfile({ ...pr, ...patch });
+    const chip = (active, onClick, label) => React.createElement("button", { onClick, style: { flex: 1, padding: "8px 4px", borderRadius: 9, border: `2px solid ${active ? C.amber : "transparent"}`, background: active ? C.amber + "22" : C.surfaceAlt, color: active ? C.amber : C.textMut, fontSize: 11.5, fontWeight: 700, cursor: "pointer" } }, label);
+    const hhmm = h => { const n = hToMin(h); return String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0"); };
+    return React.createElement(Card, null,
+        React.createElement("button", { onClick: () => setOpen(o => !o), style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer", color: C.text } },
+            React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } }, "⚙️ Mon profil"),
+            React.createElement("span", { style: { fontSize: 10.5, color: C.textMut } }, PROGRAMMES[prog].label + (pr.programme === "auto" ? " (auto)" : "") + " · séance " + CRENEAUX[pr.creneau].seance + " · réveil " + pr.reveil + "  " + (open ? "▲" : "▼"))),
+        open && React.createElement("div", { style: { marginTop: 12 } },
+            React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginBottom: 4 } }, "Programme suivi"),
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 4 } }, chip(pr.programme === "auto", () => upd({ programme: "auto" }), "🤖 Auto"), chip(pr.programme === "maison", () => upd({ programme: "maison" }), "🏠 Maison"), chip(pr.programme === "salle", () => upd({ programme: "salle" }), "🏋️ Salle")),
+            React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginBottom: 12 } }, "Auto = salle dès que tu enregistres des séances salle (21 derniers jours), sinon maison. Maison : lun/mer/ven/sam · Salle : lun/mar/mer/ven/sam."),
+            React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginBottom: 4 } }, "Créneau de séance"),
+            React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 4 } }, Object.entries(CRENEAUX).map(([k, c]) => React.createElement(Fragment, { key: k }, chip(pr.creneau === k, () => upd({ creneau: k }), c.label + " · " + c.seance)))),
+            React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginBottom: 12 } }, "Les horaires des repas des jours d'entraînement (pré-séance, shaker…) suivent ce créneau partout dans l'app."),
+            React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
+                React.createElement("div", { style: { flex: 1, fontSize: 12, fontWeight: 600 } }, "⏰ Réveil"),
+                React.createElement("input", { type: "time", value: hhmm(pr.reveil), onChange: e => { if (e.target.value)
+                        upd({ reveil: minToH(hToMin(e.target.value)) }); }, style: { ...inputStyle, width: 110, colorScheme: "dark" } }))));
 }
 /* ═══ APP ═══ */
 function App() {
     const [section, setSection] = useState("home");
+    useEffect(() => { try {
+        window.scrollTo(0, 0);
+    }
+    catch (e) { } }, [section]);
     const hdr = { home: { c: C.amber, i: "💪", l: "ACCUEIL" }, sport: { c: C.amber, i: "🏋️", l: "PROGRAMME SPORT" }, nutrition: { c: C.green, i: "🥗", l: "PROGRAMME NUTRITION" }, budget: { c: C.budget, i: "💰", l: "BUDGET COURSES" }, review: { c: C.blue, i: "🔬", l: "AJUSTEMENTS SCIENTIFIQUES" } };
     return React.createElement("div", { style: { background: C.bg, color: C.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif", display: "flex", flexDirection: "column", paddingTop: "env(safe-area-inset-top, 0px)" } },
         section !== "home" && React.createElement("div", { style: { padding: "16px 16px 0", display: "flex", alignItems: "center", gap: 12 } },
@@ -3057,6 +3438,8 @@ function App() {
             section === "nutrition" && React.createElement(NutritionSection, null),
             section === "budget" && React.createElement(BudgetSection, null),
             section === "review" && React.createElement(ScienceSection, null)),
+        React.createElement(ConfirmHost, null),
+        React.createElement(ToastHost, null),
         React.createElement("div", { style: { position: "fixed", bottom: 0, left: 0, right: 0, background: `${C.bg}F2`, backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", borderTop: `1px solid ${C.border}`, display: "flex", justifyContent: "center", padding: "0 0 env(safe-area-inset-bottom, 8px)" } }, [["home", "🏠", "Accueil", C.text], ["sport", "🏋️", "Sport", C.amber], ["nutrition", "🥗", "Nutri", C.green], ["budget", "💰", "Budget", C.budget], ["review", "🔬", "Science", C.blue]].map(([id, icon, label, color]) => React.createElement("button", { key: id, onClick: () => setSection(id), style: { flex: 1, maxWidth: 90, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, padding: "10px 0 8px", border: "none", cursor: "pointer", background: "transparent", position: "relative" } },
             section === id && React.createElement("div", { style: { position: "absolute", top: -1, width: 40, height: 3, borderRadius: "0 0 4px 4px", background: color, boxShadow: `0 0 12px ${color}88` } }),
             React.createElement("span", { style: { fontSize: 20, filter: section === id ? "none" : "grayscale(1) opacity(0.4)" } }, icon),
