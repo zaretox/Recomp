@@ -698,12 +698,17 @@ function painFor(nom, pains) { const mu = muscleMap[nom]; return Object.entries(
 function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
     const d = parseDetail(ex.detail), ov = sci?.weightOverrides?.[seanceId + ":" + ex.nom], last = lastExerciseLog(logs, seanceId, ex.nom);
     let weight = null, reps = d ? d.reps : null, src = "phase";
-    if (ov) {
+    const ro = repOverrideFor(sci, seanceId + ":" + ex.nom);
+    // Charge Science pas encore atteinte : on démarre en bas de la fourchette fixée par Science.
+    // Déjà soulevée : le coach reprend la main (+1 rep, puis nouvelle hausse).
+    if (ov && !(last && last.weight >= ov)) {
         weight = ov;
+        if (ro)
+            reps = ro.lo;
         src = "science";
     }
     else if (last) {
-        const p = progressFor(seanceId, last, sci?.recovery);
+        const p = progressFor(seanceId, last, sci?.recovery, logs);
         weight = p.weight;
         reps = p.reps || reps;
         src = "coach";
@@ -872,7 +877,8 @@ function SuiviSport() {
                     (() => { const last = (prevLog?.exercices?.[i]?.weight) || 0; const cur = parseFloat(form[i]?.weight) || 0; const ar = last > 0 && cur > 0 ? (cur > last ? { t: "↑", c: C.green } : cur < last ? { t: "↓", c: C.danger } : { t: "=", c: C.textMut }) : null; return React.createElement("div", { style: { display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 6, fontSize: 10 } },
                         React.createElement("span", { style: { color: C.amberLight } },
                             "🎯 ",
-                            sci.weightOverrides?.[sel + ":" + ex.nom] ? sci.weightOverrides[sel + ":" + ex.nom] + "kg 🔬" : ex.charges[selPhase]),
+                            sci.weightOverrides?.[sel + ":" + ex.nom] ? sci.weightOverrides[sel + ":" + ex.nom] + "kg" + (repOverrideFor(sci, sel + ":" + ex.nom) ? " × " + fmtRange(repOverrideFor(sci, sel + ":" + ex.nom)) : "") + " 🔬" : ex.charges[selPhase]),
+                        (() => { const cr = currentRangeFor(logs, sci, sel, ex.nom); return cr && cr.src === "auto" ? React.createElement("span", { style: { color: C.green, fontWeight: 700 } }, "🔁 fourchette " + fmtRange(cr.range) + " reps") : null; })(),
                         painFor(ex.nom, pains).map(pp => React.createElement("span", { key: pp.zone, style: { color: C.danger, fontWeight: 700 } }, "🩹 " + pp.zone + " " + pp.i + "/10")),
                         last > 0 && React.createElement("span", { style: { color: C.textMut } },
                             "⟲ Dernière : ",
@@ -1779,8 +1785,50 @@ function parseRepRange(detail) { const d = String(detail || ""); if (/\ds\s*$/.t
     return null; const m = d.match(/(\d+)\s*[×xX]\s*(\d+)(?:\s*[-–]\s*(\d+))?/); if (!m)
     return null; return { sets: +m[1], lo: +m[2], hi: m[3] ? +m[3] : +m[2] }; }
 /* ═══ MOTEUR DE PROGRESSION UNIQUE (Coach, Log « ✨ Pré-remplir », Science « Surcharge ») ═══
- * Double progression : tu montes la charge quand TOUTES les séries atteignent le haut de la
- * fourchette à RPE ≤ 8 ; sinon +1 rep ; RPE ≥ 9,5 ou sous le bas de fourchette = consolider. */
+ * Cycle en 2 temps sur chaque exercice :
+ *  1. Fourchette du programme (ex. 10-12) : haut atteint à RPE ≤ 8 → la charge MONTE et la
+ *     fourchette DESCEND de 2 reps (8-10), car on fait moins de reps avec plus lourd.
+ *  2. Fourchette basse (8-10) : haut atteint à RPE ≤ 8 → même charge, on REMONTE à la
+ *     fourchette du programme (10-12) pour reconstruire le volume. Puis retour à l'étape 1.
+ * Dans chaque fourchette : +1 rep par séance ; RPE ≥ 9,5 ou sous le bas = consolider.
+ * L'étape en cours est déduite de l'historique : rien à régler à la main. */
+const RANGE_DROP = 2;
+const lowerRange = rr => { const lo = Math.max(3, rr.lo - RANGE_DROP); return { lo, hi: Math.max(lo, rr.hi - RANGE_DROP) }; };
+const progRangeFor = (seanceId, nom) => { const p = salleSeances.find(s => s.id === seanceId)?.exercices.find(x => x.nom === nom); return p ? parseRepRange(p.detail) : null; };
+/* "low" si la dernière séance de cet exercice était en fourchette basse, sinon "prog" */
+function rangeState(logs, seanceId, nom, rr) {
+    const hist = (logs || []).filter(l => !l.deload && l.seance === seanceId).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => (l.exercices || []).find(e => e.nom === nom)).filter(e => e && e.weight > 0);
+    let st = "prog", prev = null;
+    for (const e of hist) {
+        if (prev) {
+            if (e.weight > prev.weight)
+                st = "low";
+            else if (st === "low" && e.weight === prev.weight && effReps(prev) >= lowerRange(rr).hi)
+                st = "prog";
+        }
+        prev = e;
+    }
+    return st;
+}
+/* Fourchette en cours (pour l'affichage Salle / log) : celle de Science si appliquée, sinon celle déduite de l'historique */
+function currentRangeFor(logs, sci, seanceId, nom) {
+    const ro = repOverrideFor(sci, seanceId + ":" + nom), ov = sci?.weightOverrides?.[seanceId + ":" + nom];
+    const rr = progRangeFor(seanceId, nom), last = lastExerciseLog(logs, seanceId, nom);
+    // L'ajustement Science vaut tant que sa charge n'a pas été soulevée ; ensuite le cycle reprend la main
+    if (ro && !(last && ov && last.weight >= ov))
+        return { range: ro, src: "science" };
+    if (!rr || !last)
+        return null;
+    // Fourchette de la PROCHAINE séance d'après l'historique ; affichée seulement si elle diffère du programme
+    const p = progressFor(seanceId, last, false, logs);
+    return p.range && fmtRange(p.range) !== fmtRange(rr) ? { range: p.range, src: "auto" } : null;
+}
+/* Fourchette de reps fixée par Science (clé "Séance:Exercice"), affichée dans Salle et le log */
+const repOverrideFor = (sci, key) => sci?.repOverrides?.[key] || null;
+const fmtRange = r => r ? (r.lo === r.hi ? String(r.lo) : r.lo + "-" + r.hi) : "";
+/* "4×8-10" + fourchette Science {lo:10, hi:12} → "4×10-12" */
+function detailWithRange(detail, r) { if (!r)
+    return detail; const d = parseRepRange(detail); return d ? d.sets + "×" + fmtRange(r) : detail; }
 const loadIncrement = nom => ["Quadriceps", "Ischios", "Fessiers"].includes(muscleMap[nom]) ? 5 : 2.5;
 /* Reps « limitantes » : la plus faible des séries à la charge max quand le détail existe */
 const effReps = e => e.setsDetail?.length ? Math.min(...e.setsDetail.filter(s => s.w === e.weight).map(s => s.r)) : e.reps;
@@ -1788,18 +1836,24 @@ function lastExerciseLog(logs, seanceId, nom) {
     const l = (logs || []).filter(x => !x.deload && x.seance === seanceId && (x.exercices || []).some(e => e.nom === nom && e.weight > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
     return l ? { ...l.exercices.find(e => e.nom === nom), date: l.date, dateISO: l.dateISO } : null;
 }
-function progressFor(seanceId, e, recovery) {
-    const prog = salleSeances.find(s => s.id === seanceId)?.exercices.find(x => x.nom === e.nom);
-    const rr = prog ? parseRepRange(prog.detail) : null, inc = loadIncrement(e.nom), reps = effReps(e);
-    if (recovery)
-        return { action: "hold", weight: e.weight, reps, txt: "mode récup : garde " + e.weight + " kg" };
+/* `logs` (historique de séances) permet de savoir dans quelle fourchette on se trouve */
+function progressFor(seanceId, e, recovery, logs) {
+    const rr = progRangeFor(seanceId, e.nom), inc = loadIncrement(e.nom), reps = effReps(e);
     if (!rr)
-        return { action: "keep", weight: e.weight, reps, txt: "garde " + e.weight + " kg" };
-    if (reps >= rr.hi && (!e.rpe || e.rpe <= 8))
-        return { action: "up", weight: e.weight + inc, reps: rr.lo, txt: "+" + inc + " kg → " + (e.weight + inc) + " kg × " + rr.lo };
-    if (e.rpe >= 9.5 || reps < rr.lo)
-        return { action: "hold", weight: e.weight, reps: Math.max(reps, rr.lo), txt: "reste à " + e.weight + " kg (consolide)" };
-    return { action: "reps", weight: e.weight, reps: reps + 1, txt: "garde " + e.weight + " kg, vise " + (reps + 1) + " reps" };
+        return { action: recovery ? "hold" : "keep", weight: e.weight, reps, txt: (recovery ? "mode récup : " : "") + "garde " + e.weight + " kg" };
+    const low = rangeState(logs, seanceId, e.nom, rr) === "low";
+    const cur = low ? lowerRange(rr) : rr;
+    if (recovery)
+        return { action: "hold", weight: e.weight, reps, range: cur, txt: "mode récup : garde " + e.weight + " kg × " + fmtRange(cur) };
+    if (reps >= cur.hi && (!e.rpe || e.rpe <= 8)) {
+        if (low)
+            return { action: "range", weight: e.weight, reps: Math.min(cur.hi + 1, rr.hi), range: rr, txt: "garde " + e.weight + " kg, remonte à " + fmtRange(rr) + " reps" };
+        const nr = lowerRange(rr);
+        return { action: "up", weight: e.weight + inc, reps: nr.lo, range: nr, txt: "+" + inc + " kg → " + (e.weight + inc) + " kg × " + fmtRange(nr) };
+    }
+    if (e.rpe >= 9.5 || reps < cur.lo)
+        return { action: "hold", weight: e.weight, reps: Math.max(reps, cur.lo), range: cur, txt: "reste à " + e.weight + " kg × " + fmtRange(cur) + " (consolide)" };
+    return { action: "reps", weight: e.weight, reps: reps + 1, range: cur, txt: "garde " + e.weight + " kg, vise " + (reps + 1) + " reps (" + fmtRange(cur) + ")" };
 }
 /* Suggestions pour la PROCHAINE séance salle prévue (ou la dernière faite à défaut) */
 function nextSuggestions(logs, recovery) {
@@ -1820,7 +1874,7 @@ function nextSuggestions(logs, recovery) {
     if (!seance)
         return null;
     const sugg = seance.exercices.map(ex => { const e = lastExerciseLog(logs, seanceId, ex.nom); if (!e)
-        return null; const p = progressFor(seanceId, e, recovery); return { nom: e.nom, action: p.action, txt: p.txt, last: (e.setsDetail?.length ? fmtSets(e) : e.reps + "×" + e.weight + "kg") + (e.rpe ? " @RPE" + e.rpe : "") + " · " + e.date }; }).filter(Boolean);
+        return null; const p = progressFor(seanceId, e, recovery, logs); return { nom: e.nom, action: p.action, txt: p.txt, last: (e.setsDetail?.length ? fmtSets(e) : e.reps + "×" + e.weight + "kg") + (e.rpe ? " @RPE" + e.rpe : "") + " · " + e.date }; }).filter(Boolean);
     return { seance: seanceId, emoji: seance.emoji, date: when || "dernière séance", sugg };
 }
 function maisonGate(maisonLogs, douleurLogs) { const sessions = (maisonLogs || []).length; let weeks = 0; if (sessions) {
@@ -1842,7 +1896,7 @@ function CoachSport() {
     const prog = resolveProgramme(profile, sLogs);
     if (loading)
         return React.createElement("div", { style: { color: C.textMut, padding: 20 } }, "Chargement…");
-    const actionCfg = { up: { c: C.green, e: "⬆️" }, reps: { c: A, e: "🔁" }, hold: { c: C.gluc, e: "⏸️" }, keep: { c: C.textMut, e: "✓" } };
+    const actionCfg = { up: { c: C.green, e: "⬆️" }, range: { c: C.blue, e: "↕️" }, reps: { c: A, e: "🔁" }, hold: { c: C.gluc, e: "⏸️" }, keep: { c: C.textMut, e: "✓" } };
     return React.createElement("div", null,
         React.createElement(Card, { border: gate.ready ? C.green + "55" : C.border },
             React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 2 } },
@@ -1897,7 +1951,7 @@ function CoachSport() {
                         "dernier : ",
                         s.last)),
                 React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: cf.c, textAlign: "right" } }, s.txt)); })),
-        React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, padding: "2px 4px 0", lineHeight: 1.5 } }, "Double progression : tu montes la charge quand tu atteins le haut de la fourchette à RPE ≤ 8. Sinon tu consolides."));
+        React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, padding: "2px 4px 0", lineHeight: 1.5 } }, "Cycle de progression : ⬆️ haut de la fourchette atteint à RPE ≤ 8 → charge +, fourchette −" + RANGE_DROP + " reps · ↕️ haut de la fourchette basse atteint → même charge, retour à la fourchette du programme · 🔁 +1 rep sinon · ⏸️ consolider si RPE ≥ 9,5."));
 }
 const reposMap = { "Push:DC haltères": "2 min", "Push:DI haltères": "90 s", "Push:Poulie basse (pecs)": "60 s", "Push:Élévations lat.": "60 s", "Push:Triceps poulie": "60 s", "Pull:Tirage vertical": "2 min", "Pull:Tirage bûcheron": "90 s", "Pull:Rack pull": "3 min", "Pull:Écarté inversé poulie": "60 s", "Pull:Tirage araignée": "60 s", "Pull:Curl biceps": "75 s", "Legs:Presse à cuisses": "2 min", "Legs:Hack squat": "2-3 min", "Legs:RDL": "2 min", "Legs:Leg curl": "75 s", "Legs:Mollets debout": "45-60 s", "Upper:DC haltères neutre": "2-3 min", "Upper:Tirage bûcheron": "2 min", "Upper:DM haltères": "2-3 min", "Upper:Élévations lat.": "60 s", "Upper:Curl marteau": "75 s", "Upper:Ext. triceps": "75 s", "Lower:Hip thrust": "2-3 min", "Lower:Presse lourde": "3 min", "Lower:Leg extension": "90 s", "Lower:Leg curl assis": "75 s", "Lower:Abduction hanche": "45 s", "Lower:Mollets assis": "45-60 s" };
 function reposFor(sid, nom) { return reposMap[sid + ":" + nom] || "90 s"; }
@@ -2009,19 +2063,22 @@ function SportSection() {
                         se.id),
                     React.createElement("div", { style: { fontSize: 11, color: se.couleur, fontWeight: 700 } }, se.jour)),
                 React.createElement("div", { style: { fontSize: 11, color: C.textMut, marginBottom: 14 } }, se.focus),
-                se.exercices.map((ex, i) => { const sciKey = se.id + ":" + ex.nom; const sciW = sciCfg?.weightOverrides?.[sciKey]; return React.createElement("div", { key: i, style: { padding: "10px 0", borderTop: i ? `1px solid ${C.borderSoft}` : "none" } },
+                se.exercices.map((ex, i) => { const sciKey = se.id + ":" + ex.nom; const sciW = sciCfg?.weightOverrides?.[sciKey]; const sciR = sciW ? repOverrideFor(sciCfg, sciKey) : null; const cr = currentRangeFor(sLogs, sciCfg, se.id, ex.nom); const crCol = cr?.src === "science" ? C.blue : C.green; return React.createElement("div", { key: i, style: { padding: "10px 0", borderTop: i ? `1px solid ${C.borderSoft}` : "none" } },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", marginBottom: 3 } },
                         React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "baseline" } },
                             React.createElement("span", { style: { color: se.couleur, fontWeight: 800, fontSize: 11 } }, String(i + 1).padStart(2, "0")),
                             React.createElement("span", { style: { fontSize: 13, fontWeight: 700 } }, ex.nom)),
-                        React.createElement("span", { style: { fontSize: 11, color: C.amberLight, fontWeight: 700 } }, ex.detail)),
+                        // Fourchette en cours (Science 🔬 ou cycle de progression 🔁) : remplace celle du programme
+                        cr ? React.createElement("span", { style: { fontSize: 11, color: crCol, fontWeight: 800 } }, detailWithRange(ex.detail, cr.range) + (cr.src === "science" ? " 🔬" : " 🔁"), detailWithRange(ex.detail, cr.range) !== ex.detail && React.createElement("span", { style: { color: C.textDim, fontWeight: 400, textDecoration: "line-through", marginLeft: 5 } }, ex.detail))
+                            : React.createElement("span", { style: { fontSize: 11, color: C.amberLight, fontWeight: 700 } }, ex.detail)),
                     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginLeft: 19, marginTop: 3, flexWrap: "wrap" } },
                         React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: phases[actP].c, background: phases[actP].c + "18", padding: "2px 7px", borderRadius: 5 } }, phases[actP].sem),
                         React.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, (() => { const _b = parseFloat(ex.charges[actP]); return (sciCfg?.deload) ? (isNaN(_b) ? ex.charges[actP] : Math.round(_b * 0.6 * 2) / 2 + "kg") : ex.charges[actP]; })()),
                         sciW && !(sciCfg?.deload) && React.createElement("span", { style: { fontSize: 10, fontWeight: 800, color: C.blue, background: C.blue + "18", padding: "2px 8px", borderRadius: 5 } },
                             "🔬 ",
                             sciW,
-                            "kg"),
+                            "kg",
+                            sciR && cr?.src === "science" ? " × " + fmtRange(sciR) + " reps" : ""),
                         (sciCfg?.deload) && React.createElement("span", { style: { fontSize: 10, color: "#818CF8", background: "#818CF815", padding: "2px 7px", borderRadius: 5 } }, "🔄 −40%"),
                         React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: C.textMut, background: C.surfaceAlt, padding: "2px 7px", borderRadius: 5 } },
                             "⏱ ",
@@ -2847,14 +2904,25 @@ function ScienceSection() {
     const [tab, setTab] = useState("bilan");
     useEffect(() => { Promise.all([load("sport-logs", []), load("maison-logs", []), load("nutri-logs", []), load("nutri-cal-cfg", null)]).then(([s, m, n, c]) => { setSportLogs(s || []); setMaisonLogs(m || []); setNutriLogs(n || []); setCalRaw(c); setLoading(false); }); }, []);
     const overrides = cfg.weightOverrides || {};
-    const setOverride = (key, v) => { const ov = { ...overrides }; if (v == null)
+    const repOv = cfg.repOverrides || {};
+    /* Enregistre la charge ET la fourchette de reps : l'onglet Salle et le log les affichent */
+    const setOverride = (key, v, range) => { const ov = { ...overrides }, ro = { ...repOv }; if (v == null) {
         delete ov[key];
-    else
-        ov[key] = v; setCfg({ ...cfg, weightOverrides: ov }); };
+        delete ro[key];
+    }
+    else {
+        ov[key] = v;
+        if (range)
+            ro[key] = range;
+        else
+            delete ro[key];
+    } setCfg({ ...cfg, weightOverrides: ov, repOverrides: ro }); };
+    const ovLabel = k => overrides[k] + "kg" + (repOv[k] ? " × " + fmtRange(repOv[k]) : "");
     /* ── Surcharge : moteur de progression partagé ── */
     const recs = salleSeances.flatMap(seance => seance.exercices.map(ex => { const e = lastExerciseLog(sportLogs, seance.id, ex.nom); if (!e)
-        return null; const p = progressFor(seance.id, e, cfg.recovery); const key = seance.id + ":" + ex.nom; return { key, seance: seance.id, emoji: seance.emoji, exo: ex.nom, last: e, p, applied: overrides[key] === p.weight }; }).filter(Boolean));
-    const ups = recs.filter(r => r.p.action === "up");
+        return null; const p = progressFor(seance.id, e, cfg.recovery, sportLogs); const key = seance.id + ":" + ex.nom; return { key, seance: seance.id, emoji: seance.emoji, exo: ex.nom, last: e, p, applied: overrides[key] === p.weight && (!p.range || fmtRange(repOv[key]) === fmtRange(p.range)) }; }).filter(Boolean));
+    // Actions à appliquer : hausse de charge (fourchette abaissée) ou remontée de fourchette (même charge)
+    const ups = recs.filter(r => r.p.action === "up" || r.p.action === "range");
     /* ── Rythme de perte ── */
     const weighIns = nutriLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
     const curW = avgRecent(weighIns, 7);
@@ -2908,7 +2976,7 @@ function ScienceSection() {
             activeCount > 0 && React.createElement(Card, { border: C.blue + "44", style: { background: "#080E18" } },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } }, "🔬 Ajustements actifs (" + activeCount + ")"),
                 React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
-                    Object.entries(overrides).map(([k, v]) => React.createElement("span", { key: k, style: { fontSize: 10, background: C.blue + "15", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "3px 8px", color: C.blueLight } }, k.split(":")[1] + " → ", React.createElement("b", null, v + "kg"))),
+                    Object.entries(overrides).map(([k, v]) => React.createElement("span", { key: k, style: { fontSize: 10, background: C.blue + "15", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "3px 8px", color: C.blueLight } }, k.split(":")[1] + " → ", React.createElement("b", null, ovLabel(k)))),
                     cfg.deload && React.createElement("span", { style: { fontSize: 10, background: "#818CF815", border: "1px solid #818CF833", borderRadius: 8, padding: "3px 8px", color: "#818CF8" } }, "🪶 Décharge active"),
                     cfg.recovery && React.createElement("span", { style: { fontSize: 10, background: "#F59E0B15", border: "1px solid #F59E0B33", borderRadius: 8, padding: "3px 8px", color: "#FBBF24" } }, "🛌 Mode récupération"))),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } },
@@ -2924,18 +2992,19 @@ function ScienceSection() {
                     : React.createElement("button", { onClick: () => applyDeficit(pace.newDef), style: { width: "100%", marginTop: 10, padding: "10px 0", borderRadius: 10, border: "none", background: pace.tone, color: "#0B0B0B", fontSize: 12.5, fontWeight: 800, cursor: "pointer" } }, "Appliquer : déficit −" + cal.deficit + " → −" + pace.newDef + " kcal")),
                 !cal && React.createElement("div", { style: { fontSize: 10.5, color: C.textDim, marginTop: 8 } }, "💡 Configure Nutrition → 🔥 Calories pour que l'ajustement s'applique à ta cible.")),
             ups.filter(r => !r.applied).length > 0 && React.createElement(Card, { border: C.green + "44" },
-                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.greenLight, marginBottom: 4 } }, "⬆️ " + ups.filter(r => !r.applied).length + " exercice(s) prêt(s) à monter en charge"),
+                React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.greenLight, marginBottom: 4 } }, "⬆️ " + ups.filter(r => !r.applied).length + " exercice(s) prêt(s) à progresser (charge ou fourchette)"),
                 React.createElement("button", { onClick: () => setTab("surcharge"), style: { border: "none", background: "transparent", color: C.green, fontSize: 11, fontWeight: 700, cursor: "pointer", padding: 0 } }, "Voir dans l'onglet Surcharge →"))),
         tab === "surcharge" && React.createElement("div", null, recs.length === 0 ? React.createElement(Card, null,
             React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 14, fontSize: 12 } }, "Enregistre des séances salle (charge + reps) pour obtenir des recommandations."))
             : React.createElement(Fragment, null,
-                React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10, lineHeight: 1.5 } }, "💡 Double progression : haut de la fourchette atteint à RPE ≤ 8 → on monte (+5 kg jambes, +2,5 kg ailleurs). « Appliquer » fixe la nouvelle cible dans le log (✨ Pré-remplir) et l'onglet Salle." + (cfg.recovery ? " Mode récupération actif : aucune hausse proposée." : "")),
+                React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10, lineHeight: 1.5 } }, "💡 Cycle en 2 temps. ⬆️ Haut de la fourchette atteint à RPE ≤ 8 → la charge monte (+5 kg jambes, +2,5 kg ailleurs) et la fourchette descend de " + RANGE_DROP + " reps. ↕️ Haut de cette fourchette basse atteint → même charge, retour à la fourchette du programme. « Appliquer » écrit la charge et la fourchette dans l'onglet Salle et le log (✨ Pré-remplir)." + (cfg.recovery ? " Mode récupération actif : aucune hausse proposée." : "")),
                 ups.map(r => React.createElement(Card, { key: r.key, border: r.applied ? C.green + "44" : C.amber + "44" },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
                         React.createElement("div", null,
                             React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } }, r.emoji + " " + r.seance),
-                            React.createElement("span", { style: { fontSize: 11, color: C.textMut, marginLeft: 6 } }, r.exo)),
-                        r.applied && React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: C.green, background: C.green + "15", padding: "2px 7px", borderRadius: 99 } }, "✅ Appliqué")),
+                            React.createElement("span", { style: { fontSize: 11, color: C.textMut, marginLeft: 6 } }, r.exo),
+                            React.createElement("div", { style: { fontSize: 10, fontWeight: 700, color: r.p.action === "up" ? C.green : C.blue, marginTop: 2 } }, r.p.action === "up" ? "⬆️ Hausse de charge · fourchette abaissée" : "↕️ Même charge · retour à la fourchette du programme")),
+                        r.applied &&React.createElement("span", { style: { fontSize: 9, fontWeight: 700, color: C.green, background: C.green + "15", padding: "2px 7px", borderRadius: 99 } }, "✅ Appliqué")),
                     React.createElement("div", { style: { display: "flex", gap: 10, alignItems: "center", marginBottom: 10 } },
                         React.createElement("div", { style: { textAlign: "center" } },
                             React.createElement("div", { style: { fontSize: 10, color: C.textDim } }, "Dernière"),
@@ -2943,13 +3012,14 @@ function ScienceSection() {
                         React.createElement("div", { style: { fontSize: 16, color: C.blue } }, "→"),
                         React.createElement("div", { style: { textAlign: "center" } },
                             React.createElement("div", { style: { fontSize: 10, color: C.blue } }, "Prochaine"),
-                            React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.blue } }, r.p.weight, React.createElement("span", { style: { fontSize: 11 } }, "kg × " + r.p.reps))),
+                            React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: C.blue } }, r.p.weight, React.createElement("span", { style: { fontSize: 11 } }, "kg × " + (r.p.range ? fmtRange(r.p.range) : r.p.reps))),
+                            r.p.range && React.createElement("div", { style: { fontSize: 9, color: C.textDim } }, "commence à " + r.p.range.lo + ", monte à " + r.p.range.hi)),
                         React.createElement("div", { style: { flex: 1 } }),
                         React.createElement("div", { style: { fontSize: 10, color: C.textDim, textAlign: "right" } }, (r.last.setsDetail?.length ? fmtSets(r.last) : r.last.sets + "×" + r.last.reps), React.createElement("br"), r.last.rpe ? "RPE " + r.last.rpe : r.last.date)),
-                    !r.applied ? React.createElement("button", { onClick: () => { setOverride(r.key, r.p.weight); toast("🔬 " + r.exo + " → " + r.p.weight + " kg"); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", background: C.blue, color: "#fff", fontSize: 12, fontWeight: 700 } }, "Appliquer " + r.p.weight + " kg")
+                    !r.applied ? React.createElement("button", { onClick: () => { setOverride(r.key, r.p.weight, r.p.range); toast("🔬 " + r.seance + " · " + r.exo + " → " + r.p.weight + " kg" + (r.p.range ? " × " + fmtRange(r.p.range) : "") + " (onglet Salle mis à jour)"); }, style: { width: "100%", padding: "9px 0", borderRadius: 10, border: "none", cursor: "pointer", background: C.blue, color: "#fff", fontSize: 12, fontWeight: 700 } }, "Appliquer " + r.p.weight + " kg" + (r.p.range ? " × " + fmtRange(r.p.range) + " reps" : ""))
                         : React.createElement("button", { onClick: () => setOverride(r.key, null), style: { width: "100%", padding: "9px 0", borderRadius: 10, border: `1px solid ${C.textDim}44`, background: "transparent", color: C.textDim, fontSize: 11, cursor: "pointer" } }, "Annuler l'ajustement"))),
                 React.createElement("div", { style: { fontSize: 11, color: C.textMut, margin: "6px 0 8px" } }, "Les autres exercices"),
-                recs.filter(r => r.p.action !== "up").map(r => React.createElement("div", { key: r.key, style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: "8px 12px", marginBottom: 6 } },
+                recs.filter(r => r.p.action !== "up" && r.p.action !== "range").map(r => React.createElement("div", { key: r.key, style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 10, padding: "8px 12px", marginBottom: 6 } },
                     React.createElement("span", { style: { fontSize: 11.5 } }, r.emoji + " " + r.exo),
                     React.createElement("span", { style: { fontSize: 10.5, color: r.p.action === "hold" ? C.gluc : C.textMut, fontWeight: 700, textAlign: "right" } }, r.p.txt))))),
         tab === "config" && React.createElement("div", null,
@@ -2961,13 +3031,13 @@ function ScienceSection() {
                     React.createElement("span", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight } }, "Charges ajustées (" + Object.keys(overrides).length + ")"),
                     React.createElement("button", { onClick: async () => { if (await askConfirm({ title: "Retirer tous les ajustements ?", message: "Les cibles reviendront aux suggestions du coach et aux charges de phase.", confirmLabel: "Tout retirer", danger: true })) {
                             const prev = cfg;
-                            setCfg({ ...cfg, weightOverrides: {} });
+                            setCfg({ ...cfg, weightOverrides: {}, repOverrides: {} });
                             toast("Ajustements retirés", { undo: () => setCfg(prev) });
                         } }, style: { border: "none", background: "transparent", color: C.danger, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "Tout retirer")),
                 Object.entries(overrides).map(([k, v]) => React.createElement("div", { key: k, style: { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 0", borderTop: `1px solid ${C.borderSoft}` } },
                     React.createElement("span", { style: { fontSize: 11 } }, k.replace(":", " · ")),
                     React.createElement("div", { style: { display: "flex", gap: 8, alignItems: "center" } },
-                        React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.blue } }, v + "kg"),
+                        React.createElement("span", { style: { fontSize: 11, fontWeight: 700, color: C.blue } }, ovLabel(k)),
                         React.createElement("button", { onClick: () => setOverride(k, null), style: { padding: "2px 7px", borderRadius: 6, border: `1px solid ${C.danger}44`, background: "transparent", color: C.danger, fontSize: 10, cursor: "pointer" } }, "✕")))))));
 }
 /* ═══ HOME SCREEN ═══ */
