@@ -428,6 +428,7 @@ function SuiviMaison() {
     const [selDate, setSelDate] = useState(isoToday());
     const [chartSel, setChartSel] = useState("A");
     useEffect(() => { load("maison-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
+    useEffect(() => bus.on("stored:maison-logs", d => setLogs(d || [])), []); // synchro avec l'affiche « aujourd'hui »
     const sm = maison.find(s => s.code === sel);
     const initF = useCallback(() => {
         const existing = logs.find(l => l.dateISO === selDate && l.seance === sel);
@@ -591,6 +592,8 @@ function RestTimer({ color, recovery }) {
     }
     catch (e) { } setNow(Date.now()); persist({ endAt: Date.now() + sec * 1000, total: sec, label: label || "", pausedLeft: null }); };
     useEffect(() => bus.on("rest:start", ({ sec, label }) => start(sec, label)), []);
+    useEffect(() => bus.on("rest:stop", () => persist(null)), []);
+    useEffect(() => { window.__restTimers = (window.__restTimers || 0) + 1; return () => { window.__restTimers--; }; }, []);
     const pause = () => persist({ ...t, pausedLeft: left });
     const resume = () => { if (left > 0)
         persist({ ...t, endAt: Date.now() + left, pausedLeft: null }); };
@@ -747,6 +750,7 @@ function SuiviSport() {
     const [openAlt, setOpenAlt] = useState({});
     const [openDet, setOpenDet] = useState({});
     useEffect(() => { load("sport-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
+    useEffect(() => bus.on("stored:sport-logs", d => setLogs(d || [])), []); // synchro avec l'affiche « aujourd'hui »
     // Proposer automatiquement la séance prévue ce jour-là (programme salle)
     useEffect(() => { const s = sessionForDate(selDate, "salle"); if (s && !logs.some(l => l.dateISO === selDate && l.seance === sel))
         setSel(s.code); }, [selDate]);
@@ -1329,6 +1333,7 @@ function SuiviNutrition() {
     const [sleep, setSleep] = useState("");
     const [stress, setStress] = useState(5);
     useEffect(() => { load("nutri-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
+    useEffect(() => bus.on("stored:nutri-logs", d => setLogs(d || [])), []); // synchro avec l'affiche « aujourd'hui »
     const [profile] = useStored("profil", PROFILE_DEFAULT);
     const [sLogsN] = useStored("sport-logs", []);
     const [dayType, setDayType] = useState("training");
@@ -2626,7 +2631,7 @@ function FinancePerso() {
     else {
         setLabel(e.source || "");
     } setDateISO(e.dateISO); setEditId(e.id); setEditType(e._t); try {
-        document.querySelector(".pst.open .pst-body")?.scrollTo({ top: 0, behavior: "smooth" });
+        document.querySelector(".pst.open .pst-scroll")?.scrollTo({ top: 0, behavior: "smooth" });
     }
     catch (err) { } };
     const cancelEdit = () => { setEditId(null); setEditType(null); setMontant(""); setLabel(""); };
@@ -3300,8 +3305,8 @@ function HomeScreen({ goTo }) {
     const seanceH = CRENEAUX[normProfile(profile).creneau].seance;
     const dayLabel = new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "");
     const todo = [
-        { t: isRest ? "Repos aujourd'hui" : seanceToday.label + " à " + seanceH, s: isRest ? "récup" : (didTrain ? "faite" : "à faire"), done: isRest || didTrain, go: () => goTo("sport", isRest ? "resume" : "suivi") },
-        { t: plan.meals.length + " repas · " + (todayTgt ? todayTgt.toLocaleString("fr-FR") : macrosTarget.kcal.toLocaleString("fr-FR")) + " kcal", s: didNutri ? "suivie" : "menu", done: didNutri, go: () => goTo("nutrition", didNutri ? "journal" : "repas") },
+        { t: isRest ? "Repos aujourd'hui" : seanceToday.label + " à " + seanceH, s: isRest ? "récup" : (didTrain ? "faite" : "à faire"), done: isRest || didTrain, go: () => goTo("sport") },
+        { t: plan.meals.length + " repas · " + (todayTgt ? todayTgt.toLocaleString("fr-FR") : macrosTarget.kcal.toLocaleString("fr-FR")) + " kcal", s: didNutri ? todayN.mealsOk + "/" + todayN.mealsTotal + " repas" : "à cocher", done: didNutri && todayN.compliance >= 80, go: () => goTo("nutrition") },
         { t: "Pesée du matin", s: didWeigh ? todayN.weight.toLocaleString("fr-FR") + " kg" : "à faire", done: didWeigh, go: () => goTo("nutrition", "suivi") },
     ];
     const week = [
@@ -3379,14 +3384,226 @@ function ProfileCard({ prog }) {
                 React.createElement("input", { type: "time", value: hhmm(pr.reveil), onChange: e => { if (e.target.value)
                         upd({ reveil: minToH(hToMin(e.target.value)) }); }, style: { ...inputStyle, width: 110, colorScheme: "light" } }))));
 }
+/* ═══ « AUJOURD'HUI » EN TÊTE D'AFFICHE ═══
+ * Ce qu'on coche ici écrit dans les MÊMES données que les onglets Suivi (sport-logs, maison-logs,
+ * nutri-logs) : une série cochée apparaît dans le log de séance, un repas barré dans la checklist,
+ * et inversement. */
+const kgFr = v => (Math.round(v * 10) / 10).toLocaleString("fr-FR");
+const TD = {
+    wrap: { padding: "2px 18px 26px" },
+    giant: { fontFamily: AN, fontSize: "clamp(96px, 31vw, 136px)", lineHeight: .84, margin: "4px -3px 10px", letterSpacing: "-.01em", textTransform: "uppercase", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "clip" },
+    lead: { fontSize: 15.5, fontWeight: 700, lineHeight: 1.35, margin: "0 0 14px", maxWidth: "32ch" },
+    rule: c => ({ borderTop: `2px solid ${c}` }),
+    chip: c => ({ border: `2px solid ${c}`, background: "transparent", color: "inherit", borderRadius: 999, padding: "5px 11px", fontSize: 12, fontWeight: 800, cursor: "pointer" }),
+};
+/* Minuteur de repos plein écran : l'affiche devient un sablier de couleur */
+function PosterRest({ color }) {
+    const [t, setT] = useState(null);
+    const [now, setNow] = useState(Date.now());
+    const ac = useRef(null);
+    useEffect(() => bus.on("rest:start", ({ sec, label }) => { try {
+        if (!ac.current && (window.AudioContext || window.webkitAudioContext))
+            ac.current = new (window.AudioContext || window.webkitAudioContext)();
+        ac.current?.resume?.();
+    }
+    catch (e) { } setNow(Date.now()); setT({ endAt: Date.now() + sec * 1000, total: sec, label }); }), []);
+    useEffect(() => bus.on("rest:stop", () => setT(null)), []);
+    useEffect(() => { if (!t)
+        return; const id = setInterval(() => setNow(Date.now()), 250); const vis = () => setNow(Date.now()); document.addEventListener("visibilitychange", vis); return () => { clearInterval(id); document.removeEventListener("visibilitychange", vis); }; }, [t]);
+    const left = t ? Math.max(0, Math.ceil((t.endAt - now) / 1000)) : 0;
+    useEffect(() => { if (!t || left > 0)
+        return; // fin du repos : une sonnerie (si le minuteur du log n'est pas déjà affiché), puis on referme
+        if (!window.__restTimers && Date.now() - t.endAt < 4000) {
+            try {
+                const A = ac.current;
+                if (A)
+                    [0, .35].forEach(d => { const o = A.createOscillator(), g = A.createGain(); o.connect(g); g.connect(A.destination); o.frequency.value = 880; g.gain.setValueAtTime(.001, A.currentTime + d); g.gain.exponentialRampToValueAtTime(.3, A.currentTime + d + .02); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + d + .3); o.start(A.currentTime + d); o.stop(A.currentTime + d + .3); });
+            }
+            catch (e) { }
+            try {
+                navigator.vibrate?.([220, 90, 220]);
+            }
+            catch (e) { }
+        } const id = setTimeout(() => setT(null), 900); return () => clearTimeout(id); }, [left, t]);
+    if (!t)
+        return null;
+    const frac = t.total ? Math.max(0, (t.endAt - now) / (t.total * 1000)) : 0;
+    return React.createElement("div", { style: { position: "fixed", inset: 0, zIndex: 90, background: C.ink, color: "#fff", display: "flex", flexDirection: "column", justifyContent: "flex-end", padding: "0 20px calc(44px + env(safe-area-inset-bottom, 0px))", overflow: "hidden", animation: "rcFade .2s ease-out" } },
+        React.createElement("div", { style: { position: "absolute", left: 0, right: 0, bottom: 0, height: frac * 100 + "%", background: color, transition: "height .25s linear" } }),
+        React.createElement("button", { onClick: () => { setT(null); bus.emit("rest:stop"); }, style: { position: "absolute", top: "calc(18px + env(safe-area-inset-top, 0px))", right: 18, border: "2px solid #fff", background: "none", color: "#fff", borderRadius: 30, padding: "9px 14px", fontWeight: 800, fontSize: 13, mixBlendMode: "difference", cursor: "pointer" } }, "Reprendre"),
+        React.createElement("div", { style: { position: "relative", mixBlendMode: "difference", fontSize: 15, fontWeight: 700, marginBottom: 10 } }, left > 0 ? "Repos · " + t.label : "Repos terminé — au boulot"),
+        React.createElement("div", { style: { position: "relative", mixBlendMode: "difference", fontFamily: AN, fontSize: "clamp(120px, 42vw, 170px)", lineHeight: .84, fontVariantNumeric: "tabular-nums" } }, fmtMMSS(left)),
+        React.createElement("div", { style: { position: "relative", display: "flex", gap: 8, marginTop: 16, mixBlendMode: "difference" } }, [["+15 s", 15], ["+30 s", 30]].map(([l, s]) => React.createElement("button", { key: l, onClick: () => setT(x => ({ ...x, endAt: Math.max(x.endAt, Date.now()) + s * 1000, total: x.total + s })), style: { border: "2px solid #fff", background: "none", color: "#fff", borderRadius: 30, padding: "8px 14px", fontWeight: 800, fontSize: 13, cursor: "pointer" } }, l))));
+}
+/* Ligne d'exercice : nom, cible, et un rond numéroté par série (toucher = série faite / défaite) */
+function SetCircles({ count, done, onTick, fg, bg }) {
+    return React.createElement("div", { style: { display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" } }, Array.from({ length: count }, (_, j) => React.createElement("button", { key: j, "aria-label": "Série " + (j + 1) + (j < done ? " faite" : ""), onClick: () => onTick(j < done ? j : j + 1), style: { width: 52, height: 52, borderRadius: "50%", border: `2.5px solid ${fg}`, background: j < done ? fg : "transparent", color: j < done ? bg : fg, fontFamily: AN, fontSize: 24, cursor: "pointer", transition: "background .2s, color .2s, transform .15s" } }, j + 1)));
+}
+function TodaySport({ fg, bg, goTab }) {
+    const [sLogs, setSLogs] = useStored("sport-logs", []);
+    const [mLogs, setMLogs] = useStored("maison-logs", []);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [sci] = useStored("science-config", SCI_DEFAULT);
+    const [phase] = useStored("sport-phase", 0);
+    const [pick, setPick] = useState(null);
+    const [showPick, setShowPick] = useState(false);
+    const today = isoToday();
+    const prog = resolveProgramme(profile, sLogs);
+    const planned = sessionForDate(today, prog);
+    const startedS = sLogs.find(l => l.dateISO === today), startedM = mLogs.find(l => l.dateISO === today);
+    // Séance affichée : choisie à la main > déjà commencée aujourd'hui > prévue au programme
+    const cur = pick || (startedS ? { prog: "salle", code: startedS.seance } : startedM ? { prog: "maison", code: startedM.seance } : planned ? { prog: planned.prog, code: planned.code } : null);
+    const before = sLogs.filter(l => l.dateISO < today);
+    const rule = TD.rule(fg);
+    const pickers = React.createElement("div", { style: { margin: "4px 0 14px" } },
+        React.createElement("button", { onClick: () => setShowPick(v => !v), style: { ...TD.chip(fg) } }, showPick ? "Fermer" : (cur ? "Changer de séance" : "Faire une séance quand même")),
+        showPick && React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 } },
+            salleSeances.map(s => React.createElement("button", { key: s.id, onClick: () => { setPick({ prog: "salle", code: s.id }); setShowPick(false); }, style: { ...TD.chip(fg), background: cur?.code === s.id ? fg : "transparent", color: cur?.code === s.id ? bg : fg } }, s.id)),
+            maison.map(s => React.createElement("button", { key: s.code, onClick: () => { setPick({ prog: "maison", code: s.code }); setShowPick(false); }, style: { ...TD.chip(fg), background: cur?.code === s.code ? fg : "transparent", color: cur?.code === s.code ? bg : fg } }, "Maison " + s.code))));
+    if (!cur) {
+        let next = null;
+        for (let d = 1; d < 8 && !next; d++) {
+            const s = sessionForDate(shiftISO(today, d), prog);
+            if (s)
+                next = { s, d };
+        }
+        return React.createElement("div", { style: TD.wrap },
+            React.createElement("div", { style: TD.giant }, "Repos"),
+            React.createElement("p", { style: TD.lead }, "Pas de séance prévue aujourd'hui. Récupère, marche, étire-toi." + (next ? " Prochaine : " + next.s.label + (next.d === 1 ? " demain." : " dans " + next.d + " jours.") : "")),
+            pickers,
+            React.createElement("div", { style: rule }, etirements.slice(0, 5).map(e => React.createElement("div", { key: e, style: { padding: "9px 0", borderBottom: `2px solid ${fg}`, fontSize: 16, fontWeight: 700 } }, e))));
+    }
+    if (cur.prog === "maison") {
+        const m = maison.find(x => x.code === cur.code), tours = parseInt(m.format) || 3, log = mLogs.find(l => l.dateISO === today && l.seance === cur.code);
+        const doneOf = nom => log?.exercices?.find(e => e.nom === nom)?.tours || 0;
+        const tick = (i, n) => {
+            const [nom, cible] = m.ex[i].split("—").map(s => s.trim());
+            const exs = m.ex.map(x => { const nm = x.split("—")[0].trim(); return log?.exercices?.find(e => e.nom === nm) || { nom: nm, reps: parseInt(x.split("—")[1]) || 0, tours: 0 }; });
+            exs[i] = { ...exs[i], tours: n, reps: exs[i].reps || parseInt(cible) || 0 };
+            const entry = { ...(log || { id: Date.now(), date: fmtDateShort(today), dateISO: today, seance: cur.code }), exercices: exs };
+            const rest = mLogs.filter(l => !(l.dateISO === today && l.seance === cur.code));
+            setMLogs(exs.some(e => e.tours > 0) ? [...rest, entry] : rest);
+        };
+        return React.createElement("div", { style: TD.wrap },
+            React.createElement("div", { style: TD.giant }, "Maison " + m.code),
+            React.createElement("p", { style: TD.lead }, m.titre + ". " + m.format + ". Touche un numéro quand le tour est fait."),
+            pickers,
+            React.createElement("div", { style: rule }, m.ex.map((x, i) => { const [nom, cible] = x.split("—").map(s => s.trim()); return React.createElement("div", { key: i, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
+                React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } },
+                    React.createElement("b", { style: { fontSize: 21, lineHeight: 1.1, fontWeight: 750 } }, nom),
+                    React.createElement("small", { style: { fontSize: 12, fontWeight: 700, opacity: .8, whiteSpace: "nowrap" } }, cible)),
+                React.createElement(SetCircles, { count: tours, done: doneOf(nom), onTick: n => tick(i, n), fg, bg })); })),
+            m.note && React.createElement("p", { style: { ...TD.lead, fontSize: 13, marginTop: 12 } }, m.note));
+    }
+    const se = salleSeances.find(s => s.id === cur.code), log = sLogs.find(l => l.dateISO === today && l.seance === cur.code);
+    const sugg = se.exercices.map(ex => suggestFor(before, cur.code, ex, +phase || 0, sci));
+    const rng = ex => currentRangeFor(before, sci, cur.code, ex.nom)?.range || progRangeFor(cur.code, ex.nom);
+    const doneOf = ex => { const e = log?.exercices?.find(x => x.nom === ex.nom); return e ? (e.setsDetail?.length || e.sets || 0) : 0; };
+    const tick = (i, n) => {
+        const ex = se.exercices[i], s = sugg[i];
+        const blank = x => ({ nom: x.nom, weight: 0, reps: 0, sets: 0, restSets: 0, restExo: 0, rpe: 0 });
+        const exs = se.exercices.map(x => log?.exercices?.find(e => e.nom === x.nom) || blank(x));
+        const e = exs[i];
+        let det = e.setsDetail?.length ? [...e.setsDetail] : Array.from({ length: e.sets || 0 }, () => ({ w: e.weight || s.weight || 0, r: e.reps || s.reps || 0 }));
+        if (n < det.length)
+            det = det.slice(0, n);
+        else
+            while (det.length < n)
+                det.push({ w: s.weight || 0, r: s.reps || 0 });
+        const full = det.filter(x => x.w > 0 && x.r > 0);
+        if (full.length === det.length && full.length) {
+            const top = Math.max(...full.map(x => x.w));
+            exs[i] = { ...e, setsDetail: full, sets: full.length, weight: top, reps: Math.min(...full.filter(x => x.w === top).map(x => x.r)) };
+        }
+        else {
+            const { setsDetail, ...plain } = e;
+            exs[i] = { ...plain, sets: n, weight: n ? (e.weight || s.weight || 0) : 0, reps: n ? (e.reps || s.reps || 0) : 0 };
+        }
+        const entry = { ...(log || { id: Date.now(), date: fmtDateShort(today), dateISO: today, seance: cur.code, deload: !!sci.deload }), exercices: exs };
+        const rest = sLogs.filter(l => !(l.dateISO === today && l.seance === cur.code));
+        setSLogs(exs.some(x => x.sets > 0) ? [...rest, entry] : rest);
+        if (n > doneOf(ex))
+            bus.emit("rest:start", { sec: parseRestSec(reposFor(cur.code, ex.nom)), label: ex.nom + ", série " + n + "/" + (parseDetail(ex.detail)?.sets || n) });
+    };
+    const total = se.exercices.reduce((a, ex) => a + (parseDetail(ex.detail)?.sets || 3), 0), doneAll = se.exercices.reduce((a, ex) => a + Math.min(doneOf(ex), parseDetail(ex.detail)?.sets || 3), 0);
+    return React.createElement("div", { style: TD.wrap },
+        React.createElement("div", { style: TD.giant }, se.id),
+        React.createElement("p", { style: TD.lead }, se.focus + ". Touche un numéro de série quand elle est faite." + (sci.deload ? " Semaine de décharge : charges −40 %." : "")),
+        React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
+            React.createElement("div", { style: { flex: 1, height: 14, border: `2.5px solid ${fg}`, position: "relative" } }, React.createElement("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: (total ? doneAll / total * 100 : 0) + "%", background: fg, transition: "width .5s cubic-bezier(.7,0,.2,1)" } })),
+            React.createElement("b", { style: { fontFamily: AN, fontSize: 22, fontWeight: 400 } }, doneAll + "/" + total)),
+        pickers,
+        React.createElement("div", { style: rule }, se.exercices.map((ex, i) => { const s = sugg[i], r = rng(ex), sets = parseDetail(ex.detail)?.sets || 3; return React.createElement("div", { key: ex.nom, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
+            React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } },
+                React.createElement("b", { style: { fontSize: 21, lineHeight: 1.1, fontWeight: 750 } }, ex.nom),
+                React.createElement("small", { style: { fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" } }, (s.weight ? kgFr(s.weight) + " kg × " : "") + (r ? fmtRange(r) : ex.detail))),
+            React.createElement(SetCircles, { count: Math.max(sets, doneOf(ex)), done: doneOf(ex), onTick: n => tick(i, n), fg, bg })); })),
+        React.createElement("button", { onClick: () => goTab("suivi"), style: { ...TD.chip(fg), marginTop: 14 } }, "Charges, reps et RPE détaillés → Suivi"));
+}
+function TodayNutrition({ fg, bg, goTab }) {
+    const [nLogs, setNLogs] = useStored("nutri-logs", []);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [sLogs] = useStored("sport-logs", []);
+    const [alts] = useStored("repas-alts", {});
+    const [mens] = useStored("mensurations", []);
+    const [h] = useStored("taille-corps", "");
+    const [cfg] = useStored("nutri-cal-cfg", null);
+    const [food] = useStored("food-log", {});
+    const today = isoToday(), tl = nLogs.find(l => l.dateISO === today);
+    const planned = sessionForDate(today, resolveProgramme(profile, sLogs)) ? "training" : "rest";
+    const dayType = tl?.dayType || planned;
+    const menu = dayMenu(dayType, profile, alts, bodyTargets(nLogs, mens, parseFloat(h) || 0, normCalCfg(cfg)));
+    const rows = menu.meals.map((m, i) => { const mm = menu.mealMacros[i]; return { id: MEAL_ID[m.m], m, kcal: Math.round(mm.p * 4 + mm.g * 4 + mm.l * 9) }; }).filter(r => r.id);
+    const meals = tl?.meals || {};
+    const eaten = rows.filter(r => meals[r.id]).reduce((a, r) => a + r.kcal, 0);
+    const extras = (food[today] || []).filter(f => !f.plan).reduce((a, f) => a + (f.kcal || 0), 0);
+    const tot = eaten + extras;
+    // Même format que l'onglet Suivi : la checklist du jour et le % de suivi restent cohérents
+    const write = (nm, dt) => { const ids = rows.map(r => r.id); const ok = ids.filter(x => nm[x]).length; const base = tl || { id: Date.now(), date: fmtDateShort(today), dateISO: today, weight: null, supps: {}, water: 0, sleep: null, stress: 5 }; setNLogs([...nLogs.filter(l => l.dateISO !== today), { ...base, dayType: dt, meals: nm, mealsOk: ok, mealsTotal: ids.length, compliance: Math.round(ok / ids.length * 100) }]); };
+    const toggle = id => write({ ...Object.fromEntries(rows.map(r => [r.id, !!meals[r.id]])), [id]: !meals[id] }, dayType);
+    const pct = Math.min(100, tot / menu.dayTgt * 100);
+    return React.createElement("div", { style: TD.wrap },
+        React.createElement("div", { style: { ...TD.giant, fontVariantNumeric: "tabular-nums" } }, tot.toLocaleString("fr-FR")),
+        React.createElement("p", { style: TD.lead }, "sur " + menu.dayTgt.toLocaleString("fr-FR") + " kcal aujourd'hui. Barre un repas quand il est mangé." + (extras ? " Dont " + extras + " kcal hors menu (journal)." : "")),
+        React.createElement("div", { style: { height: 16, border: `2.5px solid ${fg}`, position: "relative", margin: "0 0 12px" } }, React.createElement("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: pct + "%", background: fg, transition: "width .6s cubic-bezier(.7,0,.2,1)" } })),
+        React.createElement("div", { style: { marginBottom: 14 } }, React.createElement("button", { onClick: () => write({ ...meals }, dayType === "training" ? "rest" : "training"), style: TD.chip(fg) }, (dayType === "training" ? "🏋️ Jour d'entraînement" : "🛌 Jour de repos") + (dayType === planned ? "" : " (modifié)") + " · changer")),
+        React.createElement("div", { style: TD.rule(fg) }, rows.map(r => { const on = !!meals[r.id]; return React.createElement("button", { key: r.id, onClick: () => toggle(r.id), "aria-pressed": on, style: { position: "relative", width: "100%", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 8, alignItems: "baseline", padding: "12px 0", border: 0, borderBottom: `2px solid ${fg}`, background: "none", color: fg, textAlign: "left", cursor: "pointer" } },
+            React.createElement("time", { style: { fontSize: 12.5, fontWeight: 800 } }, r.m.h),
+            React.createElement("span", { style: { fontSize: 19, fontWeight: 700, opacity: on ? .7 : 1 } }, r.m.m),
+            React.createElement("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 22 } }, r.kcal),
+            React.createElement("i", { "aria-hidden": true, style: { position: "absolute", left: 54, right: 0, top: "50%", height: 3.5, background: C.ink, transform: `scaleX(${on ? 1 : 0})`, transformOrigin: "left", transition: "transform .4s cubic-bezier(.7,0,.2,1)" } })); })),
+        React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 } },
+            React.createElement("button", { onClick: () => goTab("journal"), style: TD.chip(fg) }, "📓 Ajouter un aliment"),
+            React.createElement("button", { onClick: () => goTab("suivi"), style: TD.chip(fg) }, "⚖️ Pesée, eau, sommeil → Suivi")));
+}
+function TodayBudget({ fg }) {
+    const [fin] = useStored("fin-expenses", []);
+    const week = fin.filter(e => withinDays(e.dateISO, 7)), dep = Math.round(week.reduce((a, e) => a + (+e.montant || 0), 0));
+    const byCat = Object.entries(week.reduce((m, e) => ({ ...m, [e.cat]: (m[e.cat] || 0) + (+e.montant || 0) }), {})).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    return React.createElement("div", { style: TD.wrap },
+        React.createElement("div", { style: TD.giant }, dep + " €"),
+        React.createElement("p", { style: TD.lead }, "dépensés ces 7 derniers jours. Courses visées : ~" + TOTAL_SEM + " €/sem, ~" + TOTAL_SEM_B + " € avec les alternatives."),
+        byCat.length > 0 && React.createElement("div", { style: TD.rule(fg) }, byCat.map(([k, v]) => React.createElement("div", { key: k, style: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `2px solid ${fg}`, fontSize: 16, fontWeight: 700 } }, React.createElement("span", null, (finCats.find(c => c.k === k)?.e || "") + " " + k), React.createElement("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 21 } }, Math.round(v) + " €")))));
+}
+function TodayScience({ fg }) {
+    const [nLogs] = useStored("nutri-logs", []);
+    const weigh = nLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
+    const cw = avgRecent(weigh, 7), rate = weigh.length >= 3 ? weeklyRate(weigh) : null, pct = rate != null && cw ? Math.round(rate / cw * 1000) / 10 : null;
+    const verdict = pct == null ? "Il faut au moins 3 pesées pour mesurer ta tendance." : pct < PACE_MIN ? "Perte un peu rapide : regarde le Bilan ci-dessous pour ajuster le déficit." : pct > PACE_SLOW ? "Perte trop lente : le Bilan propose d'ajuster le déficit." : pct > PACE_MAX ? "Rythme un peu lent mais acceptable en recomposition." : "Pile dans la zone −0,5 à −1 %. On garde le déficit.";
+    return React.createElement("div", { style: TD.wrap },
+        React.createElement("div", { style: TD.giant }, pct == null ? "—" : (pct > 0 ? "+" : "") + pct.toLocaleString("fr-FR") + "%"),
+        React.createElement("p", { style: TD.lead }, (pct == null ? "" : "par semaine. ") + verdict),
+        cw && React.createElement("div", { style: TD.rule(fg) },
+            [["Poids moyen 7 j", kgFr(cw) + " kg"], ["Tendance", rate != null ? (rate > 0 ? "+" : "") + kgFr(rate) + " kg/sem" : "—"], ["Départ", weigh.length ? kgFr(weigh[0].kg) + " kg" : "—"]].map(([a, b]) => React.createElement("div", { key: a, style: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `2px solid ${fg}`, fontSize: 16, fontWeight: 700 } }, React.createElement("span", null, a), React.createElement("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 21 } }, b)))));
+}
 /* ═══ APP — l'accueil est une affiche, chaque section une affiche de couleur empilée en bas ═══
  * Pile repliée : 4 bandeaux superposés en bas de l'écran (ou une rangée de 4 quand on fait défiler l'accueil).
  * Toucher un bandeau : l'affiche monte et remplit l'écran. Glisser vers le bas / ↓ / retour du téléphone : elle redescend. */
 const POSTERS = [
-    { id: "sport", name: "Sport", c: C.amber, fg: C.ink, comp: () => SportSection },
-    { id: "nutrition", name: "Nutrition", c: C.green, fg: "#fff", comp: () => NutritionSection },
-    { id: "budget", name: "Budget", c: C.budget, fg: "#fff", comp: () => BudgetSection },
-    { id: "review", name: "Science", c: C.sci, fg: C.ink, comp: () => ScienceSection },
+    { id: "sport", name: "Sport", c: C.amber, fg: C.ink, comp: () => SportSection, today: () => TodaySport },
+    { id: "nutrition", name: "Nutrition", c: C.green, fg: "#fff", comp: () => NutritionSection, today: () => TodayNutrition },
+    { id: "budget", name: "Budget", c: C.budget, fg: "#fff", comp: () => BudgetSection, today: () => TodayBudget },
+    { id: "review", name: "Science", c: C.sci, fg: C.ink, comp: () => ScienceSection, today: () => TodayScience },
 ];
 const TAB = 52;
 /* Sous-titres des bandeaux, calculés en direct depuis les données */
@@ -3425,7 +3642,10 @@ function App() {
         shut(); }; window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop); }, []);
     const shut = () => { const closing = openRef.current; openRef.current = null; setOpen(null); setTimeout(() => { if (openRef.current !== closing)
         setShown(s => s === closing ? null : s); }, 650); };
-    const goTo = (id, tab) => { setTabHint(tab || null); setShown(id); setOpen(id); openRef.current = id; try {
+    const [nonce, setNonce] = useState(0);
+    const goTo = (id, tab) => { setTabHint(tab || null); setShown(id); setOpen(id); openRef.current = id; if (tab)
+        setTimeout(() => { const sc = document.querySelector(".pst.open .pst-scroll"), sh = sc?.querySelector(".pst-body"); if (sc && sh)
+            sc.scrollTo({ top: sh.offsetTop - 8, behavior: "smooth" }); }, 750); try {
         history.pushState({ poster: id }, "");
     }
     catch (e) { } };
@@ -3462,7 +3682,12 @@ function App() {
                 React.createElement("b", { className: "pst-name" }, p.name),
                 React.createElement("span", { className: "pst-sub" }, info[p.id]),
                 open === p.id && React.createElement("span", { className: "pst-close", "aria-hidden": true }, "↓")),
-            shown === p.id && React.createElement("div", { className: "pst-body" }, React.createElement(ErrorBoundary, null, React.createElement(p.comp(), { initialTab: tabHint }))))),
+            // Ouverte : l'affiche du jour (cases à cocher), puis la feuille avec tous les onglets habituels
+            shown === p.id && React.createElement("div", { className: "pst-scroll" },
+                React.createElement(ErrorBoundary, null, React.createElement(p.today(), { fg: p.fg, bg: p.c, goTab: t => { setTabHint(t); setNonce(x => x + 1); setTimeout(() => { const sc = document.querySelector(".pst.open .pst-scroll"), sh = sc?.querySelector(".pst-body"); if (sc && sh)
+                            sc.scrollTo({ top: sh.offsetTop - 8, behavior: "smooth" }); }, 60); } })),
+                React.createElement("div", { className: "pst-body" }, React.createElement(ErrorBoundary, null, React.createElement(p.comp(), { key: nonce, initialTab: tabHint })))),
+            open === p.id && p.id === "sport" && React.createElement(PosterRest, { color: p.c }))),
         React.createElement(ConfirmHost, null),
         React.createElement(ToastHost, null));
 }

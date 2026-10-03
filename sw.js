@@ -3,7 +3,7 @@
  * puis la nouvelle version est téléchargée en arrière-plan pour la prochaine ouverture.
  * Change VERSION pour forcer le nettoyage des anciens caches.
  */
-const VERSION = "recomp-v7";
+const VERSION = "recomp-v8";
 const FONT_CACHE = "recomp-fonts"; // polices Google, gardées d'une version à l'autre
 const SHELL = ["./", "./index.html", "./app.js", "./vendor/react.production.min.js", "./vendor/react-dom.production.min.js", "./manifest.json"];
 const NET_TIMEOUT = 3500; // ms max d'attente réseau quand rien n'est en cache
