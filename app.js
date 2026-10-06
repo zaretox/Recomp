@@ -705,7 +705,8 @@ const PAIN_IMPACT = { "Genou droit": ["Quadriceps", "Ischios", "Fessiers"], "Pie
 function recentPains(dLogs, days) { const m = {}; (dLogs || []).filter(l => withinDays(l.dateISO, days || 10) && (l.intensite || 0) >= 4).forEach(l => { const c = m[l.zone]; if (!c || l.intensite > c.i || (l.intensite === c.i && l.dateISO > c.d))
     m[l.zone] = { i: l.intensite, d: l.dateISO }; }); return m; }
 function painFor(nom, pains) { const mu = muscleMap[nom]; return Object.entries(pains).filter(([z]) => (PAIN_IMPACT[z] || []).includes(mu)).map(([z, v]) => ({ zone: z, ...v })); }
-/* Valeurs proposées pour un exercice : ajustement Science > suggestion coach > cible de phase, puis −40 % en décharge */
+/* Valeurs proposées pour un exercice : ajustement Science > suggestion coach, avec la charge de la PHASE
+   choisie (S1-4, S5-8…) comme plancher : changer de phase met à jour les charges partout. Puis −40 % en décharge. */
 function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
     const d = parseDetail(ex.detail), ov = sci?.weightOverrides?.[seanceId + ":" + ex.nom], last = lastExerciseLog(logs, seanceId, ex.nom);
     let weight = null, reps = d ? d.reps : null, src = "phase";
@@ -724,8 +725,13 @@ function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
         reps = p.reps || reps;
         src = "coach";
     }
-    else
-        weight = parseTargetKg(ex.charges[phaseIdx]);
+    // Charge de la phase choisie : jamais proposer moins. Si elle l'emporte, on repart en bas de la fourchette du programme.
+    const phaseW = parseTargetKg(ex.charges[phaseIdx]);
+    if (phaseW && (!weight || phaseW > weight)) {
+        weight = phaseW;
+        reps = d ? d.reps : reps;
+        src = "phase";
+    }
     if (sci?.deload && weight)
         weight = Math.round(weight * 0.6 * 2) / 2;
     return { weight, sets: d ? d.sets : null, reps, src };
@@ -3528,12 +3534,12 @@ function TodaySport({ fg, bg, goTab }) {
     const total = se.exercices.reduce((a, ex) => a + (parseDetail(ex.detail)?.sets || 3), 0), doneAll = se.exercices.reduce((a, ex) => a + Math.min(doneOf(ex), parseDetail(ex.detail)?.sets || 3), 0);
     return React.createElement("div", { style: TD.wrap },
         React.createElement("div", { style: TD.giant }, se.id),
-        React.createElement("p", { style: TD.lead }, se.focus + ". Touche un numéro de série quand elle est faite." + (sci.deload ? " Semaine de décharge : charges −40 %." : "")),
+        React.createElement("p", { style: TD.lead }, se.focus + ". " + (phases[+phase || 0]?.ph || "") + " (" + (phases[+phase || 0]?.sem || "") + "). Touche un numéro de série quand elle est faite." + (sci.deload ? " Semaine de décharge : charges −40 %." : "")),
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
             React.createElement("div", { style: { flex: 1, height: 14, border: `2.5px solid ${fg}`, position: "relative" } }, React.createElement("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: (total ? doneAll / total * 100 : 0) + "%", background: fg, transition: "width .5s cubic-bezier(.7,0,.2,1)" } })),
             React.createElement("b", { style: { fontFamily: AN, fontSize: 22, fontWeight: 400 } }, doneAll + "/" + total)),
         pickers,
-        React.createElement("div", { style: rule }, se.exercices.map((ex, i) => { const s = sugg[i], r = rng(ex), sets = parseDetail(ex.detail)?.sets || 3; return React.createElement("div", { key: ex.nom, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
+        React.createElement("div", { style: rule }, se.exercices.map((ex, i) => { const s = sugg[i], r = s.src === "phase" ? progRangeFor(cur.code, ex.nom) : rng(ex), sets = parseDetail(ex.detail)?.sets || 3; return React.createElement("div", { key: ex.nom, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } },
                 React.createElement("b", { style: { fontSize: 21, lineHeight: 1.1, fontWeight: 750 } }, ex.nom),
                 React.createElement("small", { style: { fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" } }, (s.weight ? kgFr(s.weight) + " kg × " : "") + (r ? fmtRange(r) : ex.detail))),
