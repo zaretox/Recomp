@@ -95,6 +95,7 @@ const C = {
     danger: "#D7263D", blue: "#8A6900", blueLight: "#735700", pink: "#D63C82", purple: "#6F45E6",
     budget: "#2448FF", budgetLight: "#1B38D6",
     sci: "#FFD43B", deload: "#5B4FE0",
+    swim: "#0571B0",
 };
 /* Police des grands chiffres et titres d'affiche */
 const AN = "'Anton', Impact, 'Arial Narrow', sans-serif";
@@ -190,13 +191,15 @@ const maison = [
 ];
 const etirements = ["Ischios assis", "Quadriceps debout", "Fente basse", "Mollet mur (priorité droite)", "Posture enfant", "Torsion allongée", "Cercles chevilles (pied droit)"];
 const phases = [{ ph: "Phase 1", sem: "S1-4", pct: "~45%", but: "Réapprentissage moteur · tendons", c: "#5B4FE0" }, { ph: "Phase 2", sem: "S5-8", pct: "~58%", but: "Montée progressive", c: C.blue }, { ph: "Phase 3", sem: "S9-12", pct: "~70%", but: "Charge de travail", c: C.amber }, { ph: "Phase 4", sem: "S13-16+", pct: "~80%", but: "Objectif de reprise atteint", c: C.green }];
-const salleSeances = [
+/* Programme PPL de base (5 séances). Les séances du programme ACTIF sont dans `salleSeances` (voir PROGRAMMES). */
+const PPL_SEANCES = [
     { id: "Push", jour: "Lun", couleur: "#5B4FE0", emoji: "💪", focus: "Pecs · Épaules · Triceps", finisher: "🛷 Traîneau (poussée) 6×20 m · repos 60 s", exercices: [{ nom: "DC haltères", detail: "4×8-10", charges: ["20kg", "26kg", "32kg", "36kg"], note: "Par haltère. Ancien niveau retrouvé vers oct." }, { nom: "DI haltères", detail: "4×10-12", charges: ["16kg", "22kg", "26kg", "30kg"], note: "" }, { nom: "Poulie basse (pecs)", detail: "4×12-15", charges: ["14kg", "18kg", "21kg", "24kg"], note: "Pic de contraction 2 s en haut" }, { nom: "Élévations lat.", detail: "4×12-15", charges: ["5kg", "6kg", "8kg", "10kg"], note: "Deltoïde latéral (largeur)" }, { nom: "Triceps poulie", detail: "3×12-15", charges: ["16kg", "20kg", "24kg", "28kg"], note: "" }] },
     { id: "Pull", jour: "Mar", couleur: C.purple, emoji: "🏋️", focus: "Dos · Trapèzes · Biceps · Arrière d'épaule", finisher: "", exercices: [{ nom: "Tirage vertical", detail: "4×8-10", charges: ["40kg", "52kg", "62kg", "72kg"], note: "Remplace les tractions tant que le poids de corps est élevé" }, { nom: "Tirage bûcheron", detail: "4×8-10/bras", charges: ["22kg", "30kg", "35kg", "40kg"], note: "Buste calé, unilatéral" }, { nom: "Rack pull", detail: "4×6-8", charges: ["90kg", "115kg", "140kg", "160kg"], note: "Prise + lombaires : progressif. Sangles dès S5. Objectif 200kg vers nov." }, { nom: "Écarté inversé poulie", detail: "3×15-20", charges: ["7kg", "10kg", "12kg", "14kg"], note: "Arrière d'épaule (allongé au banc)" }, { nom: "Tirage araignée", detail: "2×15", charges: ["6kg", "7kg", "8kg", "10kg"], note: "À plat ventre, épaules relâchées" }, { nom: "Curl biceps", detail: "3×10-12", charges: ["7kg", "9kg", "11kg", "13kg"], note: "" }] },
     { id: "Legs", jour: "Mer", couleur: C.blue, emoji: "🦵", focus: "Quadri · Ischios · Mollets", finisher: "", exercices: [{ nom: "Presse à cuisses", detail: "4×10-12", charges: ["145kg", "185kg", "225kg", "255kg"], note: "Pied droit · amplitude contrôlée" }, { nom: "Hack squat", detail: "4×8-10", charges: ["65kg", "80kg", "100kg", "112kg"], note: "Genou : descente maîtrisée" }, { nom: "RDL", detail: "4×8-10", charges: ["65kg", "80kg", "100kg", "112kg"], note: "Tension ischios, dos neutre" }, { nom: "Leg curl", detail: "3×12-15", charges: ["27kg", "35kg", "42kg", "48kg"], note: "" }, { nom: "Mollets debout", detail: "6×15-20", charges: ["50kg", "65kg", "75kg", "88kg"], note: "Pied droit" }] },
     { id: "Upper", jour: "Ven", couleur: C.pink, emoji: "🔼", focus: "Haut du corps · Lourd (5-8)", finisher: "🚶 Farmer's walk 4×40 m + 🪢 battle ropes 6×30 s (ou traîneau)", exercices: [{ nom: "DC haltères neutre", detail: "4×6-8", charges: ["20kg", "26kg", "32kg", "37kg"], note: "Par haltère · prise neutre (épaule)" }, { nom: "Tirage bûcheron", detail: "4×8-10", charges: ["23kg", "30kg", "36kg", "42kg"], note: "Version lourde" }, { nom: "DM haltères", detail: "4×6-8", charges: ["12kg", "15kg", "18kg", "21kg"], note: "Développé épaules" }, { nom: "Élévations lat.", detail: "3×15-20", charges: ["5kg", "6kg", "8kg", "10kg"], note: "" }, { nom: "Curl marteau", detail: "3×8-10", charges: ["7kg", "9kg", "11kg", "13kg"], note: "" }, { nom: "Ext. triceps", detail: "3×8-10", charges: ["12kg", "16kg", "19kg", "22kg"], note: "" }] },
     { id: "Lower", jour: "Sam", couleur: C.green, emoji: "🔽", focus: "Fessiers · Quadri · Ischios · Lourd", finisher: "🛷 Traîneau arrière 5×20 m · léger (protège le genou)", exercices: [{ nom: "Hip thrust", detail: "4×8-10", charges: ["90kg", "115kg", "140kg", "160kg"], note: "Descente contrôlée" }, { nom: "Presse lourde", detail: "4×8-10", charges: ["155kg", "195kg", "240kg", "270kg"], note: "Pied droit" }, { nom: "Leg extension", detail: "4×10-12", charges: ["36kg", "46kg", "56kg", "64kg"], note: "Genou : sans à-coups, pas de blocage sec" }, { nom: "Leg curl assis", detail: "3×10-12", charges: ["27kg", "35kg", "42kg", "48kg"], note: "" }, { nom: "Abduction hanche", detail: "2×15-20", charges: ["32kg", "40kg", "48kg", "56kg"], note: "Fessiers" }, { nom: "Mollets assis", detail: "6×12-15", charges: ["27kg", "35kg", "42kg", "48kg"], note: "" }] },
 ];
+let salleSeances = PPL_SEANCES; // remplacé par les séances de ton programme perso quand il est actif
 const sportConseils = [{ t: "Articulations = rythme", d: "Tendons 3× plus lents que muscles. Genou/pied droit = facteurs limitants." }, { t: "Mémoire musculaire", d: "Anciens niveaux reviennent vite mais les premières semaines réveillent les tendons." }, { t: "Maison → salle", d: "S6-8 si genou et pied tiennent sans douleur piquante." }, { t: "Balance ≠ vérité", d: "Miroir et mensurations comptent plus." }];
 /* ═══ NUTRITION DATA ═══ */
 const macrosTarget = { p: 250, g: 240, l: 88, kcal: 2750 };
@@ -242,20 +245,70 @@ const MEAL_ID = { "Pré-séance": "pre", "Shaker whey": "shaker", "Petit-déjeun
 const hToMin = h => { const m = String(h || "").match(/(\d{1,2})\s*[h:]\s*(\d{0,2})/); return m ? +m[1] * 60 + (+m[2] || 0) : 0; };
 const minToH = n => Math.floor(n / 60) + "h" + String(n % 60).padStart(2, "0");
 function normProfile(p) { return { ...PROFILE_DEFAULT, ...(p || {}) }; }
+/* ═══ REGISTRE DES PROGRAMMES ═══
+ * 2 programmes de base (« salle » = PPL, « maison » = circuits A-D) + tes programmes perso (clé "programmes").
+ * Le programme actif se choisit dans le profil (profil.programme = "auto" | "salle" | "maison" | id perso).
+ * syncPrograms() met à jour `salleSeances` : log, coach, Science, plan RM, onglet Salle et affiche du jour
+ * lisent ainsi automatiquement les séances de ton programme perso quand il est actif. */
+let CUSTOM_PROGS = [];
+let ACTIVE_GYM = "salle"; // "salle" (PPL) ou id du programme perso actif
+let CUSTOM_MUSCLE = {};
+const SEANCE_COLORS = ["#5B4FE0", "#6F45E6", "#8A6900", "#D63C82", "#16A863", "#FF4F2B", "#0E9494"];
+const DOW_SHORT = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const DOW_ORDER = [1, 2, 3, 4, 5, 6, 0]; // L M M J V S D
+const MUSCLE_EMOJI = { Pecs: "💪", Dos: "🏋️", "Épaules": "🔼", Biceps: "💪", Triceps: "💪", Quadriceps: "🦵", Ischios: "🦵", Fessiers: "🍑", Mollets: "🦶", Abdos: "🧱" };
+const _convCache = new WeakMap();
+/* Séances d'un programme perso → même format que les séances PPL (detail "4×8-10", charges, repos…) */
+function customToSeances(p) {
+    if (!p)
+        return [];
+    if (_convCache.has(p))
+        return _convCache.get(p);
+    const out = (p.seances || []).map((s, i) => {
+        const mus = [...new Set((s.ex || []).map(e => e.muscle).filter(Boolean))];
+        return { id: s.nom, jour: (s.days || []).map(d => DOW_SHORT[d]).join("/") || "—", couleur: SEANCE_COLORS[i % SEANCE_COLORS.length], emoji: MUSCLE_EMOJI[mus[0]] || "🏋️", focus: mus.join(" · ") || "Séance perso", finisher: "", custom: true,
+            exercices: (s.ex || []).map(e => ({ nom: e.nom, detail: e.sets + "×" + (e.lo === e.hi ? e.lo : e.lo + "-" + e.hi), charges: Array(4).fill(e.kg ? e.kg + "kg" : "—"), note: e.note || "", rest: e.rest || 90, muscle: e.muscle || "" })) };
+    }).filter(s => s.exercices.length); // une séance vide n'est ni proposée ni planifiée
+    _convCache.set(p, out);
+    return out;
+}
+function syncPrograms(progs, profile) {
+    CUSTOM_PROGS = Array.isArray(progs) ? progs : [];
+    CUSTOM_MUSCLE = {};
+    CUSTOM_PROGS.forEach(p => (p.seances || []).forEach(s => (s.ex || []).forEach(e => { if (e.muscle)
+        CUSTOM_MUSCLE[e.nom] = e.muscle; })));
+    const cp = CUSTOM_PROGS.find(p => p.id === normProfile(profile).programme);
+    const conv = customToSeances(cp);
+    ACTIVE_GYM = cp && conv.length ? cp.id : "salle";
+    salleSeances = cp && conv.length ? conv : PPL_SEANCES;
+}
+/* Une séance retrouvée par son nom, même si elle vient d'un autre programme (historique) */
+function seanceById(id) { return salleSeances.find(s => s.id === id) || PPL_SEANCES.find(s => s.id === id) || CUSTOM_PROGS.flatMap(customToSeances).find(s => s.id === id) || null; }
+function progInfo(prog) {
+    if (PROGRAMMES[prog])
+        return PROGRAMMES[prog];
+    const p = CUSTOM_PROGS.find(x => x.id === prog);
+    if (!p)
+        return PROGRAMMES.salle;
+    const days = {};
+    customToSeances(p).forEach(s => (p.seances.find(x => x.nom === s.id)?.days || []).forEach(d => { days[d] = s.id; }));
+    return { label: p.name, days, custom: true };
+}
 /* "auto" : salle dès qu'une séance salle a été enregistrée ces 21 derniers jours, sinon maison */
-function resolveProgramme(profile, sportLogs) { const p = normProfile(profile).programme; if (p !== "auto")
-    return p; return (sportLogs || []).some(l => withinDays(l.dateISO, 21)) ? "salle" : "maison"; }
-function programmeDays(prog) { return Object.keys(PROGRAMMES[prog].days).map(Number); }
+function resolveProgramme(profile, sportLogs) { const p = normProfile(profile).programme; if (p === "auto")
+    return (sportLogs || []).some(l => withinDays(l.dateISO, 21)) ? "salle" : "maison"; if (PROGRAMMES[p] || CUSTOM_PROGS.some(x => x.id === p && customToSeances(x).length))
+    return p; return "salle"; }
+function programmeDays(prog) { return Object.keys(progInfo(prog).days).map(Number); }
 /* Séance prévue à une date donnée (null = jour de repos) */
 function sessionForDate(iso, prog) {
-    const code = PROGRAMMES[prog].days[new Date(iso + "T12:00:00").getDay()];
+    const code = progInfo(prog).days[new Date(iso + "T12:00:00").getDay()];
     if (!code)
         return null;
     if (prog === "maison") {
         const s = maison.find(x => x.code === code);
         return { prog, code, emoji: "🏠", label: "Maison " + code, titre: s?.titre || "" };
     }
-    const s = salleSeances.find(x => x.id === code);
+    const s = (prog === "salle" ? PPL_SEANCES : customToSeances(CUSTOM_PROGS.find(p => p.id === prog))).find(x => x.id === code);
     return { prog, code, emoji: s?.emoji || "🏋️", label: code, titre: s?.focus || "" };
 }
 /* Repas du jour (avec variante choisie) + horaires du profil, triés dans l'ordre de la journée */
@@ -704,7 +757,7 @@ const PAIN_IMPACT = { "Genou droit": ["Quadriceps", "Ischios", "Fessiers"], "Pie
 /* Douleurs ≥ 4/10 des `days` derniers jours : intensité max par zone */
 function recentPains(dLogs, days) { const m = {}; (dLogs || []).filter(l => withinDays(l.dateISO, days || 10) && (l.intensite || 0) >= 4).forEach(l => { const c = m[l.zone]; if (!c || l.intensite > c.i || (l.intensite === c.i && l.dateISO > c.d))
     m[l.zone] = { i: l.intensite, d: l.dateISO }; }); return m; }
-function painFor(nom, pains) { const mu = muscleMap[nom]; return Object.entries(pains).filter(([z]) => (PAIN_IMPACT[z] || []).includes(mu)).map(([z, v]) => ({ zone: z, ...v })); }
+function painFor(nom, pains) { const mu = muscleOf(nom); return Object.entries(pains).filter(([z]) => (PAIN_IMPACT[z] || []).includes(mu)).map(([z, v]) => ({ zone: z, ...v })); }
 /* Valeurs proposées pour un exercice : ajustement Science > suggestion coach, avec la charge de la PHASE
    choisie (S1-4, S5-8…) comme plancher : changer de phase met à jour les charges partout. Puis −40 % en décharge. */
 function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
@@ -739,9 +792,9 @@ function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
 function SuiviSport() {
     const [logs, setLogs] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [sel, setSel] = useState("Push");
+    const [sel, setSel] = useState(salleSeances[0].id);
     const [form, setForm] = useState({});
-    const [chartSel, setChartSel] = useState("Push");
+    const [chartSel, setChartSel] = useState(salleSeances[0].id);
     const [mode, setMode] = useState("log");
     const [saving, setSaving] = useState(false);
     const [selDate, setSelDate] = useState(isoToday());
@@ -758,9 +811,13 @@ function SuiviSport() {
     useEffect(() => { load("sport-logs", []).then(d => { setLogs(d); setLoading(false); }); }, []);
     useEffect(() => bus.on("stored:sport-logs", d => setLogs(d || [])), []); // synchro avec l'affiche « aujourd'hui »
     // Proposer automatiquement la séance prévue ce jour-là (programme salle)
-    useEffect(() => { const s = sessionForDate(selDate, "salle"); if (s && !logs.some(l => l.dateISO === selDate && l.seance === sel))
+    useEffect(() => { const s = sessionForDate(selDate, ACTIVE_GYM); if (s && !logs.some(l => l.dateISO === selDate && l.seance === sel))
         setSel(s.code); }, [selDate]);
-    const se = salleSeances.find(s => s.id === sel);
+    const se = salleSeances.find(s => s.id === sel) || seanceById(sel) || salleSeances[0];
+    // Programme changé : la séance affichée doit exister dans le programme actif
+    useEffect(() => { if (!salleSeances.some(s => s.id === sel) && !logs.some(l => l.dateISO === selDate && l.seance === sel))
+        setSel(salleSeances[0].id); if (!salleSeances.some(s => s.id === chartSel))
+        setChartSel(salleSeances[0].id); }, [salleSeances]);
     const blank = { weight: "", reps: "", sets: "", restSets: "", restExo: "", rpe: "", detail: null };
     const initF = useCallback(() => { const existing = logs.find(l => l.dateISO === selDate && l.seance === sel); const fd = {}; if (se)
         se.exercices.forEach((_, i) => { const ex = existing?.exercices?.[i]; fd[i] = ex ? { weight: ex.weight ? String(ex.weight) : "", reps: ex.reps ? String(ex.reps) : "", sets: ex.sets ? String(ex.sets) : "", restSets: ex.restSets ? String(ex.restSets) : "", restExo: ex.restExo ? String(ex.restExo) : "", rpe: ex.rpe ? String(ex.rpe) : "", detail: ex.setsDetail?.length ? ex.setsDetail.map(s => ({ w: String(s.w), r: String(s.r), done: true })) : null } : { ...blank }; }); setForm(fd); setOpenDet(Object.fromEntries(Object.entries(fd).filter(([, v]) => v.detail).map(([k]) => [k, true]))); setDeloadDay(existing ? !!existing.deload : !!sci.deload); }, [se, logs, selDate, sel]);
@@ -1797,8 +1854,24 @@ function PlanRM() {
 /* ═══ COACH (volume/muscle · auto-progression · gate maison→salle) ═══ */
 const muscleLandmarks = { Pecs: { mev: 10, mav: 22 }, Dos: { mev: 10, mav: 22 }, "Épaules": { mev: 8, mav: 22 }, Biceps: { mev: 6, mav: 16 }, Triceps: { mev: 6, mav: 16 }, Quadriceps: { mev: 8, mav: 20 }, Ischios: { mev: 8, mav: 18 }, Fessiers: { mev: 6, mav: 18 }, Mollets: { mev: 8, mav: 16 } };
 const muscleMap = { "DC haltères": "Pecs", "DC haltères neutre": "Pecs", "DI haltères": "Pecs", "Poulie basse (pecs)": "Pecs", "Tirage vertical": "Dos", "Tirage bûcheron": "Dos", "Rack pull": "Dos", "Élévations lat.": "Épaules", "Écarté inversé poulie": "Épaules", "Tirage araignée": "Épaules", "DM haltères": "Épaules", "Triceps poulie": "Triceps", "Ext. triceps": "Triceps", "Curl biceps": "Biceps", "Curl marteau": "Biceps", "Presse à cuisses": "Quadriceps", "Hack squat": "Quadriceps", "Presse lourde": "Quadriceps", "Leg extension": "Quadriceps", "RDL": "Ischios", "Leg curl": "Ischios", "Leg curl assis": "Ischios", "Hip thrust": "Fessiers", "Abduction hanche": "Fessiers", "Mollets debout": "Mollets", "Mollets assis": "Mollets" };
-const muscleOrder = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps", "Quadriceps", "Ischios", "Fessiers", "Mollets"];
-function weeklyMuscleVolume(logs, days) { const c = new Date(); c.setDate(c.getDate() - (days || 7)); const r = (logs || []).filter(l => !l.deload && new Date(l.dateISO + "T12:00:00") >= c); const v = {}; r.forEach(l => (l.exercices || []).forEach(e => { const m = muscleMap[e.nom]; if (m && e.sets > 0 && e.weight > 0)
+const muscleOrder = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps", "Quadriceps", "Ischios", "Fessiers", "Mollets", "Abdos"];
+muscleLandmarks.Abdos = { mev: 4, mav: 16 };
+/* ═══ BIBLIOTHÈQUE D'EXERCICES ═══ exercices du programme de base + classiques, rangés par muscle.
+   Tes exercices perso (clé "exos-perso") s'y ajoutent. */
+const MUSCLE_GROUPS = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps", "Quadriceps", "Ischios", "Fessiers", "Mollets", "Abdos"];
+const EXO_LIB = [...Object.entries(muscleMap), ["Développé couché", "Pecs"], ["Développé incliné barre", "Pecs"], ["Développé décliné", "Pecs"], ["Pompes", "Pecs"], ["Écarté haltères", "Pecs"], ["Écarté poulie vis-à-vis", "Pecs"], ["Pec deck", "Pecs"],
+    ["Tractions", "Dos"], ["Tractions assistées", "Dos"], ["Rowing barre", "Dos"], ["Rowing haltère", "Dos"], ["Tirage horizontal poulie", "Dos"], ["Soulevé de terre", "Dos"], ["Pull-over poulie", "Dos"], ["Shrug haltères", "Dos"],
+    ["Développé militaire barre", "Épaules"], ["Élévations frontales", "Épaules"], ["Face pull", "Épaules"], ["Oiseau haltères", "Épaules"], ["Développé Arnold", "Épaules"],
+    ["Curl barre", "Biceps"], ["Curl incliné", "Biceps"], ["Curl pupitre", "Biceps"], ["Curl poulie", "Biceps"],
+    ["Dips", "Triceps"], ["Barre au front", "Triceps"], ["Extension triceps poulie haute", "Triceps"], ["Kickback haltère", "Triceps"], ["Développé couché prise serrée", "Triceps"],
+    ["Squat", "Quadriceps"], ["Squat bulgare", "Quadriceps"], ["Fentes", "Quadriceps"], ["Goblet squat", "Quadriceps"], ["Front squat", "Quadriceps"], ["Step-up", "Quadriceps"],
+    ["Soulevé de terre jambes tendues", "Ischios"], ["Good morning", "Ischios"], ["Leg curl allongé", "Ischios"], ["Nordic curl", "Ischios"],
+    ["Pont fessier", "Fessiers"], ["Kickback poulie", "Fessiers"], ["Abduction élastique", "Fessiers"],
+    ["Mollets presse", "Mollets"],
+    ["Gainage", "Abdos"], ["Crunch", "Abdos"], ["Relevé de jambes", "Abdos"], ["Roue abdominale", "Abdos"], ["Pallof press", "Abdos"], ["Russian twist", "Abdos"]];
+const EXO_LIB_MUSCLE = Object.fromEntries(EXO_LIB);
+function muscleOf(nom) { return muscleMap[nom] || CUSTOM_MUSCLE[nom] || EXO_LIB_MUSCLE[nom] || null; }
+function weeklyMuscleVolume(logs, days) { const c = new Date(); c.setDate(c.getDate() - (days || 7)); const r = (logs || []).filter(l => !l.deload && new Date(l.dateISO + "T12:00:00") >= c); const v = {}; r.forEach(l => (l.exercices || []).forEach(e => { const m = muscleOf(e.nom); if (m && e.sets > 0 && e.weight > 0)
     v[m] = (v[m] || 0) + e.sets; })); return v; }
 function parseRepRange(detail) { const d = String(detail || ""); if (/\ds\s*$/.test(d.trim()) || /\d\s*s\b/.test(d))
     return null; const m = d.match(/(\d+)\s*[×xX]\s*(\d+)(?:\s*[-–]\s*(\d+))?/); if (!m)
@@ -1813,7 +1886,7 @@ function parseRepRange(detail) { const d = String(detail || ""); if (/\ds\s*$/.t
  * L'étape en cours est déduite de l'historique : rien à régler à la main. */
 const RANGE_DROP = 2;
 const lowerRange = rr => { const lo = Math.max(3, rr.lo - RANGE_DROP); return { lo, hi: Math.max(lo, rr.hi - RANGE_DROP) }; };
-const progRangeFor = (seanceId, nom) => { const p = salleSeances.find(s => s.id === seanceId)?.exercices.find(x => x.nom === nom); return p ? parseRepRange(p.detail) : null; };
+const progRangeFor = (seanceId, nom) => { const p = seanceById(seanceId)?.exercices.find(x => x.nom === nom); return p ? parseRepRange(p.detail) : null; };
 /* "low" si la dernière séance de cet exercice était en fourchette basse, sinon "prog" */
 function rangeState(logs, seanceId, nom, rr) {
     const hist = (logs || []).filter(l => !l.deload && l.seance === seanceId).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => (l.exercices || []).find(e => e.nom === nom)).filter(e => e && e.weight > 0);
@@ -1848,7 +1921,7 @@ const fmtRange = r => r ? (r.lo === r.hi ? String(r.lo) : r.lo + "-" + r.hi) : "
 /* "4×8-10" + fourchette Science {lo:10, hi:12} → "4×10-12" */
 function detailWithRange(detail, r) { if (!r)
     return detail; const d = parseRepRange(detail); return d ? d.sets + "×" + fmtRange(r) : detail; }
-const loadIncrement = nom => ["Quadriceps", "Ischios", "Fessiers"].includes(muscleMap[nom]) ? 5 : 2.5;
+const loadIncrement = nom => ["Quadriceps", "Ischios", "Fessiers"].includes(muscleOf(nom)) ? 5 : 2.5;
 /* Reps « limitantes » : la plus faible des séries à la charge max quand le détail existe */
 const effReps = e => e.setsDetail?.length ? Math.min(...e.setsDetail.filter(s => s.w === e.weight).map(s => s.r)) : e.reps;
 function lastExerciseLog(logs, seanceId, nom) {
@@ -1881,7 +1954,7 @@ function nextSuggestions(logs, recovery) {
         return null;
     let seanceId = null, when = null;
     for (let d = 0; d < 7 && !seanceId; d++) {
-        const iso = shiftISO(isoToday(), d), s = sessionForDate(iso, "salle");
+        const iso = shiftISO(isoToday(), d), s = sessionForDate(iso, ACTIVE_GYM);
         if (s && nonD.some(l => l.seance === s.code) && !(d === 0 && nonD.some(l => l.dateISO === iso && l.seance === s.code))) {
             seanceId = s.code;
             when = d === 0 ? "aujourd'hui" : d === 1 ? "demain" : fmtDateLong(iso);
@@ -1889,7 +1962,7 @@ function nextSuggestions(logs, recovery) {
     }
     if (!seanceId)
         seanceId = [...nonD].sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0].seance;
-    const seance = salleSeances.find(s => s.id === seanceId);
+    const seance = seanceById(seanceId);
     if (!seance)
         return null;
     const sugg = seance.exercices.map(ex => { const e = lastExerciseLog(logs, seanceId, ex.nom); if (!e)
@@ -1973,11 +2046,408 @@ function CoachSport() {
         React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, padding: "2px 4px 0", lineHeight: 1.5 } }, "Cycle de progression : ⬆️ haut de la fourchette atteint à RPE ≤ 8 → charge +, fourchette −" + RANGE_DROP + " reps · ↕️ haut de la fourchette basse atteint → même charge, retour à la fourchette du programme · 🔁 +1 rep sinon · ⏸️ consolider si RPE ≥ 9,5."));
 }
 const reposMap = { "Push:DC haltères": "2 min", "Push:DI haltères": "90 s", "Push:Poulie basse (pecs)": "60 s", "Push:Élévations lat.": "60 s", "Push:Triceps poulie": "60 s", "Pull:Tirage vertical": "2 min", "Pull:Tirage bûcheron": "90 s", "Pull:Rack pull": "3 min", "Pull:Écarté inversé poulie": "60 s", "Pull:Tirage araignée": "60 s", "Pull:Curl biceps": "75 s", "Legs:Presse à cuisses": "2 min", "Legs:Hack squat": "2-3 min", "Legs:RDL": "2 min", "Legs:Leg curl": "75 s", "Legs:Mollets debout": "45-60 s", "Upper:DC haltères neutre": "2-3 min", "Upper:Tirage bûcheron": "2 min", "Upper:DM haltères": "2-3 min", "Upper:Élévations lat.": "60 s", "Upper:Curl marteau": "75 s", "Upper:Ext. triceps": "75 s", "Lower:Hip thrust": "2-3 min", "Lower:Presse lourde": "3 min", "Lower:Leg extension": "90 s", "Lower:Leg curl assis": "75 s", "Lower:Abduction hanche": "45 s", "Lower:Mollets assis": "45-60 s" };
-function reposFor(sid, nom) { return reposMap[sid + ":" + nom] || "90 s"; }
+function reposFor(sid, nom) { const r = seanceById(sid)?.exercices.find(e => e.nom === nom)?.rest; if (r)
+    return r >= 60 && r % 60 === 0 ? r / 60 + " min" : r + " s"; return reposMap[sid + ":" + nom] || "90 s"; }
+/* ═══ MES PROGRAMMES — créer, modifier, dupliquer, importer depuis un texte ═══
+ * Stockage : "programmes" = [{ id, name, seances: [{ nom, days: [jours JS 0-6], ex: [{ nom, muscle, sets, lo, hi, kg, rest, note }] }] }]
+ *            "exos-perso" = [{ nom, muscle }] (exercices créés à la main, ajoutés à la bibliothèque) */
+const hx = React.createElement;
+const newId = p => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+const numFr = v => parseFloat(String(v ?? "").replace(",", "."));
+const JOURS_FR = { lundi: 1, mardi: 2, mercredi: 3, jeudi: 4, vendredi: 5, samedi: 6, dimanche: 0 };
+const MUSCLE_GUESS = [[/leg curl|ischio|rdl|good morning|nordic|jambes tendues/i, "Ischios"], [/mollet|calf/i, "Mollets"], [/hip thrust|fessier|glute|pont |abduction/i, "Fessiers"], [/squat|presse|fente|leg ext|quadri|step|hack/i, "Quadriceps"], [/curl/i, "Biceps"], [/triceps|dips|barre au front|kickback|extension/i, "Triceps"], [/militaire|épaule|epaule|élévation|elevation|arnold|face pull|oiseau|shoulder/i, "Épaules"], [/tirage|rowing|row|traction|pull|soulevé de terre|deadlift|shrug/i, "Dos"], [/couch|inclin|décliné|pec|pompe|écarté|bench/i, "Pecs"], [/gainage|abdo|crunch|planche|core|relevé|twist/i, "Abdos"]];
+function guessMuscle(nom) { const g = MUSCLE_GUESS.find(([re]) => re.test(nom + " ")); return g ? g[1] : ""; }
+function uniqueSeanceNames(seances) { const seen = {}; return seances.map(s => { const base = (s.nom || "").trim() || "Séance"; let k = base, i = 2; while (seen[k.toLowerCase()])
+    k = base + " " + i++; seen[k.toLowerCase()] = 1; return { ...s, nom: k }; }); }
+/* Programme écrit librement (notes, message, PDF copié) → programme structuré
+   Reconnaît : « Programme : nom », les jours (« Lundi — Haut A »), les titres de séance (« Séance A : »),
+   et les exercices « Nom 4x8-10 80kg 2min » / « Nom 3 séries de 12 » / « 1. Nom 4×6 @ 100 kg 90s ». */
+function parseProgramText(text) {
+    const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    let name = "";
+    const seances = [], bad = [];
+    let cur = null;
+    const setRe = /(\d+)\s*(?:[x×*]|s[ée]ries?\s*(?:de|x)?)\s*(\d+)(?:\s*(?:[-–à\/]|to)\s*(\d+))?/i;
+    lines.forEach((raw, i) => {
+        const l = raw.replace(/^(?:[-•*·▪➤>]|\d+[.)])\s+/, "");
+        const pm = l.match(/^programme\s*[:\-–—]\s*(.+)$/i);
+        if (pm) {
+            name = pm[1].trim();
+            return;
+        }
+        const m = l.match(setRe);
+        if (m && m.index > 0) {
+            const nom = l.slice(0, m.index).replace(/[:\-–—,(@]+\s*$/, "").trim();
+            const after = l.slice(m.index + m[0].length);
+            const kgM = after.match(/(\d+(?:[.,]\d+)?)\s*kg/i);
+            const rM = after.replace(/\d+(?:[.,]\d+)?\s*kg/ig, "").match(/(\d+(?:[.,]\d+)?)\s*(min|mn|'|’|sec|s)(?![a-zà-ÿ])/i);
+            const rest = rM ? Math.round(numFr(rM[1]) * (/^m|'|’/i.test(rM[2]) ? 60 : 1)) : 90;
+            if (!cur) {
+                cur = { nom: "Séance A", days: [], ex: [] };
+                seances.push(cur);
+            }
+            cur.ex.push({ nom, muscle: muscleOf(nom) || guessMuscle(nom), sets: +m[1], lo: +m[2], hi: m[3] ? Math.max(+m[2], +m[3]) : +m[2], kg: kgM ? numFr(kgM[1]) : 0, rest, note: "" });
+            return;
+        }
+        const low = l.toLowerCase();
+        const day = Object.keys(JOURS_FR).find(j => low.startsWith(j));
+        if (day || /:$/.test(l) || /^(jour|s[ée]ance|day|j)\s*\d+/i.test(l) || (l.length <= 32 && !/\d/.test(l))) {
+            let nom = l.replace(/:$/, "");
+            if (day)
+                nom = nom.slice(day.length).replace(/^\s*[—–\-:,]*\s*/, "");
+            nom = nom.trim();
+            if (cur && !cur.ex.length) { // deux titres de suite (« Lundi » puis « Haut A ») = une seule séance
+                if (nom)
+                    cur.nom = nom;
+                if (day && !cur.days.includes(JOURS_FR[day]))
+                    cur.days.push(JOURS_FR[day]);
+            }
+            else {
+                cur = { nom: nom || ("Séance " + "ABCDEFGH"[seances.length % 8]), days: day ? [JOURS_FR[day]] : [], ex: [] };
+                seances.push(cur);
+            }
+            return;
+        }
+        bad.push({ i: i + 1, l });
+    });
+    return { name: name || "Programme importé", seances: uniqueSeanceNames(seances.filter(s => s.ex.length)), bad };
+}
+/* Copie modifiable du PPL de base (charges de la phase actuelle, repos, jours) */
+function pplToCustom(phase) {
+    const days = PROGRAMMES.salle.days;
+    return { id: newId("p"), name: "PPL Salle (copie)", seances: PPL_SEANCES.map(s => ({ nom: s.id, days: Object.keys(days).filter(d => days[d] === s.id).map(Number), ex: s.exercices.map(e => { const r = parseRepRange(e.detail) || { sets: 3, lo: 10, hi: 10 }; return { nom: e.nom, muscle: muscleOf(e.nom) || "", sets: r.sets, lo: r.lo, hi: r.hi, kg: parseTargetKg(e.charges[phase]) || 0, rest: parseRestSec(reposFor(s.id, e.nom)), note: e.note || "" }; }) })) };
+}
+const PM = {
+    h1: { fontFamily: AN, fontSize: 40, lineHeight: .95, textTransform: "uppercase", margin: "2px 0 6px" },
+    lead: { fontSize: 13.5, color: C.textMut, lineHeight: 1.45, margin: "0 0 14px" },
+    lbl: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: C.textMut, margin: "16px 0 6px" },
+    btn: { display: "block", width: "100%", padding: "13px 0", borderRadius: 4, border: `2px solid ${C.ink}`, background: C.ink, color: "#fff", fontWeight: 800, fontSize: 14, cursor: "pointer", textAlign: "center" },
+    out: { display: "block", width: "100%", padding: "12px 0", borderRadius: 4, border: `2px solid ${C.ink}`, background: "transparent", color: C.ink, fontWeight: 800, fontSize: 14, cursor: "pointer", textAlign: "center" },
+    mini: on => ({ border: `1.5px solid ${C.ink}`, background: on ? C.ink : "transparent", color: on ? "#fff" : C.ink, borderRadius: 999, padding: "5px 10px", fontSize: 12, fontWeight: 800, cursor: "pointer", whiteSpace: "nowrap" }),
+    sq: { width: 28, height: 28, borderRadius: 4, border: `1.5px solid ${C.ink}44`, background: "transparent", fontWeight: 800, fontSize: 12, color: C.ink, cursor: "pointer", flex: "none" },
+    num: { ...inputStyle, padding: "7px 6px", textAlign: "center", fontWeight: 700 },
+};
+function Sheet({ title, onClose, children }) {
+    return hx(Fragment, null,
+        hx("div", { onClick: onClose, style: { position: "fixed", inset: 0, background: "#12121266", zIndex: 70 } }),
+        hx("div", { role: "dialog", "aria-modal": true, style: { position: "fixed", left: 0, right: 0, bottom: 0, maxHeight: "82%", zIndex: 71, background: C.bg, borderTop: `3px solid ${C.ink}`, borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", animation: "rcUp .3s cubic-bezier(.2,.9,.1,1)" } },
+            hx("div", { style: { display: "flex", alignItems: "center", gap: 8, padding: "12px 14px 8px" } },
+                hx("b", { style: { flex: 1, fontFamily: AN, fontWeight: 400, fontSize: 26, textTransform: "uppercase" } }, title),
+                hx("button", { onClick: onClose, style: PM.mini(false) }, "Fermer")),
+            hx("div", { style: { overflowY: "auto", padding: "0 14px calc(24px + env(safe-area-inset-bottom, 0px))" } }, children)));
+}
+/* Bibliothèque : recherche, filtre par muscle, création d'un exercice perso */
+function ExoLibrary({ onPick, onClose }) {
+    const [perso, setPerso] = useStored("exos-perso", []);
+    const [q, setQ] = useState("");
+    const [mu, setMu] = useState("Tous");
+    const [creating, setCreating] = useState(null);
+    const all = [...perso.map(x => [x.nom, x.muscle, true]), ...EXO_LIB.filter(([n]) => !perso.some(x => x.nom === n))].sort((a, b) => a[0].localeCompare(b[0], "fr"));
+    const ql = q.trim().toLowerCase();
+    const list = all.filter(([n, m]) => (mu === "Tous" || m === mu) && (!ql || n.toLowerCase().includes(ql)));
+    const exact = all.some(([n]) => n.toLowerCase() === ql);
+    return hx(Sheet, { title: creating ? "Muscle principal" : "Bibliothèque", onClose },
+        creating ? hx("div", null,
+            hx("p", { style: PM.lead }, "« " + creating + " » travaille surtout :"),
+            hx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } }, MUSCLE_GROUPS.map(m => hx("button", { key: m, style: PM.mini(false), onClick: async () => { await setPerso([...perso.filter(x => x.nom !== creating), { nom: creating, muscle: m }]); onPick(creating, m); } }, m))))
+            : hx("div", null,
+                hx("input", { value: q, onChange: e => setQ(e.target.value), placeholder: "Chercher ou créer un exercice", style: inputStyle, autoFocus: true }),
+                hx("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", margin: "8px 0" } }, ["Tous", ...MUSCLE_GROUPS].map(m => hx("button", { key: m, style: PM.mini(mu === m), onClick: () => setMu(m) }, m))),
+                ql && !exact && hx("button", { onClick: () => setCreating(q.trim().charAt(0).toUpperCase() + q.trim().slice(1)), style: { width: "100%", textAlign: "left", padding: "12px 0", border: 0, borderBottom: `1.5px solid ${C.ink}22`, background: "none", color: C.amberLight, fontWeight: 800, fontSize: 15, cursor: "pointer" } }, "+ Créer « " + q.trim() + " »"),
+                list.map(([n, m, mine]) => hx("button", { key: n, onClick: () => onPick(n, m), style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "11px 0", border: 0, borderBottom: `1.5px solid ${C.ink}1A`, background: "none", textAlign: "left", fontSize: 15, fontWeight: 700, color: C.ink, cursor: "pointer" } }, n, hx("small", { style: { fontSize: 11, fontWeight: 700, color: C.textMut } }, (mine ? "⭐ " : "") + m + " +"))),
+                !list.length && hx("p", { style: PM.lead }, ql ? "Pas encore dans la bibliothèque : crée-le ci-dessus." : "Aucun exercice dans ce groupe.")));
+}
+/* Éditeur d'un programme (brouillon : rien n'est enregistré avant « Enregistrer ») */
+function ProgramEditor({ draft, setDraft, onSave, onCancel }) {
+    const [libFor, setLibFor] = useState(null);
+    const upd = fn => setDraft(d => { const n = JSON.parse(JSON.stringify(d)); fn(n); return n; });
+    const cycleDay = dow => upd(d => { const cur = d.seances.findIndex(s => (s.days || []).includes(dow)); if (cur >= 0)
+        d.seances[cur].days = d.seances[cur].days.filter(x => x !== dow); const nx = cur + 1; if (nx < d.seances.length)
+        d.seances[nx].days = [...(d.seances[nx].days || []), dow]; });
+    const field = (si, ei, k, label, w) => hx("label", { style: { display: "flex", flexDirection: "column", gap: 2, minWidth: 0, flex: w || 1 } },
+        hx("span", { style: { fontSize: 9.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: C.textMut } }, label),
+        hx("input", { type: "text", inputMode: "decimal", value: draft.seances[si].ex[ei][k] ?? "", onChange: e => { const v = e.target.value; upd(d => { d.seances[si].ex[ei][k] = v; }); }, style: PM.num }));
+    return hx("div", null,
+        hx("button", { onClick: onCancel, style: PM.mini(false) }, "← Mes programmes"),
+        hx("div", { style: { ...PM.h1, marginTop: 12 } }, "Mon programme"),
+        hx("div", { style: PM.lbl }, "Nom"),
+        hx("input", { value: draft.name, onChange: e => { const v = e.target.value; upd(d => { d.name = v; }); }, style: inputStyle, placeholder: "Ex : Force 4 jours" }),
+        hx("div", { style: PM.lbl }, "Jours d'entraînement"),
+        hx("div", { style: { display: "flex", gap: 5 } }, DOW_ORDER.map(dow => { const s = draft.seances.find(x => (x.days || []).includes(dow)); return hx("button", { key: dow, onClick: () => cycleDay(dow), style: { flex: 1, minWidth: 0, padding: "7px 0 5px", borderRadius: 4, border: `2px solid ${C.ink}`, background: s ? C.amber : C.surface, color: C.ink, cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 2 } },
+            hx("b", { style: { fontSize: 13 } }, DOW_SHORT[dow][0]),
+            hx("small", { style: { fontSize: 9, fontWeight: 700, maxWidth: "100%", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", padding: "0 2px" } }, s ? s.nom : "repos")); })),
+        hx("p", { style: { ...PM.lead, fontSize: 12, marginTop: 6 } }, "Touche un jour pour lui donner la séance suivante, ou repos."),
+        draft.seances.map((s, si) => hx("div", { key: si, style: { border: `2px solid ${C.ink}`, borderRadius: 6, background: C.surface, marginTop: 12, overflow: "hidden" } },
+            hx("div", { style: { display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", background: C.ink, color: "#fff" } },
+                hx("input", { value: s.nom, "aria-label": "Nom de la séance", onChange: e => { const v = e.target.value; upd(d => { d.seances[si].nom = v; }); }, style: { flex: 1, minWidth: 0, background: "transparent", border: 0, color: "#fff", fontFamily: AN, fontSize: 24, textTransform: "uppercase", padding: 0, outline: "none" } }),
+                hx("small", { style: { fontSize: 11, fontWeight: 700, opacity: .85, whiteSpace: "nowrap" } }, ((s.days || []).map(d => DOW_SHORT[d]).join(" ") || "aucun jour") + " · " + s.ex.length + " exos"),
+                hx("button", { "aria-label": "Supprimer la séance", onClick: async () => { if (!s.ex.length || await askConfirm({ title: "Supprimer « " + s.nom + " » ?", message: s.ex.length + " exercice(s) seront retirés du programme.", confirmLabel: "Supprimer", danger: true }))
+                        upd(d => { d.seances.splice(si, 1); }); }, style: { ...PM.sq, border: "1.5px solid #ffffff66", color: "#fff" } }, "✕")),
+            s.ex.map((e, ei) => hx("div", { key: ei, style: { padding: "10px 12px", borderTop: ei ? `1.5px solid ${C.ink}1A` : "none" } },
+                hx("div", { style: { display: "flex", alignItems: "center", gap: 6 } },
+                    hx("b", { style: { flex: 1, minWidth: 0, fontSize: 15, fontWeight: 750, lineHeight: 1.2 } }, e.nom),
+                    hx("em", { style: { fontStyle: "normal", fontSize: 10.5, fontWeight: 700, color: C.textMut } }, e.muscle || "—"),
+                    hx("button", { "aria-label": "Monter", style: PM.sq, onClick: () => upd(d => { const a = d.seances[si].ex; if (ei > 0)
+                            [a[ei - 1], a[ei]] = [a[ei], a[ei - 1]]; }) }, "↑"),
+                    hx("button", { "aria-label": "Descendre", style: PM.sq, onClick: () => upd(d => { const a = d.seances[si].ex; if (ei < a.length - 1)
+                            [a[ei + 1], a[ei]] = [a[ei], a[ei + 1]]; }) }, "↓"),
+                    hx("button", { "aria-label": "Retirer", style: { ...PM.sq, color: C.danger }, onClick: () => upd(d => { d.seances[si].ex.splice(ei, 1); }) }, "✕")),
+                hx("div", { style: { display: "flex", gap: 6, marginTop: 8, alignItems: "flex-end" } },
+                    field(si, ei, "sets", "Séries"), field(si, ei, "lo", "Reps min"), field(si, ei, "hi", "Reps max"), field(si, ei, "kg", "Charge kg", 1.2), field(si, ei, "rest", "Repos s")))),
+            hx("button", { onClick: () => setLibFor(si), style: { display: "block", width: "100%", padding: "11px 12px", border: 0, borderTop: `1.5px dashed ${C.ink}44`, background: "transparent", textAlign: "left", fontWeight: 800, fontSize: 13.5, color: C.amberLight, cursor: "pointer" } }, "+ Ajouter un exercice"))),
+        hx("button", { onClick: () => upd(d => { d.seances.push({ nom: "Séance " + "ABCDEFGH"[d.seances.length % 8], days: [], ex: [] }); }), style: { ...PM.out, marginTop: 12 } }, "+ Ajouter une séance"),
+        hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 } },
+            hx("button", { onClick: () => onSave(false), style: PM.out }, "Enregistrer"),
+            hx("button", { onClick: () => onSave(true), style: PM.btn }, "Enregistrer et activer")),
+        libFor != null && hx(ExoLibrary, { onClose: () => setLibFor(null), onPick: (nom, muscle) => { upd(d => { d.seances[libFor].ex.push({ nom, muscle: muscle || muscleOf(nom) || "", sets: 3, lo: 8, hi: 12, kg: 0, rest: 90, note: "" }); }); setLibFor(null); toast("+ " + nom); } }));
+}
+function ProgrammesManager() {
+    const [progs, setProgs] = useStored("programmes", []);
+    const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
+    const [sLogs] = useStored("sport-logs", []);
+    const [phase] = useStored("sport-phase", 0);
+    const [mode, setMode] = useState("list");
+    const [draft, setDraft] = useState(null);
+    const [txt, setTxt] = useState("");
+    const pr = normProfile(profile), resolved = resolveProgramme(profile, sLogs);
+    const activate = (key, label) => { setProfile({ ...pr, programme: key }); toast("✓ Programme actif : " + label); };
+    const open = p => { setDraft(JSON.parse(JSON.stringify(p))); setMode("edit"); };
+    const remove = async p => { if (!(await askConfirm({ title: "Supprimer « " + p.name + " » ?", message: "Tes séances déjà enregistrées restent dans l'historique.", confirmLabel: "Supprimer", danger: true })))
+        return; if (pr.programme === p.id)
+        setProfile({ ...pr, programme: "auto" }); commitWithUndo("programmes", progs, progs.filter(x => x.id !== p.id), setProgs, "🗑️ Programme supprimé"); };
+    const saveDraft = async (andActivate) => {
+        const clean = { ...draft, name: (draft.name || "").trim() || "Mon programme", seances: uniqueSeanceNames(draft.seances).map(s => ({ ...s, days: s.days || [], ex: s.ex.filter(e => e.nom).map(e => { const lo = Math.max(1, parseInt(e.lo) || 8); return { ...e, sets: Math.min(12, Math.max(1, parseInt(e.sets) || 3)), lo, hi: Math.max(lo, parseInt(e.hi) || lo), kg: Math.max(0, numFr(e.kg) || 0), rest: Math.max(0, parseInt(e.rest) || 90) }; }) })) };
+        if (!clean.seances.length)
+            return toast("Ajoute au moins une séance", { tone: "danger" });
+        const next = progs.some(x => x.id === clean.id) ? progs.map(x => x.id === clean.id ? clean : x) : [...progs, clean];
+        await setProgs(next);
+        if (andActivate) {
+            if (!clean.seances.some(s => s.ex.length))
+                toast("Enregistré. Ajoute des exercices pour pouvoir l'activer", { tone: "danger" });
+            else {
+                setProfile({ ...pr, programme: clean.id });
+                toast("✓ « " + clean.name + " » est ton programme actif");
+            }
+        }
+        else
+            toast("✓ Programme enregistré");
+        setDraft(null);
+        setMode("list");
+    };
+    if (mode === "edit" && draft)
+        return hx(ProgramEditor, { draft, setDraft, onSave: saveDraft, onCancel: async () => { if (await askConfirm({ title: "Quitter sans enregistrer ?", message: "Les modifications de ce programme seront perdues.", confirmLabel: "Quitter", danger: true })) {
+                setDraft(null);
+                setMode("list");
+            } } });
+    if (mode === "import") {
+        const r = parseProgramText(txt), n = r.seances.reduce((a, s) => a + s.ex.length, 0);
+        return hx("div", null,
+            hx("button", { onClick: () => setMode("list"), style: PM.mini(false) }, "← Mes programmes"),
+            hx("div", { style: { ...PM.h1, marginTop: 12 } }, "Importer"),
+            hx("p", { style: PM.lead }, "Colle un programme copié depuis tes notes, un message ou un PDF. Les jours, les séances, « 4x8-10 », les kg et les temps de repos sont reconnus. Tu vérifies avant d'enregistrer."),
+            hx("textarea", { value: txt, onChange: e => setTxt(e.target.value), rows: 11, spellCheck: false, placeholder: "Programme : Haut / Bas 4 jours\n\nLundi — Haut A\nDéveloppé couché 4x5 85kg 3min\nRowing barre 4x6-8 70kg 2min\nCurl biceps 3x10-12 14kg 60s\n\nMardi — Bas A\nSquat 4x5 110kg 3min\nRDL 3x8 100kg 2min", style: { ...inputStyle, fontFamily: "ui-monospace, Menlo, monospace", fontSize: 14, lineHeight: 1.45, resize: "vertical" } }),
+            txt.trim() && hx("div", { style: { marginTop: 12, border: `2px solid ${C.ink}`, borderRadius: 6, background: C.surface, overflow: "hidden" } },
+                hx("div", { style: { padding: "9px 12px", background: n ? C.green : C.gluc, color: "#fff", fontWeight: 800, fontSize: 13 } }, (n ? "✓ « " + r.name + " » : " + r.seances.length + " séance(s), " + n + " exercice(s)" : "Rien de reconnu pour l'instant") + (r.bad.length ? " · " + r.bad.length + " ligne(s) ignorée(s)" : "")),
+                r.seances.map((s, si) => hx(Fragment, { key: si },
+                    hx("div", { style: { display: "flex", justifyContent: "space-between", padding: "7px 12px", background: C.ink + "10", fontFamily: AN, fontSize: 17, textTransform: "uppercase" } }, hx("span", null, s.nom), hx("span", { style: { fontSize: 13 } }, s.days.map(d => DOW_SHORT[d]).join(" ") || "jour à choisir")),
+                    s.ex.map((e, ei) => hx("div", { key: ei, style: { display: "flex", gap: 8, padding: "6px 12px", borderTop: `1px solid ${C.ink}14`, fontSize: 13 } }, hx("b", { style: { flex: 1, fontWeight: 750 } }, e.nom), hx("span", { style: { color: C.textMut, fontWeight: 700, whiteSpace: "nowrap" } }, e.sets + " × " + (e.lo === e.hi ? e.lo : e.lo + "-" + e.hi) + (e.kg ? " · " + String(e.kg).replace(".", ",") + " kg" : "") + " · " + e.rest + " s"))))),
+                r.bad.map(b => hx("div", { key: b.i, style: { padding: "6px 12px", borderTop: `1px solid ${C.ink}14`, fontSize: 12.5, color: C.danger, fontWeight: 700 } }, "Ligne " + b.i + " ignorée : " + b.l.slice(0, 40)))),
+            hx("button", { disabled: !n, onClick: () => { setDraft({ id: newId("p"), name: r.name, seances: r.seances }); setMode("edit"); setTxt(""); toast("Vérifie les séances, puis enregistre"); }, style: { ...PM.btn, marginTop: 12, opacity: n ? 1 : .4 } }, "Créer ce programme"));
+    }
+    const builtins = [
+        { key: "auto", name: "Auto : maison puis salle", sub: "Maison tant qu'aucune séance salle n'est enregistrée sur 21 jours" },
+        { key: "salle", name: "PPL Salle", sub: "5 séances · lun, mar, mer, ven, sam · programme de base", dup: true },
+        { key: "maison", name: "Maison A-D", sub: "4 circuits · lun, mer, ven, sam · programme de base" },
+    ];
+    const row = (key, name, sub, actions) => { const on = pr.programme === key; return hx("div", { key, style: { display: "flex", alignItems: "center", gap: 8, padding: "12px 0", borderBottom: `2px solid ${C.ink}` } },
+        hx("div", { style: { flex: 1, minWidth: 0 } },
+            hx("b", { style: { display: "block", fontSize: 17, fontWeight: 750, lineHeight: 1.2 } }, name),
+            hx("small", { style: { display: "block", fontSize: 12, color: C.textMut, marginTop: 3, fontWeight: 600 } }, sub + (on && key === "auto" ? " · en ce moment : " + progInfo(resolved).label.toLowerCase() : ""))),
+        hx("div", { style: { display: "flex", flexDirection: "column", gap: 5, alignItems: "flex-end" } },
+            on ? hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", padding: "4px 8px", borderRadius: 3, background: C.ink, color: "#fff" } }, "ACTIF") : hx("button", { onClick: () => activate(key, name), style: PM.mini(false) }, "Activer"),
+            actions && hx("div", { style: { display: "flex", gap: 4 } }, actions))); };
+    return hx("div", null,
+        hx("div", { style: PM.h1 }, "Mes programmes"),
+        hx("p", { style: PM.lead }, "Le programme actif pilote l'affiche du jour, l'accueil, le calendrier, le log, le coach et Science. Ton historique est conservé quand tu changes de programme."),
+        hx("div", { style: { borderTop: `2px solid ${C.ink}` } },
+            builtins.map(b => row(b.key, b.name, b.sub, b.dup ? [hx("button", { key: "d", onClick: () => { setDraft(pplToCustom(+phase || 0)); setMode("edit"); }, style: PM.mini(false) }, "Dupliquer")] : null)),
+            progs.map(p => { const nEx = p.seances.reduce((a, s) => a + s.ex.length, 0), days = DOW_ORDER.filter(d => p.seances.some(s => (s.days || []).includes(d))); return row(p.id, p.name, p.seances.length + " séance(s) · " + (days.map(d => DOW_SHORT[d].toLowerCase()).join(", ") || "aucun jour") + " · " + nEx + " exercice(s)", [
+                    hx("button", { key: "e", onClick: () => open(p), style: PM.mini(false) }, "Modifier"),
+                    hx("button", { key: "c", onClick: () => { setDraft({ ...JSON.parse(JSON.stringify(p)), id: newId("p"), name: p.name + " (copie)" }); setMode("edit"); }, style: PM.mini(false) }, "Copier"),
+                    hx("button", { key: "x", "aria-label": "Supprimer", onClick: () => remove(p), style: { ...PM.mini(false), color: C.danger, borderColor: C.danger } }, "✕")
+                ]); })),
+        hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 14 } },
+            hx("button", { onClick: () => { setDraft({ id: newId("p"), name: "", seances: [{ nom: "Séance A", days: [1], ex: [] }] }); setMode("edit"); }, style: PM.btn }, "+ Nouveau"),
+            hx("button", { onClick: () => setMode("import"), style: PM.out }, "📥 Importer un texte")));
+}
+
+/* ═══ NATATION ═══
+ * "natation-modeles" = séances types [{ id, name, pool, pace (s/100 m), days, blocks: [{ t, reps, d, nage, mat, mode: "rest"|"dep", dep, rest, note }] }]
+ * "natation-logs"    = séances faites [{ id, dateISO, date, modele, distance, duree (s), rpe, nage, pool, note, kcal }]
+ * Pas de saisie au bord de l'eau : on prépare la séance, puis on l'enregistre une fois sorti. */
+const SWIM_TYPES = ["Échauffement", "Éducatifs", "Technique", "Série principale", "Série", "Jambes", "Bras", "Retour au calme"];
+const SWIM_STROKES = ["Crawl", "Dos", "Brasse", "Papillon", "4 nages", "Au choix"];
+const SWIM_GEAR = ["—", "Pull-buoy", "Plaquettes", "Palmes", "Planche", "Tuba"];
+const swimSample = () => ({ id: newId("n"), name: "Endurance 1 400 m", pool: 25, pace: 150, days: [], blocks: [
+        { t: "Échauffement", reps: 1, d: 200, nage: "Crawl", mat: "—", mode: "rest", dep: 0, rest: 0, note: "souple" },
+        { t: "Éducatifs", reps: 4, d: 50, nage: "Crawl", mat: "Planche", mode: "rest", dep: 0, rest: 20, note: "" },
+        { t: "Série principale", reps: 8, d: 50, nage: "Crawl", mat: "—", mode: "dep", dep: 75, rest: 0, note: "" },
+        { t: "Série", reps: 4, d: 100, nage: "Crawl", mat: "Pull-buoy", mode: "rest", dep: 0, rest: 20, note: "" },
+        { t: "Retour au calme", reps: 1, d: 200, nage: "Dos", mat: "—", mode: "rest", dep: 0, rest: 0, note: "" }] });
+const swimDist = m => (m?.blocks || []).reduce((a, b) => a + (parseInt(b.reps) || 0) * (parseInt(b.d) || 0), 0);
+const swimDur = m => (m?.blocks || []).reduce((a, b) => { const r = parseInt(b.reps) || 0, d = parseInt(b.d) || 0; return a + (b.mode === "dep" && b.dep ? r * b.dep : r * (d / 100 * (m.pace || 150) + (parseInt(b.rest) || 0))); }, 0);
+const fmtDur = s => { s = Math.round(s || 0); const h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60), r = s % 60; return h ? h + "h" + String(m).padStart(2, "0") : m + ":" + String(r).padStart(2, "0"); };
+/* « 38:30 », « 38 », « 1:05:00 », « 45 min » → secondes */
+function parseDur(str) { const t = String(str || "").trim().toLowerCase(); if (!t)
+    return 0; const hm = t.match(/^(\d+)\s*h\s*(\d{0,2})$/); if (hm)
+    return +hm[1] * 3600 + (+hm[2] || 0) * 60; const p = t.replace(/min|mn|'/g, "").split(/[:.,]/).map(x => parseInt(x) || 0); if (p.length === 3)
+    return p[0] * 3600 + p[1] * 60 + p[2]; if (p.length === 2)
+    return p[0] * 60 + p[1]; return p[0] * 60; }
+const swimPace = (dist, sec) => dist > 0 && sec > 0 ? sec / dist * 100 : null;
+/* Dépense : MET selon l'allure (ou le ressenti), × poids × durée */
+function swimKcal(dist, sec, rpe, kg) { const p = swimPace(dist, sec); const met = p ? (p < 110 ? 10 : p < 140 ? 8.3 : p < 180 ? 7 : 5.8) : (rpe >= 8 ? 9.5 : rpe >= 6 ? 8 : 6); return Math.round(met * (kg || 100) * sec / 3600); }
+const swimKcalOn = (logs, iso) => (logs || []).filter(l => l.dateISO === iso).reduce((a, l) => a + (l.kcal || 0), 0);
+const swimPlannedFor = (models, iso) => { const d = new Date(iso + "T12:00:00").getDay(); return (models || []).find(m => (m.days || []).includes(d)) || null; };
+const swimDaysCount = models => new Set((models || []).flatMap(m => m.days || [])).size;
+const swimBlockLine = b => (b.reps > 1 ? b.reps + " × " : "") + b.d + " m " + String(b.nage).toLowerCase() + (b.mat && b.mat !== "—" ? " · " + b.mat.toLowerCase() : "") + (b.mode === "dep" && b.dep ? " · départ toutes les " + fmtMMSS(b.dep) : b.rest ? " · " + b.rest + " s de repos" : "") + (b.note ? " · " + b.note : "");
+const mondayOf = iso => { const d = new Date(iso + "T12:00:00"), k = (d.getDay() + 6) % 7; d.setDate(d.getDate() - k); return _isoD(d); };
+function SwimEditor({ model, onSave, onCancel }) {
+    const [m, setM] = useState(() => JSON.parse(JSON.stringify(model)));
+    const upd = fn => setM(x => { const n = JSON.parse(JSON.stringify(x)); fn(n); return n; });
+    const sel = (val, opts, onCh, label) => hx("select", { value: val, "aria-label": label, onChange: e => onCh(e.target.value), style: { ...inputStyle, padding: "7px 6px", fontSize: 14 } }, opts.map(o => hx("option", { key: o }, o)));
+    const num = (bi, k, label) => hx("label", { style: { display: "flex", flexDirection: "column", gap: 2, flex: 1, minWidth: 0 } }, hx("span", { style: { fontSize: 9.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: C.textMut } }, label), hx("input", { type: "text", inputMode: "numeric", value: m.blocks[bi][k] ?? "", onChange: e => { const v = e.target.value; upd(x => { x.blocks[bi][k] = v; }); }, style: PM.num }));
+    const clean = { ...m, blocks: m.blocks.map(b => ({ ...b, reps: parseInt(b.reps) || 1, d: parseInt(b.d) || m.pool, dep: parseInt(b.dep) || 0, rest: parseInt(b.rest) || 0 })) };
+    const dist = swimDist(clean);
+    return hx("div", null,
+        hx("button", { onClick: onCancel, style: PM.mini(false) }, "← Mes séances"),
+        hx("div", { style: { ...PM.h1, marginTop: 12 } }, "Séance de natation"),
+        hx("div", { style: PM.lbl }, "Nom"),
+        hx("input", { value: m.name, onChange: e => { const v = e.target.value; upd(x => { x.name = v; }); }, style: inputStyle, placeholder: "Ex : Endurance 1 500 m" }),
+        hx("div", { style: PM.lbl }, "Jours prévus"),
+        hx("div", { style: { display: "flex", gap: 5 } }, DOW_ORDER.map(d => { const on = (m.days || []).includes(d); return hx("button", { key: d, onClick: () => upd(x => { x.days = on ? x.days.filter(y => y !== d) : [...(x.days || []), d]; }), style: { flex: 1, padding: "9px 0", borderRadius: 4, border: `2px solid ${C.ink}`, background: on ? C.swim : C.surface, color: on ? "#fff" : C.ink, fontWeight: 800, cursor: "pointer" } }, DOW_SHORT[d][0]); })),
+        hx("div", { style: PM.lbl }, "Bassin et allure visée"),
+        hx("div", { style: { display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" } },
+            [25, 50].map(p => hx("button", { key: p, onClick: () => upd(x => { x.pool = p; }), style: PM.mini(m.pool === p) }, p + " m")),
+            hx("button", { onClick: () => upd(x => { x.pace = Math.max(60, (x.pace || 150) - 5); }), style: PM.mini(false), "aria-label": "Allure plus rapide" }, "−"),
+            hx("b", { style: { fontFamily: AN, fontWeight: 400, fontSize: 20 } }, fmtMMSS(m.pace || 150) + " /100 m"),
+            hx("button", { onClick: () => upd(x => { x.pace = (x.pace || 150) + 5; }), style: PM.mini(false), "aria-label": "Allure plus lente" }, "+")),
+        m.blocks.map((b, bi) => hx("div", { key: bi, style: { border: `2px solid ${C.ink}`, borderRadius: 6, background: C.surface, marginTop: 10, padding: "10px 12px" } },
+            hx("div", { style: { display: "flex", gap: 6, alignItems: "center" } },
+                hx("div", { style: { flex: 1, minWidth: 0 } }, sel(b.t, SWIM_TYPES, v => upd(x => { x.blocks[bi].t = v; }), "Type de bloc")),
+                hx("b", { style: { fontFamily: AN, fontWeight: 400, fontSize: 19, color: C.swim, whiteSpace: "nowrap" } }, ((parseInt(b.reps) || 0) * (parseInt(b.d) || 0)) + " m"),
+                hx("button", { "aria-label": "Monter", style: PM.sq, onClick: () => upd(x => { if (bi > 0)
+                        [x.blocks[bi - 1], x.blocks[bi]] = [x.blocks[bi], x.blocks[bi - 1]]; }) }, "↑"),
+                hx("button", { "aria-label": "Supprimer le bloc", style: { ...PM.sq, color: C.danger }, onClick: () => upd(x => { x.blocks.splice(bi, 1); }) }, "✕")),
+            hx("div", { style: { display: "flex", gap: 6, marginTop: 8 } }, num(bi, "reps", "Répét."), num(bi, "d", "Distance m"), b.mode === "dep" ? num(bi, "dep", "Départ (s)") : num(bi, "rest", "Repos (s)")),
+            hx("div", { style: { display: "flex", gap: 6, marginTop: 6 } },
+                hx("div", { style: { flex: 1 } }, sel(b.nage, SWIM_STROKES, v => upd(x => { x.blocks[bi].nage = v; }), "Nage")),
+                hx("div", { style: { flex: 1 } }, sel(b.mat, SWIM_GEAR, v => upd(x => { x.blocks[bi].mat = v; }), "Matériel")),
+                hx("button", { onClick: () => upd(x => { const y = x.blocks[bi]; if (y.mode === "dep") {
+                        y.mode = "rest";
+                        y.rest = 20;
+                    }
+                    else {
+                        y.mode = "dep";
+                        y.dep = Math.round(((parseInt(y.d) || 50) / 100 * (x.pace || 150) + 15) / 5) * 5;
+                    } }), style: { ...PM.mini(false), alignSelf: "stretch" } }, b.mode === "dep" ? "→ repos" : "→ départ")),
+            hx("input", { value: b.note || "", placeholder: "Consigne (optionnel)", onChange: e => { const v = e.target.value; upd(x => { x.blocks[bi].note = v; }); }, style: { ...inputStyle, marginTop: 6, fontSize: 14, padding: "7px 9px" } }))),
+        hx("button", { onClick: () => upd(x => { x.blocks.push({ t: "Série", reps: 4, d: 100, nage: "Crawl", mat: "—", mode: "rest", dep: 0, rest: 20, note: "" }); }), style: { ...PM.out, marginTop: 10 } }, "+ Ajouter un bloc"),
+        hx("div", { style: { display: "grid", gridTemplateColumns: "repeat(3,1fr)", borderTop: `2px solid ${C.ink}`, marginTop: 14 } }, [[dist.toLocaleString("fr-FR") + " m", "distance"], ["~" + Math.round(swimDur(clean) / 60) + " min", "durée"], [Math.round(dist / (m.pool || 25)), "longueurs"]].map(([v, l], i) => hx("div", { key: l, style: { padding: "10px 0 10px " + (i ? "10px" : 0), borderBottom: `2px solid ${C.ink}`, borderLeft: i ? `2px solid ${C.ink}` : "none" } }, hx("b", { style: { display: "block", fontFamily: AN, fontWeight: 400, fontSize: 28, lineHeight: 1 } }, v), hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: C.textMut } }, l)))),
+        hx("button", { onClick: () => { if (!clean.blocks.length)
+                return toast("Ajoute au moins un bloc", { tone: "danger" }); onSave({ ...clean, name: (clean.name || "").trim() || "Séance " + dist + " m" }); }, style: { ...PM.btn, marginTop: 14, background: C.swim, borderColor: C.swim } }, "Enregistrer la séance type"));
+}
+function NatationSection() {
+    const [models, setModels] = useStored("natation-modeles", []);
+    const [logs, setLogs] = useStored("natation-logs", []);
+    const [nLogs] = useStored("nutri-logs", []);
+    const [sub, setSub] = useState("today");
+    const [editing, setEditing] = useState(null);
+    const [pick, setPick] = useState(null);
+    const today = isoToday();
+    const planned = swimPlannedFor(models, today);
+    const model = pick === "libre" ? null : (models.find(m => m.id === pick) || planned || models[0] || null);
+    const weigh = nLogs.filter(l => l.weight > 0).map(l => ({ dateISO: l.dateISO, kg: l.weight })), kg = avgRecent(weigh, 7) || 100;
+    const [f, setF] = useState({ date: today, dist: "", dur: "", rpe: 6, nage: "Crawl", note: "" });
+    useEffect(() => { setF(x => ({ ...x, dist: model ? String(swimDist(model)) : "", dur: model ? fmtDur(swimDur(model)) : "", nage: model?.blocks?.[0]?.nage || "Crawl" })); }, [model?.id]);
+    const dist = parseInt(f.dist) || 0, dur = parseDur(f.dur), pace = swimPace(dist, dur), kcal = dist && dur ? swimKcal(dist, dur, f.rpe, kg) : 0;
+    const saveLog = async () => {
+        if (!dist || !dur)
+            return toast("Indique la distance et la durée", { tone: "danger" });
+        const e = { id: Date.now(), dateISO: f.date, date: fmtDateShort(f.date), modele: model ? model.name : "Séance libre", distance: dist, duree: dur, rpe: f.rpe, nage: f.nage, pool: model?.pool || 25, note: f.note.trim(), kcal };
+        await setLogs([...logs, e]);
+        toast("🏊 " + dist.toLocaleString("fr-FR") + " m enregistrés · " + fmtMMSS(Math.round(pace)) + " /100 m · +" + kcal + " kcal");
+        setF(x => ({ ...x, note: "" }));
+    };
+    const tabs = hx("div", { style: { display: "flex", gap: 6, marginBottom: 14, flexWrap: "wrap" } }, [["today", "Aujourd'hui"], ["models", "Mes séances"], ["hist", "Historique"]].map(([k, l]) => hx(Pill, { key: k, active: sub === k, onClick: () => { setSub(k); setEditing(null); }, color: C.swim }, l)));
+    if (editing)
+        return hx(SwimEditor, { model: editing, onCancel: () => setEditing(null), onSave: async m => { await setModels(models.some(x => x.id === m.id) ? models.map(x => x.id === m.id ? m : x) : [...models, m]); setEditing(null); setPick(m.id); toast("✓ « " + m.name + " » enregistrée"); } });
+    if (sub === "models")
+        return hx("div", null, tabs,
+            hx("div", { style: PM.h1 }, "Mes séances"),
+            hx("p", { style: PM.lead }, "Tes séances types : blocs, nages, matériel, départs ou repos. Donne-leur des jours pour qu'elles apparaissent dans l'affiche du jour."),
+            hx("div", { style: { borderTop: `2px solid ${C.ink}` } }, models.map(m => hx("div", { key: m.id, style: { display: "flex", alignItems: "center", gap: 8, padding: "12px 0", borderBottom: `2px solid ${C.ink}` } },
+                hx("div", { style: { flex: 1, minWidth: 0 } }, hx("b", { style: { display: "block", fontSize: 17, fontWeight: 750 } }, m.name), hx("small", { style: { fontSize: 12, color: C.textMut, fontWeight: 600 } }, swimDist(m).toLocaleString("fr-FR") + " m · ~" + Math.round(swimDur(m) / 60) + " min · bassin " + m.pool + " m · " + (DOW_ORDER.filter(d => (m.days || []).includes(d)).map(d => DOW_SHORT[d].toLowerCase()).join(", ") || "aucun jour"))),
+                hx("button", { onClick: () => setEditing(m), style: PM.mini(false) }, "Modifier"),
+                hx("button", { onClick: () => setEditing({ ...JSON.parse(JSON.stringify(m)), id: newId("n"), name: m.name + " (copie)", days: [] }), style: PM.mini(false) }, "Copier"),
+                hx("button", { "aria-label": "Supprimer", onClick: async () => { if (await askConfirm({ title: "Supprimer « " + m.name + " » ?", message: "Les séances déjà enregistrées restent dans l'historique.", confirmLabel: "Supprimer", danger: true }))
+                        commitWithUndo("natation-modeles", models, models.filter(x => x.id !== m.id), setModels, "🗑️ Séance type supprimée"); }, style: { ...PM.mini(false), color: C.danger, borderColor: C.danger } }, "✕"))),
+                !models.length && hx("p", { style: { ...PM.lead, padding: "12px 0" } }, "Aucune séance type pour l'instant.")),
+            hx("button", { onClick: () => setEditing(models.length ? { ...swimSample(), name: "", blocks: [{ t: "Échauffement", reps: 1, d: 200, nage: "Crawl", mat: "—", mode: "rest", dep: 0, rest: 0, note: "" }] } : swimSample()), style: { ...PM.btn, marginTop: 14, background: C.swim, borderColor: C.swim } }, models.length ? "+ Nouvelle séance" : "+ Créer ma première séance (exemple prérempli)"));
+    if (sub === "hist") {
+        const W = 320, H = 120, weeks = Array.from({ length: 8 }, (_, i) => mondayOf(shiftISO(today, -7 * (7 - i))));
+        const byW = weeks.map(w => logs.filter(l => mondayOf(l.dateISO) === w).reduce((a, l) => a + l.distance, 0));
+        const mx = Math.max(...byW, 1), bw = (W - 10) / 8;
+        const best = min => { const c = logs.filter(l => l.distance >= min && l.duree); return c.length ? c.reduce((a, l) => swimPace(l.distance, l.duree) < swimPace(a.distance, a.duree) ? l : a) : null; };
+        const recs = [["Plus longue séance", logs.length ? Math.max(...logs.map(l => l.distance)).toLocaleString("fr-FR") + " m" : "—"], ...[[400, "≥ 400 m"], [1000, "≥ 1 000 m"], [2000, "≥ 2 000 m"]].map(([mn, l]) => { const b = best(mn); return ["Meilleure allure " + l, b ? fmtMMSS(Math.round(swimPace(b.distance, b.duree))) + " /100 m" : "—"]; }), ["Plus grosse semaine", Math.max(0, ...byW).toLocaleString("fr-FR") + " m"]];
+        return hx("div", null, tabs,
+            hx("div", { style: { ...PM.h1, fontSize: 64 } }, byW[7].toLocaleString("fr-FR") + " m"),
+            hx("p", { style: PM.lead }, "nagés cette semaine · " + logs.filter(l => withinDays(l.dateISO, 30)).length + " séance(s) sur 30 jours · " + logs.filter(l => withinDays(l.dateISO, 30)).reduce((a, l) => a + (l.kcal || 0), 0).toLocaleString("fr-FR") + " kcal"),
+            hx("svg", { viewBox: `0 0 ${W} ${H + 22}`, style: { width: "100%", height: "auto", display: "block" } }, byW.map((v, i) => hx("g", { key: i },
+                hx("rect", { x: 5 + i * bw + 5, y: H - v / mx * (H - 18), width: bw - 10, height: Math.max(v / mx * (H - 18), 1), fill: i === 7 ? C.swim : C.ink }),
+                v > 0 && hx("text", { x: 5 + i * bw + bw / 2, y: H - v / mx * (H - 18) - 5, textAnchor: "middle", fontFamily: "Anton, Impact, sans-serif", fontSize: 12, fill: C.ink }, v >= 1000 ? (v / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 1 }) + "k" : v),
+                hx("text", { x: 5 + i * bw + bw / 2, y: H + 16, textAnchor: "middle", fontSize: 10, fontWeight: 700, fill: C.textMut }, weeks[i].slice(8, 10) + "/" + weeks[i].slice(5, 7))))),
+            hx("div", { style: PM.lbl }, "Records"),
+            hx("div", { style: { borderTop: `2px solid ${C.ink}` } }, recs.map(([a, b]) => hx("div", { key: a, style: { display: "flex", justifyContent: "space-between", gap: 8, padding: "10px 0", borderBottom: `2px solid ${C.ink}`, fontSize: 14.5, fontWeight: 700 } }, hx("span", null, a), hx("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 20, whiteSpace: "nowrap" } }, b)))),
+            hx("div", { style: PM.lbl }, "Séances"),
+            !logs.length ? hx("p", { style: PM.lead }, "Aucune séance enregistrée.") : [...logs].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || b.id - a.id).slice(0, 40).map(l => hx(Card, { key: l.id, style: { padding: "10px 12px" } },
+                hx("div", { style: { display: "flex", alignItems: "center", gap: 8 } },
+                    hx("div", { style: { flex: 1, minWidth: 0 } },
+                        hx("b", { style: { fontSize: 14.5, fontWeight: 750 } }, l.distance.toLocaleString("fr-FR") + " m · " + fmtDur(l.duree)),
+                        hx("div", { style: { fontSize: 12, color: C.textMut, marginTop: 2 } }, l.date + " · " + l.modele + " · " + l.nage + " · RPE " + l.rpe + " · " + (l.kcal || 0) + " kcal" + (l.note ? " · " + l.note : ""))),
+                    hx("b", { style: { fontFamily: AN, fontWeight: 400, fontSize: 20, color: C.swim, whiteSpace: "nowrap" } }, fmtMMSS(Math.round(swimPace(l.distance, l.duree) || 0))),
+                    hx("button", { "aria-label": "Supprimer", onClick: () => commitWithUndo("natation-logs", logs, logs.filter(x => x.id !== l.id), setLogs, "🗑️ Séance supprimée"), style: { border: 0, background: "none", color: C.textMut, fontSize: 15, cursor: "pointer" } }, "✕")))));
+    }
+    // Aujourd'hui : l'affiche bleue de la séance prévue, puis l'enregistrement une fois sorti de l'eau
+    const todayLogs = logs.filter(l => l.dateISO === today);
+    return hx("div", null, tabs,
+        models.length > 1 && hx("div", { style: { display: "flex", gap: 5, flexWrap: "wrap", marginBottom: 10 } }, [...models.map(m => [m.id, m.name]), ["libre", "Séance libre"]].map(([k, l]) => hx("button", { key: k, onClick: () => setPick(k), style: PM.mini((pick || (planned ? planned.id : models[0].id)) === k) }, l))),
+        model ? hx("div", { style: { background: C.swim, color: "#fff", margin: "0 -14px 14px", padding: "14px 16px 18px" } },
+            hx("div", { style: { fontSize: 12, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", opacity: .9 } }, (planned && planned.id === model.id ? "Prévue aujourd'hui · " : "") + model.name),
+            hx("div", { style: { fontFamily: AN, fontSize: "clamp(80px, 26vw, 116px)", lineHeight: .86, margin: "6px -2px 8px", textTransform: "uppercase" } }, swimDist(model).toLocaleString("fr-FR") + " m"),
+            hx("p", { style: { fontSize: 14.5, fontWeight: 700, lineHeight: 1.35, margin: "0 0 12px" } }, "~" + Math.round(swimDur(model) / 60) + " min · bassin " + model.pool + " m · " + Math.round(swimDist(model) / model.pool) + " longueurs · allure visée " + fmtMMSS(model.pace) + " /100 m"),
+            hx("div", { style: { borderTop: "2px solid #fff" } }, model.blocks.map((b, i) => hx("div", { key: i, style: { padding: "10px 0", borderBottom: "2px solid #fff" } },
+                hx("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } }, hx("b", { style: { fontSize: 18, fontWeight: 750 } }, b.t), hx("span", { style: { fontFamily: AN, fontSize: 20, whiteSpace: "nowrap" } }, (b.reps * b.d).toLocaleString("fr-FR") + " m")),
+                hx("div", { style: { fontSize: 13, fontWeight: 600, opacity: .92, marginTop: 2 } }, swimBlockLine(b))))))
+            : hx(Card, null, hx("div", { style: { fontSize: 14, lineHeight: 1.45 } }, models.length ? "Séance libre : enregistre simplement ta distance et ta durée." : "Aucune séance type. Crée-en une dans « Mes séances », ou enregistre une séance libre ci-dessous."), !models.length && hx("button", { onClick: () => setEditing(swimSample()), style: { ...PM.btn, marginTop: 10, background: C.swim, borderColor: C.swim } }, "Créer ma première séance")),
+        todayLogs.length > 0 && hx("div", { style: { background: C.green, color: "#fff", borderRadius: 6, padding: "10px 12px", marginBottom: 12, fontWeight: 700, fontSize: 14 } }, "✓ Aujourd'hui : " + todayLogs.map(l => l.distance.toLocaleString("fr-FR") + " m en " + fmtDur(l.duree)).join(" + ") + " · +" + swimKcalOn(logs, today) + " kcal ajoutées à ta cible"),
+        hx("div", { style: { fontFamily: AN, fontSize: 30, textTransform: "uppercase", margin: "6px 0 4px" } }, "J'ai nagé"),
+        hx("p", { style: PM.lead }, "Remplis en sortant de l'eau : distance, durée et ressenti."),
+        hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 } },
+            hx("label", null, hx("div", { style: { ...PM.lbl, margin: "0 0 4px" } }, "Distance (m)"), hx("input", { type: "text", inputMode: "numeric", value: f.dist, onChange: e => setF({ ...f, dist: e.target.value }), style: inputStyle })),
+            hx("label", null, hx("div", { style: { ...PM.lbl, margin: "0 0 4px" } }, "Durée (min:s)"), hx("input", { type: "text", inputMode: "decimal", value: f.dur, placeholder: "38:30", onChange: e => setF({ ...f, dur: e.target.value }), style: inputStyle }))),
+        hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 8 } },
+            hx("label", null, hx("div", { style: { ...PM.lbl, margin: "0 0 4px" } }, "Date"), hx("input", { type: "date", value: f.date, max: today, onChange: e => e.target.value && setF({ ...f, date: e.target.value }), style: { ...inputStyle, colorScheme: "light" } })),
+            hx("label", null, hx("div", { style: { ...PM.lbl, margin: "0 0 4px" } }, "Nage principale"), hx("select", { value: f.nage, onChange: e => setF({ ...f, nage: e.target.value }), style: inputStyle }, SWIM_STROKES.map(s => hx("option", { key: s }, s))))),
+        hx("div", { style: PM.lbl }, "Ressenti (RPE " + f.rpe + "/10)"),
+        hx("div", { style: { display: "flex", gap: 4 } }, [3, 4, 5, 6, 7, 8, 9, 10].map(v => hx("button", { key: v, onClick: () => setF({ ...f, rpe: v }), style: { flex: 1, padding: "9px 0", borderRadius: 4, border: `2px solid ${C.ink}`, background: f.rpe === v ? C.ink : C.surface, color: f.rpe === v ? "#fff" : C.ink, fontWeight: 800, cursor: "pointer" } }, v))),
+        hx("input", { value: f.note, onChange: e => setF({ ...f, note: e.target.value }), placeholder: "Note (optionnel) : sensations, plaquettes…", style: { ...inputStyle, marginTop: 8 } }),
+        dist > 0 && dur > 0 && hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", borderTop: `2px solid ${C.ink}`, marginTop: 12 } }, [[fmtMMSS(Math.round(pace)), "allure /100 m"], ["+" + kcal, "kcal dépensées"]].map(([v, l], i) => hx("div", { key: l, style: { padding: "10px 0 10px " + (i ? "12px" : 0), borderBottom: `2px solid ${C.ink}`, borderLeft: i ? `2px solid ${C.ink}` : "none" } }, hx("b", { style: { display: "block", fontFamily: AN, fontWeight: 400, fontSize: 32, lineHeight: 1 } }, v), hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".06em", textTransform: "uppercase", color: C.textMut } }, l)))),
+        hx("button", { onClick: saveLog, style: { ...PM.btn, marginTop: 12, background: C.swim, borderColor: C.swim } }, "Enregistrer ma séance"));
+}
 function SportSection({ initialTab } = {}) {
     const [tab, setTab] = useState(initialTab || "resume");
     const [openS, setOpenS] = useState("A");
-    const [actS, setActS] = useState("Push");
+    const [actS, setActS] = useState(salleSeances[0].id);
     const [actP, setActP] = useStored("sport-phase", 0);
     const [sciCfg, setSciCfg] = useStored("science-config", SCI_DEFAULT);
     const [profile] = useStored("profil", PROFILE_DEFAULT);
@@ -1985,7 +2455,8 @@ function SportSection({ initialTab } = {}) {
     const [mLogs] = useStored("maison-logs", []);
     const [nLogs] = useStored("nutri-logs", []);
     const prog = resolveProgramme(profile, sLogs);
-    const [suiviProg, setSuiviProg] = useState(prog);
+    const [suiviPick, setSuiviProg] = useState(null);
+    const suiviProg = suiviPick || (prog === "maison" ? "maison" : "salle"); // suit le programme une fois les séances chargées
     const saveSci = (patch) => setSciCfg({ ...sciCfg, ...patch });
     // Semaine du programme depuis la toute première séance (maison ou salle) → phase conseillée
     const firstISO = [...sLogs, ...mLogs].map(l => l.dateISO).sort()[0];
@@ -1997,14 +2468,15 @@ function SportSection({ initialTab } = {}) {
     const profilCards = [
         { l: "Poids", v: (curW || startW) + " kg", s: curW && curW !== startW ? "départ " + startW + " kg (" + (curW - startW > 0 ? "+" : "") + Math.round((curW - startW) * 10) / 10 + ")" : "départ" },
         { l: "Semaine", v: weekN ? "S" + weekN : "—", s: suggestedP != null ? phases[suggestedP].ph + " conseillée" : "aucune séance" },
-        { l: "Fréquence", v: programmeDays(prog).length + "j/sem", s: PROGRAMMES[prog].label.toLowerCase() + " · lever " + pr.reveil },
+        { l: "Fréquence", v: programmeDays(prog).length + "j/sem", s: progInfo(prog).label.toLowerCase() + " · lever " + pr.reveil },
         profil[3],
     ];
     const phaseHint = suggestedP != null && suggestedP !== actP && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, color: C.textMut, background: C.surfaceAlt, borderRadius: 10, padding: "7px 10px", marginBottom: 10 } },
         React.createElement("span", { style: { flex: 1 } }, "📆 Semaine " + weekN + " du programme → ", React.createElement("b", { style: { color: phases[suggestedP].c } }, phases[suggestedP].ph), " conseillée."),
         React.createElement("button", { onClick: () => { setActP(suggestedP); toast("🎯 " + phases[suggestedP].ph + " appliquée"); }, style: { padding: "4px 10px", borderRadius: 8, border: `1px solid ${phases[suggestedP].c}`, background: "transparent", color: phases[suggestedP].c, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "Appliquer"));
-    const se = salleSeances.find(s => s.id === actS);
-    const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", "Salle"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["rm", "💪 Plan RM"], ["coach", "🧠 Coach"], ["douleur", "🩹 Douleur"], ["conseils", "Conseils"]];
+    const se = salleSeances.find(s => s.id === actS) || salleSeances[0];
+    const custom = ACTIVE_GYM !== "salle";
+    const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", custom ? "🏋️ " + progInfo(ACTIVE_GYM).label : "Salle"], ["natation", "🏊 Natation"], ["programmes", "📋 Programmes"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["rm", "💪 Plan RM"], ["coach", "🧠 Coach"], ["douleur", "🩹 Douleur"], ["conseils", "Conseils"]];
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.amber }, l))),
         tab === "resume" && React.createElement("div", null,
@@ -2039,10 +2511,15 @@ function SportSection({ initialTab } = {}) {
             React.createElement(Card, { border: C.borderSoft },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.green, marginBottom: 8 } }, "🧘 Étirements"),
                 etirements.map((e, i) => React.createElement("div", { key: i, style: { fontSize: 11.5, color: C.textMut, lineHeight: 1.7 } }, e)))),
+        tab === "natation" && React.createElement(NatationSection, null),
+        tab === "programmes" && React.createElement(ProgrammesManager, null),
         tab === "salle" && React.createElement("div", null,
-            phaseHint,
-            React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" } }, phases.map((p, i) => React.createElement("button", { key: i, onClick: () => setActP(i), style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${actP === i ? p.c : "transparent"}`, cursor: "pointer", fontSize: 10, fontWeight: 700, background: actP === i ? p.c + "22" : C.surfaceAlt, color: actP === i ? p.c : C.textDim } }, p.sem))),
-            React.createElement("div", { style: { background: C.surfaceAlt, border: `1px solid ${phases[actP].c}44`, borderRadius: 10, padding: "6px 12px", marginBottom: 12, fontSize: 11, color: phases[actP].c, fontWeight: 700 } },
+            custom && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, border: `2px solid ${C.ink}`, borderRadius: 6, padding: "9px 12px", marginBottom: 12, fontSize: 13, fontWeight: 700 } },
+                React.createElement("span", { style: { flex: 1 } }, "Programme perso actif : « " + progInfo(ACTIVE_GYM).label + " ». Charges, fourchettes et repos viennent de ton programme, puis le coach les fait progresser."),
+                React.createElement("button", { onClick: () => setTab("programmes"), style: { padding: "6px 10px", borderRadius: 999, border: `1.5px solid ${C.ink}`, background: "transparent", fontWeight: 800, fontSize: 12, cursor: "pointer", whiteSpace: "nowrap" } }, "Modifier")),
+            !custom && phaseHint,
+            !custom && React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 10, flexWrap: "wrap" } }, phases.map((p, i) => React.createElement("button", { key: i, onClick: () => setActP(i), style: { padding: "5px 10px", borderRadius: 999, border: `2px solid ${actP === i ? p.c : "transparent"}`, cursor: "pointer", fontSize: 10, fontWeight: 700, background: actP === i ? p.c + "22" : C.surfaceAlt, color: actP === i ? p.c : C.textDim } }, p.sem))),
+            !custom && React.createElement("div", { style: { background: C.surfaceAlt, border: `1px solid ${phases[actP].c}44`, borderRadius: 10, padding: "6px 12px", marginBottom: 12, fontSize: 11, color: phases[actP].c, fontWeight: 700 } },
                 phases[actP].ph,
                 " — ",
                 phases[actP].pct,
@@ -2068,7 +2545,7 @@ function SportSection({ initialTab } = {}) {
                 React.createElement("b", { style: { color: C.text } }, "/côté"),
                 " = par côté · ",
                 React.createElement("b", { style: { color: C.text } }, "s"),
-                " = secondes. Le poids affiché = charge cible pour la phase choisie ci-dessus. Repos indiqué ",
+                " = secondes. " + (custom ? "Le poids affiché = charge de ton programme. " : "Le poids affiché = charge cible pour la phase choisie ci-dessus. ") + "Repos indiqué ",
                 React.createElement("b", { style: { color: C.text } }, "⏱ par exercice"),
                 " (2-3 min sur les gros mouvements lourds, 45-90 s sur l'isolation).",
                 React.createElement("div", { style: { marginTop: 6, paddingTop: 6, borderTop: `1px solid ${C.borderSoft}` } },
@@ -2091,7 +2568,7 @@ function SportSection({ initialTab } = {}) {
                         cr ? React.createElement("span", { style: { fontSize: 11, color: crCol, fontWeight: 800 } }, detailWithRange(ex.detail, cr.range) + (cr.src === "science" ? " 🔬" : " 🔁"), detailWithRange(ex.detail, cr.range) !== ex.detail && React.createElement("span", { style: { color: C.textDim, fontWeight: 400, textDecoration: "line-through", marginLeft: 5 } }, ex.detail))
                             : React.createElement("span", { style: { fontSize: 11, color: C.amberLight, fontWeight: 700 } }, ex.detail)),
                     React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 6, marginLeft: 19, marginTop: 3, flexWrap: "wrap" } },
-                        React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: phases[actP].c, background: phases[actP].c + "18", padding: "2px 7px", borderRadius: 5 } }, phases[actP].sem),
+                        React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: se.custom ? C.textMut : phases[actP].c, background: se.custom ? C.surfaceAlt : phases[actP].c + "18", padding: "2px 7px", borderRadius: 5 } }, se.custom ? "Charge" : phases[actP].sem),
                         React.createElement("span", { style: { fontSize: 12, fontWeight: 700 } }, (() => { const _b = parseFloat(ex.charges[actP]); return (sciCfg?.deload) ? (isNaN(_b) ? ex.charges[actP] : Math.round(_b * 0.6 * 2) / 2 + "kg") : ex.charges[actP]; })()),
                         sciW && !(sciCfg?.deload) && React.createElement("span", { style: { fontSize: 10, fontWeight: 800, color: C.blue, background: C.blue + "18", padding: "2px 8px", borderRadius: 5 } },
                             "🔬 ",
@@ -2102,7 +2579,7 @@ function SportSection({ initialTab } = {}) {
                         React.createElement("span", { style: { fontSize: 10, fontWeight: 700, color: C.textMut, background: C.surfaceAlt, padding: "2px 7px", borderRadius: 5 } },
                             "⏱ ",
                             reposFor(se.id, ex.nom))),
-                    React.createElement("div", { style: { display: "flex", gap: 10, marginLeft: 19, marginTop: 4, flexWrap: "wrap" } }, ex.charges.map((ch, pi) => pi !== actP && React.createElement("span", { key: pi, style: { fontSize: 10, color: C.textDim } },
+                    !se.custom && React.createElement("div", { style: { display: "flex", gap: 10, marginLeft: 19, marginTop: 4, flexWrap: "wrap" } }, ex.charges.map((ch, pi) => pi !== actP && React.createElement("span", { key: pi, style: { fontSize: 10, color: C.textDim } },
                         phases[pi].sem,
                         ": ",
                         ch))),
@@ -2203,16 +2680,18 @@ function mealScaling(meals, target) {
 /* Menu complet d'un jour : repas + horaires du profil, cible du jour (−400 kcal les jours de repos)
    et portions recalées pour que la somme des repas = cible. Partagé par Repas et Journal. */
 const REST_CUT = 400;
-function dayMenu(dayType, profile, mealAlt, bt) {
+/* `extra` = kcal dépensées en plus ce jour-là (natation enregistrée) : ajoutées à la cible, les portions suivent */
+function dayMenu(dayType, profile, mealAlt, bt, extra) {
     const plan = dayPlan(dayType, profile, mealAlt);
     const base = bt?.cal ? bt.cal.target : macrosTarget.kcal;
-    const dayTgt = dayType === "rest" ? Math.max(base - REST_CUT, bt?.cal ? bt.cal.bmr : 0) : base;
+    const swimExtra = Math.max(0, Math.round(extra || 0));
+    const dayTgt = (dayType === "rest" ? Math.max(base - REST_CUT, bt?.cal ? bt.cal.bmr : 0) : base) + swimExtra;
     const dayMacros = macrosFor(dayTgt, bt?.cal ? bt.prot : macrosTarget.p);
     const { itemF } = mealScaling(plan.meals, { ...dayMacros, kcal: dayTgt });
     const mealMacros = plan.meals.map(r => r.items.reduce((a, it) => it.t ? a : { p: a.p + it.p * itemF(it), g: a.g + it.g * itemF(it), l: a.l + it.l * itemF(it) }, { p: 0, g: 0, l: 0 }));
     const menuTot = mealMacros.reduce((a, m) => ({ p: a.p + m.p, g: a.g + m.g, l: a.l + m.l }), { p: 0, g: 0, l: 0 });
     const menuKcal = Math.round(menuTot.p * 4 + menuTot.g * 4 + menuTot.l * 9);
-    return { ...plan, dayTgt, dayMacros, itemF, mealMacros, menuTot, menuKcal };
+    return { ...plan, dayTgt, swimExtra, dayMacros, itemF, mealMacros, menuTot, menuKcal };
 }
 const activityOpts = [{ l: "Sédentaire", v: 1.2 }, { l: "Léger", v: 1.375 }, { l: "Modéré", v: 1.55 }, { l: "Élevé", v: 1.725 }];
 const objectifOpts = [{ l: "−500 kcal", v: 500 }, { l: "−550 kcal", v: 550 }, { l: "−700 kcal", v: 700 }, { l: "−1000 kcal", v: 1000 }, { l: "Maintien", v: 0 }];
@@ -2357,11 +2836,12 @@ function NutritionJournal() {
     const [custom, setCustom] = useStored("foods-custom", []);
     const [profile] = useStored("profil", PROFILE_DEFAULT);
     const [sLogs] = useStored("sport-logs", []);
+    const [swLogs] = useStored("natation-logs", []);
     const G = C.green;
     useEffect(() => { Promise.all([load("food-log", {}), load("nutri-logs", []), load("nutri-cal-cfg", null), load("taille-corps", ""), load("mensurations", []), load("repas-alts", {})]).then(([lg, n, c, h, m, a]) => { setLog(lg || {}); setNLogs(n || []); setCfg(normCalCfg(c)); setCm(parseFloat(h) || 0); setMens(m || []); setAlts(a || {}); setLoading(false); }); }, []);
     const dayType = sessionForDate(selDate, resolveProgramme(profile, sLogs)) ? "training" : "rest";
     const bt = bodyTargets(nLogs, mens, cm, cfg);
-    const menu = dayMenu(dayType, profile, alts, bt);
+    const menu = dayMenu(dayType, profile, alts, bt, swimKcalOn(swLogs, selDate));
     const target = { ...menu.dayMacros, kcal: menu.dayTgt };
     const foods = log[selDate] || [];
     const tot = foods.reduce((a, f) => ({ p: a.p + f.p, gl: a.gl + f.gl, l: a.l + f.l, kcal: a.kcal + f.kcal }), { p: 0, gl: 0, l: 0, kcal: 0 });
@@ -2397,7 +2877,7 @@ function NutritionJournal() {
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 2 } },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 800, color: C.greenLight } }, "📓 " + (dayType === "rest" ? "Jour de repos" : "Jour d'entraînement")),
                 React.createElement("div", { style: { fontSize: 18, fontWeight: 800, color: G } }, tot.kcal, React.createElement("span", { style: { fontSize: 11, color: C.textMut } }, " / " + target.kcal + " kcal"))),
-            React.createElement("div", { style: { fontSize: 10.5, color: left >= 0 ? C.textMut : C.danger, marginBottom: 10 } }, left >= 0 ? "Reste " + left + " kcal" : "Dépassement de " + (-left) + " kcal", bt.cal ? "" : " · cible de base (renseigne 🔥 Calories)"),
+            React.createElement("div", { style: { fontSize: 10.5, color: left >= 0 ? C.textMut : C.danger, marginBottom: 10 } }, left >= 0 ? "Reste " + left + " kcal" : "Dépassement de " + (-left) + " kcal", menu.swimExtra ? " · dont +" + menu.swimExtra + " kcal natation" : "", bt.cal ? "" : " · cible de base (renseigne 🔥 Calories)"),
             bar("Protéines", tot.p, target.p, C.prot),
             bar("Glucides", tot.gl, target.g, C.gluc),
             bar("Lipides", tot.l, target.l, C.lip)),
@@ -2462,7 +2942,8 @@ function NutritionSection({ initialTab } = {}) {
     const { cal: calRes, macros: calMacros } = bt;
     const calTgt = calRes ? calRes.target : null;
     const kcalCible = macrosTarget.kcal;
-    const menu = dayMenu(day, profile, mealAlt, bt);
+    const [swLogsN] = useStored("natation-logs", []);
+    const menu = dayMenu(day, profile, mealAlt, bt, swimKcalOn(swLogsN, isoToday()));
     const { meals: repasEff, dayTgt, dayMacros, itemF, mealMacros, menuTot, menuKcal } = menu;
     const planning = menu.timeline.map(x => [x.h, x.t]);
     const tabs = [["resume", "Résumé"], ["cal", "🔥 Calories"], ["repas", "Repas"], ["journal", "📓 Journal"], ["aliments", "Aliments"], ["complements", "Compléments"], ["suivi", "📊 Suivi"], ["corps", "📐 Corps"], ["conseils", "Conseils"]];
@@ -2506,6 +2987,7 @@ function NutritionSection({ initialTab } = {}) {
                     " (−",
                     REST_CUT,
                     " kcal sur les glucides)") : "",
+                menu.swimExtra ? React.createElement("span", null, " · ", React.createElement("b", { style: { color: C.swim } }, "+" + menu.swimExtra + " kcal natation"), " aujourd'hui") : "",
                 ". Portions et macros de chaque repas recalculées pour tomber sur ce total.")
                 : React.createElement("div", { style: { background: C.surfaceAlt, border: `1px solid ${C.borderSoft}`, borderRadius: 12, padding: "9px 12px", marginBottom: 12, fontSize: 11, color: C.textMut } },
                     "Menu calé sur l'objectif de base (",
@@ -2919,6 +3401,8 @@ function ScienceSection() {
     const [calRaw, setCalRaw] = useState(null);
     const [cfg, setCfg] = useStored("science-config", SCI_DEFAULT);
     const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [swLogsS] = useStored("natation-logs", []);
+    const [swModelsS] = useStored("natation-modeles", []);
     const [loading, setLoading] = useState(true);
     const [tab, setTab] = useState("bilan");
     useEffect(() => { Promise.all([load("sport-logs", []), load("maison-logs", []), load("nutri-logs", []), load("nutri-cal-cfg", null)]).then(([s, m, n, c]) => { setSportLogs(s || []); setMaisonLogs(m || []); setNutriLogs(n || []); setCalRaw(c); setLoading(false); }); }, []);
@@ -2971,8 +3455,9 @@ function ScienceSection() {
     } };
     /* ── Semaine ── */
     const prog = resolveProgramme(profile, sportLogs);
-    const nDays = programmeDays(prog).length;
-    const train7 = new Set([...sportLogs, ...maisonLogs].filter(l => withinDays(l.dateISO, 7)).map(l => l.dateISO)).size;
+    const nDays = programmeDays(prog).length + swimDaysCount(swModelsS);
+    const swim7 = swLogsS.filter(l => withinDays(l.dateISO, 7)).length;
+    const train7 = new Set([...sportLogs, ...maisonLogs].filter(l => withinDays(l.dateISO, 7)).map(l => l.dateISO)).size + swim7;
     const wNutri = nutriLogs.filter(l => withinDays(l.dateISO, 7));
     const avgComp = wNutri.length ? Math.round(wNutri.reduce((a, l) => a + l.compliance, 0) / wNutri.length) : null;
     const activeCount = Object.keys(overrides).length + (cfg.deload ? 1 : 0) + (cfg.recovery ? 1 : 0);
@@ -2999,7 +3484,7 @@ function ScienceSection() {
                     cfg.deload && React.createElement("span", { style: { fontSize: 10, background: "#5B4FE015", border: "1px solid #5B4FE033", borderRadius: 8, padding: "3px 8px", color: "#5B4FE0" } }, "🪶 Décharge active"),
                     cfg.recovery && React.createElement("span", { style: { fontSize: 10, background: "#C98A0018", border: "1px solid #C98A0044", borderRadius: 8, padding: "3px 8px", color: "#8A6900" } }, "🛌 Mode récupération"))),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } },
-                stat("Séances / 7j", React.createElement(Fragment, null, train7, React.createElement("span", { style: { fontSize: 12, color: C.textMut, fontWeight: 400 } }, "/" + nDays)), train7 >= nDays ? C.green : train7 >= Math.ceil(nDays / 2) ? C.gluc : C.danger, PROGRAMMES[prog].label + " · " + (train7 >= nDays ? "✅ objectif atteint" : "objectif " + nDays)),
+                stat("Séances / 7j", React.createElement(Fragment, null, train7, React.createElement("span", { style: { fontSize: 12, color: C.textMut, fontWeight: 400 } }, "/" + nDays)), train7 >= nDays ? C.green : train7 >= Math.ceil(nDays / 2) ? C.gluc : C.danger, progInfo(prog).label + (swim7 || swimDaysCount(swModelsS) ? " + natation (" + swim7 + ")" : "") + " · " + (train7 >= nDays ? "✅ objectif atteint" : "objectif " + nDays)),
                 stat("Compliance nutri", avgComp != null ? avgComp + "%" : "—", avgComp == null ? C.textMut : avgComp >= 85 ? C.green : avgComp >= 65 ? C.gluc : C.danger, avgComp == null ? "Pas de données" : avgComp >= 85 ? "✅ Excellente" : avgComp >= 65 ? "🟡 Correcte" : "🔴 Faible"),
                 stat("Poids (moy. 7j)", curW ? curW + "kg" : "—", C.amberLight, weighIns.length ? "Départ : " + weighIns[0].kg + " kg" : "Pas de pesée"),
                 stat("Tendance / sem", rate != null ? (rate > 0 ? "+" : "") + rate + " kg" : "—", pct == null ? C.textMut : pct >= PACE_MIN && pct <= PACE_MAX ? C.green : pct > PACE_SLOW ? C.danger : C.gluc, band ? "Cible : " + band[0] + " à " + band[1] + " kg/sem" : "En attente de pesées")),
@@ -3089,7 +3574,7 @@ catch (e) {
 } }
 const _ip = n => String(n).padStart(2, "0");
 function icsLocal(d) { return d.getFullYear() + _ip(d.getMonth() + 1) + _ip(d.getDate()) + "T" + _ip(d.getHours()) + _ip(d.getMinutes()) + "00"; }
-const STORAGE_KEYS = ["sport-logs", "sport-phase", "nutri-logs", "budget-logs", "mensurations", "photos-index", "douleur-logs", "science-config", "maison-logs", "fin-income", "fin-expenses", "fin-caps", "fin-goal", "taille-corps", "nutri-cal-cfg", "repas-alts", "food-log", "foods-custom", "profil"];
+const STORAGE_KEYS = ["sport-logs", "sport-phase", "nutri-logs", "budget-logs", "mensurations", "photos-index", "douleur-logs", "science-config", "maison-logs", "fin-income", "fin-expenses", "fin-caps", "fin-goal", "taille-corps", "nutri-cal-cfg", "repas-alts", "food-log", "foods-custom", "profil", "programmes", "exos-perso", "natation-modeles", "natation-logs"];
 /* Sur iPhone (app installée), un lien de téléchargement est souvent ignoré :
    on passe par la feuille de partage (Enregistrer dans Fichiers, AirDrop, mail…),
    et on retombe sur le téléchargement classique ailleurs. */
@@ -3274,17 +3759,23 @@ function HomeScreen({ goTo }) {
     const [hCm, setHCm] = useState(0);
     const [hMens, setHMens] = useState([]);
     useEffect(() => { Promise.all([load("sport-logs", []), load("nutri-logs", []), load("budget-logs", []), load("maison-logs", []), load("fin-expenses", []), load("nutri-cal-cfg", null), load("taille-corps", ""), load("mensurations", [])]).then(([s, n, b, m, f, cc, h, me]) => { setSLogs(s); setNLogs(n); setBLogs(b); setMLogs(m); setFExp(f || []); setHCalCfg(normCalCfg(cc)); setHCm(parseFloat(h) || 0); setHMens(me || []); setOk(true); }); }, []);
+    const [swLogs] = useStored("natation-logs", []);
+    const [swModels] = useStored("natation-modeles", []);
     const trainDates = [...new Set([...sLogs.map(l => l.dateISO), ...mLogs.map(l => l.dateISO)])];
-    const train7 = trainDates.filter(d => withinDays(d, 7)).length;
+    // Séances de la semaine : jours de muscu (salle ou maison) + séances de natation
+    const swim7 = swLogs.filter(l => withinDays(l.dateISO, 7)).length;
+    const train7 = trainDates.filter(d => withinDays(d, 7)).length + swim7;
     const nutriStreak = streakFromDates(nLogs.filter(l => l.compliance >= 80).map(l => l.dateISO));
     const creaStreak = streakFromDates(nLogs.filter(l => l.supps && l.supps["Créatine"]).map(l => l.dateISO));
     const weighIns = nLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
     const { cal: hCalRes, macros: hMacros } = bodyTargets(nLogs, hMens, hCm, hCalCfg);
     const [profile] = useStored("profil", PROFILE_DEFAULT);
     const prog = resolveProgramme(profile, sLogs);
-    const nDays = programmeDays(prog).length;
+    const nDays = programmeDays(prog).length + swimDaysCount(swModels);
     const todayISO = isoToday();
     const seanceToday = sessionForDate(todayISO, prog);
+    const swimPlan = swimPlannedFor(swModels, todayISO), swimToday = swLogs.filter(l => l.dateISO === todayISO);
+    const swimKcalToday = swimKcalOn(swLogs, todayISO);
     const todaySeance = seanceToday ? seanceToday.label : null;
     const isRest = !seanceToday;
     const plan = dayPlan(isRest ? "rest" : "training", profile);
@@ -3292,10 +3783,9 @@ function HomeScreen({ goTo }) {
     const todayN = nLogs.find(l => l.dateISO === todayISO);
     const didNutri = !!todayN;
     const didWeigh = !!(todayN && todayN.weight);
-    const doneCount = ((isRest || didTrain) ? 1 : 0) + (didNutri ? 1 : 0) + (didWeigh ? 1 : 0);
-    const todayTgt = hCalRes ? (isRest ? Math.max(hCalRes.target - 400, hCalRes.bmr) : hCalRes.target) : null;
-    const lastW = [...sLogs.map(l => ({ ...l, emoji: salleSeances.find(s => s.id === l.seance)?.emoji || "🏋️", nom: l.seance })), ...mLogs.map(l => ({ ...l, emoji: "🏠", nom: "Maison " + l.seance }))].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).pop() || null;
-    const totalS = sLogs.length + mLogs.length;
+    const todayTgt = hCalRes ? (isRest ? Math.max(hCalRes.target - REST_CUT, hCalRes.bmr) : hCalRes.target) + swimKcalToday : null;
+    const lastW = [...sLogs.map(l => ({ ...l, emoji: seanceById(l.seance)?.emoji || "🏋️", nom: l.seance })), ...mLogs.map(l => ({ ...l, emoji: "🏠", nom: "Maison " + l.seance })), ...swLogs.map(l => ({ ...l, emoji: "🏊", nom: "Natation " + l.distance.toLocaleString("fr-FR") + " m" }))].sort((a, b) => a.dateISO.localeCompare(b.dateISO) || (a.id || 0) - (b.id || 0)).pop() || null;
+    const totalS = sLogs.length + mLogs.length + swLogs.length;
     const wE = nLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
     const latW = wE.length ? wE[wE.length - 1].weight : null;
     const fstW = wE.length ? wE[0].weight : null;
@@ -3312,9 +3802,13 @@ function HomeScreen({ goTo }) {
     const dayLabel = new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "");
     const todo = [
         { t: isRest ? "Repos aujourd'hui" : seanceToday.label + " à " + seanceH, s: isRest ? "récup" : (didTrain ? "faite" : "à faire"), done: isRest || didTrain, go: () => goTo("sport") },
-        { t: plan.meals.length + " repas · " + (todayTgt ? todayTgt.toLocaleString("fr-FR") : macrosTarget.kcal.toLocaleString("fr-FR")) + " kcal", s: didNutri ? todayN.mealsOk + "/" + todayN.mealsTotal + " repas" : "à cocher", done: didNutri && todayN.compliance >= 80, go: () => goTo("nutrition") },
+        { t: plan.meals.length + " repas · " + (todayTgt ? todayTgt.toLocaleString("fr-FR") : (macrosTarget.kcal + swimKcalToday).toLocaleString("fr-FR")) + " kcal", s: (didNutri ? todayN.mealsOk + "/" + todayN.mealsTotal + " repas" : "à cocher") + (swimKcalToday ? " · +" + swimKcalToday + " natation" : ""), done: didNutri && todayN.compliance >= 80, go: () => goTo("nutrition") },
         { t: "Pesée du matin", s: didWeigh ? todayN.weight.toLocaleString("fr-FR") + " kg" : "à faire", done: didWeigh, go: () => goTo("nutrition", "suivi") },
     ];
+    // Natation prévue ou faite aujourd'hui : une ligne de plus
+    if (swimPlan || swimToday.length)
+        todo.splice(1, 0, { t: "🏊 Natation · " + (swimToday.length ? swimToday.reduce((a, l) => a + l.distance, 0) : swimDist(swimPlan)).toLocaleString("fr-FR") + " m", s: swimToday.length ? "faite" : "à faire", done: swimToday.length > 0, go: () => goTo("sport", "natation") });
+    const doneCount = todo.filter(x => x.done).length;
     const week = [
         { v: train7 + "/" + nDays, l: "séances" },
         { v: dW7 == null ? "—" : (dW7 > 0 ? "+" : "") + dW7.toLocaleString("fr-FR"), l: "kg en 7 j", c: dW7 == null ? C.ink : dW7 <= 0 ? C.greenLight : C.amberLight },
@@ -3334,13 +3828,13 @@ function HomeScreen({ goTo }) {
                 diffW != null && React.createElement("em", { style: { background: parseFloat(diffW) <= 0 ? C.green : C.amber } }, (parseFloat(diffW) > 0 ? "+" : "") + String(diffW).replace(".", ",") + " kg"))),
         !latW && ok && React.createElement("p", { className: "home-hint" }, "Ta première pesée apparaîtra ici en grand. Nutrition → Suivi."),
         React.createElement(BackupReminder, { hasData: ok && (sLogs.length + nLogs.length + mLogs.length) > 0 }),
-        React.createElement("div", { className: "home-h" }, React.createElement("span", null, "Aujourd'hui"), React.createElement("b", null, doneCount + "/3")),
+        React.createElement("div", { className: "home-h" }, React.createElement("span", null, "Aujourd'hui"), React.createElement("b", null, doneCount + "/" + todo.length)),
         React.createElement("ul", { className: "home-todo" }, todo.map((x, i) => React.createElement("li", { key: i },
             React.createElement("button", { className: x.done ? "done" : "", onClick: x.go },
                 React.createElement("span", null, x.t),
                 React.createElement("small", null, x.s + " →"))))),
         hMacros && React.createElement("div", { className: "home-macros" },
-            [["Prot.", (isRest ? macrosFor(todayTgt, hMacros.p) : hMacros).p, C.prot], ["Gluc.", (isRest ? macrosFor(todayTgt, hMacros.p) : hMacros).g, C.gluc], ["Lip.", (isRest ? macrosFor(todayTgt, hMacros.p) : hMacros).l, C.lip]].map(([l, v, c]) => React.createElement("div", { key: l }, React.createElement("i", { style: { background: c } }), React.createElement("b", null, v + " g"), React.createElement("span", null, l)))),
+            [["Prot.", (isRest || swimKcalToday ? macrosFor(todayTgt, hMacros.p) : hMacros).p, C.prot], ["Gluc.", (isRest || swimKcalToday ? macrosFor(todayTgt, hMacros.p) : hMacros).g, C.gluc], ["Lip.", (isRest || swimKcalToday ? macrosFor(todayTgt, hMacros.p) : hMacros).l, C.lip]].map(([l, v, c]) => React.createElement("div", { key: l }, React.createElement("i", { style: { background: c } }), React.createElement("b", null, v + " g"), React.createElement("span", null, l)))),
         React.createElement("div", { className: "home-h" }, React.createElement("span", null, "La semaine"), React.createElement("small", null, "7 derniers jours")),
         React.createElement("div", { className: "home-week" }, week.map(w => React.createElement("div", { key: w.l }, React.createElement("b", { style: w.c ? { color: w.c } : null }, w.v), React.createElement("span", null, w.l)))),
         React.createElement("div", { className: "home-streaks" },
@@ -3351,7 +3845,7 @@ function HomeScreen({ goTo }) {
         React.createElement("div", { className: "home-plan" }, plan.timeline.map((x, i) => React.createElement("div", { key: i, className: /Séance/.test(x.t) ? "hl" : "" }, React.createElement("time", null, x.h), React.createElement("span", null, x.t)))),
         React.createElement("button", { className: "home-cta", onClick: async () => { const r = await shareOrDownload("recomp-routine.ics", buildProfileICS(profile, prog), "text/calendar"); if (r === "shared" || r === "downloaded")
                 toast("📅 Ouvre le fichier pour l'ajouter à ton calendrier"); } }, "📅 Ajouter les rappels au calendrier"),
-        React.createElement("p", { className: "home-hint" }, "Réveil, séances (" + PROGRAMMES[prog].label.toLowerCase() + ", " + nDays + " j/sem) et repas aux horaires de ton profil, jours d'entraînement et de repos distincts."),
+        React.createElement("p", { className: "home-hint" }, "Réveil, séances (" + progInfo(prog).label.toLowerCase() + ", " + programmeDays(prog).length + " j/sem) et repas aux horaires de ton profil, jours d'entraînement et de repos distincts."),
         React.createElement("div", { className: "home-cards" },
             React.createElement(ProfileCard, { prog }),
             React.createElement(ProjectionCard, { weighIns: weighIns }),
@@ -3369,6 +3863,7 @@ function Odometer({ value }) {
 /* ═══ PROFIL — programme, créneau de séance, réveil ═══ */
 function ProfileCard({ prog }) {
     const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
+    const [progs] = useStored("programmes", []);
     const [open, setOpen] = useState(false);
     const pr = normProfile(profile);
     const upd = patch => setProfile({ ...pr, ...patch });
@@ -3377,11 +3872,12 @@ function ProfileCard({ prog }) {
     return React.createElement(Card, null,
         React.createElement("button", { onClick: () => setOpen(o => !o), style: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", background: "none", border: "none", padding: 0, cursor: "pointer", color: C.text } },
             React.createElement("span", { style: { fontSize: 13, fontWeight: 800 } }, "⚙️ Mon profil"),
-            React.createElement("span", { style: { fontSize: 10.5, color: C.textMut } }, PROGRAMMES[prog].label + (pr.programme === "auto" ? " (auto)" : "") + " · séance " + CRENEAUX[pr.creneau].seance + " · réveil " + pr.reveil + "  " + (open ? "▲" : "▼"))),
+            React.createElement("span", { style: { fontSize: 10.5, color: C.textMut } }, progInfo(prog).label + (pr.programme === "auto" ? " (auto)" : "") + " · séance " + CRENEAUX[pr.creneau].seance + " · réveil " + pr.reveil + "  " + (open ? "▲" : "▼"))),
         open && React.createElement("div", { style: { marginTop: 12 } },
             React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginBottom: 4 } }, "Programme suivi"),
             React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 4 } }, chip(pr.programme === "auto", () => upd({ programme: "auto" }), "🤖 Auto"), chip(pr.programme === "maison", () => upd({ programme: "maison" }), "🏠 Maison"), chip(pr.programme === "salle", () => upd({ programme: "salle" }), "🏋️ Salle")),
-            React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginBottom: 12 } }, "Auto = salle dès que tu enregistres des séances salle (21 derniers jours), sinon maison. Maison : lun/mer/ven/sam · Salle : lun/mar/mer/ven/sam."),
+            progs.filter(p => customToSeances(p).length).length > 0 && React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 4, flexWrap: "wrap" } }, progs.filter(p => customToSeances(p).length).map(p => React.createElement(Fragment, { key: p.id }, chip(pr.programme === p.id, () => upd({ programme: p.id }), "📋 " + p.name)))),
+            React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginBottom: 12 } }, "Auto = salle dès que tu enregistres des séances salle (21 derniers jours), sinon maison. Maison : lun/mer/ven/sam · Salle : lun/mar/mer/ven/sam. Tes programmes perso se créent dans Sport → 📋 Programmes."),
             React.createElement("div", { style: { fontSize: 10, color: C.textDim, marginBottom: 4 } }, "Créneau de séance"),
             React.createElement("div", { style: { display: "flex", gap: 6, marginBottom: 4 } }, Object.entries(CRENEAUX).map(([k, c]) => React.createElement(Fragment, { key: k }, chip(pr.creneau === k, () => upd({ creneau: k }), c.label + " · " + c.seance)))),
             React.createElement("div", { style: { fontSize: 9.5, color: C.textDim, marginBottom: 12 } }, "Les horaires des repas des jours d'entraînement (pré-séance, shaker…) suivent ce créneau partout dans l'app."),
@@ -3461,6 +3957,14 @@ function TodaySport({ fg, bg, goTab }) {
     const cur = pick || (startedS ? { prog: "salle", code: startedS.seance } : startedM ? { prog: "maison", code: startedM.seance } : planned ? { prog: planned.prog, code: planned.code } : null);
     const before = sLogs.filter(l => l.dateISO < today);
     const rule = TD.rule(fg);
+    // Natation du jour (prévue dans une séance type, ou déjà enregistrée)
+    const [swModels] = useStored("natation-modeles", []);
+    const [swLogs] = useStored("natation-logs", []);
+    const swPlan = swimPlannedFor(swModels, today), swDone = swLogs.filter(l => l.dateISO === today);
+    const swimStrip = (swPlan || swDone.length > 0) && React.createElement("button", { onClick: () => goTab("natation"), style: { display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", border: `2.5px solid ${fg}`, background: swDone.length ? fg : "transparent", color: swDone.length ? bg : fg, borderRadius: 4, padding: "10px 12px", margin: "0 0 14px", cursor: "pointer" } },
+        React.createElement("span", { style: { fontSize: 22 } }, "🏊"),
+        React.createElement("span", { style: { flex: 1, fontSize: 15, fontWeight: 750, lineHeight: 1.25 } }, swDone.length ? "Natation faite : " + swDone.map(l => l.distance.toLocaleString("fr-FR") + " m en " + fmtDur(l.duree)).join(" + ") : "Natation aujourd'hui : " + swPlan.name + " · " + swimDist(swPlan).toLocaleString("fr-FR") + " m"),
+        React.createElement("b", { style: { fontSize: 13, whiteSpace: "nowrap" } }, swDone.length ? "Voir →" : "Le détail →"));
     const pickers = React.createElement("div", { style: { margin: "4px 0 14px" } },
         React.createElement("button", { onClick: () => setShowPick(v => !v), style: { ...TD.chip(fg) } }, showPick ? "Fermer" : (cur ? "Changer de séance" : "Faire une séance quand même")),
         showPick && React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 } },
@@ -3473,6 +3977,16 @@ function TodaySport({ fg, bg, goTab }) {
             if (s)
                 next = { s, d };
         }
+        // Jour sans muscu mais avec natation : l'affiche devient celle de la piscine (lecture seule, rien à cocher)
+        if (swPlan || swDone.length)
+            return React.createElement("div", { style: TD.wrap },
+                React.createElement("div", { style: TD.giant }, "Nage"),
+                React.createElement("p", { style: TD.lead }, swDone.length ? "Séance enregistrée : " + swDone.map(l => l.distance.toLocaleString("fr-FR") + " m en " + fmtDur(l.duree) + " (" + fmtMMSS(Math.round(swimPace(l.distance, l.duree) || 0)) + " /100 m)").join(" + ") + ". +" + swimKcalOn(swLogs, today) + " kcal ajoutées à ta cible du jour." : swPlan.name + " : " + swimDist(swPlan).toLocaleString("fr-FR") + " m, ~" + Math.round(swimDur(swPlan) / 60) + " min, bassin " + swPlan.pool + " m. Lis-la avant d'y aller, enregistre-la en sortant."),
+                swimStrip,
+                swPlan && !swDone.length && React.createElement("div", { style: { ...rule, marginBottom: 14 } }, swPlan.blocks.map((b, i) => React.createElement("div", { key: i, style: { padding: "10px 0", borderBottom: `2px solid ${fg}` } },
+                    React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } }, React.createElement("b", { style: { fontSize: 19, fontWeight: 750 } }, b.t), React.createElement("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 21 } }, (b.reps * b.d).toLocaleString("fr-FR") + " m")),
+                    React.createElement("div", { style: { fontSize: 13.5, fontWeight: 600, marginTop: 2 } }, swimBlockLine(b))))),
+                pickers);
         return React.createElement("div", { style: TD.wrap },
             React.createElement("div", { style: TD.giant }, "Repos"),
             React.createElement("p", { style: TD.lead }, "Pas de séance prévue aujourd'hui. Récupère, marche, étire-toi." + (next ? " Prochaine : " + next.s.label + (next.d === 1 ? " demain." : " dans " + next.d + " jours.") : "")),
@@ -3493,6 +4007,7 @@ function TodaySport({ fg, bg, goTab }) {
         return React.createElement("div", { style: TD.wrap },
             React.createElement("div", { style: TD.giant }, "Maison " + m.code),
             React.createElement("p", { style: TD.lead }, m.titre + ". " + m.format + ". Touche un numéro quand le tour est fait."),
+            swimStrip,
             pickers,
             React.createElement("div", { style: rule }, m.ex.map((x, i) => { const [nom, cible] = x.split("—").map(s => s.trim()); return React.createElement("div", { key: i, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
                 React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } },
@@ -3501,7 +4016,7 @@ function TodaySport({ fg, bg, goTab }) {
                 React.createElement(SetCircles, { count: tours, done: doneOf(nom), onTick: n => tick(i, n), fg, bg })); })),
             m.note && React.createElement("p", { style: { ...TD.lead, fontSize: 13, marginTop: 12 } }, m.note));
     }
-    const se = salleSeances.find(s => s.id === cur.code), log = sLogs.find(l => l.dateISO === today && l.seance === cur.code);
+    const se = seanceById(cur.code) || salleSeances[0], log = sLogs.find(l => l.dateISO === today && l.seance === cur.code);
     const sugg = se.exercices.map(ex => suggestFor(before, cur.code, ex, +phase || 0, sci));
     const rng = ex => currentRangeFor(before, sci, cur.code, ex.nom)?.range || progRangeFor(cur.code, ex.nom);
     const doneOf = ex => { const e = log?.exercices?.find(x => x.nom === ex.nom); return e ? (e.setsDetail?.length || e.sets || 0) : 0; };
@@ -3534,10 +4049,11 @@ function TodaySport({ fg, bg, goTab }) {
     const total = se.exercices.reduce((a, ex) => a + (parseDetail(ex.detail)?.sets || 3), 0), doneAll = se.exercices.reduce((a, ex) => a + Math.min(doneOf(ex), parseDetail(ex.detail)?.sets || 3), 0);
     return React.createElement("div", { style: TD.wrap },
         React.createElement("div", { style: TD.giant }, se.id),
-        React.createElement("p", { style: TD.lead }, se.focus + ". " + (phases[+phase || 0]?.ph || "") + " (" + (phases[+phase || 0]?.sem || "") + "). Touche un numéro de série quand elle est faite." + (sci.deload ? " Semaine de décharge : charges −40 %." : "")),
+        React.createElement("p", { style: TD.lead }, se.focus + ". " + (se.custom ? "Programme « " + progInfo(ACTIVE_GYM).label + " »" : (phases[+phase || 0]?.ph || "") + " (" + (phases[+phase || 0]?.sem || "") + ")") + ". Touche un numéro de série quand elle est faite." + (sci.deload ? " Semaine de décharge : charges −40 %." : "")),
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
             React.createElement("div", { style: { flex: 1, height: 14, border: `2.5px solid ${fg}`, position: "relative" } }, React.createElement("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: (total ? doneAll / total * 100 : 0) + "%", background: fg, transition: "width .5s cubic-bezier(.7,0,.2,1)" } })),
             React.createElement("b", { style: { fontFamily: AN, fontSize: 22, fontWeight: 400 } }, doneAll + "/" + total)),
+        swimStrip,
         pickers,
         React.createElement("div", { style: rule }, se.exercices.map((ex, i) => { const s = sugg[i], r = s.src === "phase" ? progRangeFor(cur.code, ex.nom) : rng(ex), sets = parseDetail(ex.detail)?.sets || 3; return React.createElement("div", { key: ex.nom, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
             React.createElement("div", { style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "baseline" } },
@@ -3555,10 +4071,11 @@ function TodayNutrition({ fg, bg, goTab }) {
     const [h] = useStored("taille-corps", "");
     const [cfg] = useStored("nutri-cal-cfg", null);
     const [food] = useStored("food-log", {});
+    const [swLogs] = useStored("natation-logs", []);
     const today = isoToday(), tl = nLogs.find(l => l.dateISO === today);
     const planned = sessionForDate(today, resolveProgramme(profile, sLogs)) ? "training" : "rest";
     const dayType = tl?.dayType || planned;
-    const menu = dayMenu(dayType, profile, alts, bodyTargets(nLogs, mens, parseFloat(h) || 0, normCalCfg(cfg)));
+    const menu = dayMenu(dayType, profile, alts, bodyTargets(nLogs, mens, parseFloat(h) || 0, normCalCfg(cfg)), swimKcalOn(swLogs, today));
     const rows = menu.meals.map((m, i) => { const mm = menu.mealMacros[i]; return { id: MEAL_ID[m.m], m, kcal: Math.round(mm.p * 4 + mm.g * 4 + mm.l * 9) }; }).filter(r => r.id);
     const meals = tl?.meals || {};
     const eaten = rows.filter(r => meals[r.id]).reduce((a, r) => a + r.kcal, 0);
@@ -3570,7 +4087,7 @@ function TodayNutrition({ fg, bg, goTab }) {
     const pct = Math.min(100, tot / menu.dayTgt * 100);
     return React.createElement("div", { style: TD.wrap },
         React.createElement("div", { style: { ...TD.giant, fontVariantNumeric: "tabular-nums" } }, tot.toLocaleString("fr-FR")),
-        React.createElement("p", { style: TD.lead }, "sur " + menu.dayTgt.toLocaleString("fr-FR") + " kcal aujourd'hui. Barre un repas quand il est mangé." + (extras ? " Dont " + extras + " kcal hors menu (journal)." : "")),
+        React.createElement("p", { style: TD.lead }, "sur " + menu.dayTgt.toLocaleString("fr-FR") + " kcal aujourd'hui" + (menu.swimExtra ? " (+" + menu.swimExtra + " kcal de natation)" : "") + ". Barre un repas quand il est mangé." + (extras ? " Dont " + extras + " kcal hors menu (journal)." : "")),
         React.createElement("div", { style: { height: 16, border: `2.5px solid ${fg}`, position: "relative", margin: "0 0 12px" } }, React.createElement("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: pct + "%", background: fg, transition: "width .6s cubic-bezier(.7,0,.2,1)" } })),
         React.createElement("div", { style: { marginBottom: 14 } }, React.createElement("button", { onClick: () => write({ ...meals }, dayType === "training" ? "rest" : "training"), style: TD.chip(fg) }, (dayType === "training" ? "🏋️ Jour d'entraînement" : "🛌 Jour de repos") + (dayType === planned ? "" : " (modifié)") + " · changer")),
         React.createElement("div", { style: TD.rule(fg) }, rows.map(r => { const on = !!meals[r.id]; return React.createElement("button", { key: r.id, onClick: () => toggle(r.id), "aria-pressed": on, style: { position: "relative", width: "100%", display: "grid", gridTemplateColumns: "54px 1fr auto", gap: 8, alignItems: "baseline", padding: "12px 0", border: 0, borderBottom: `2px solid ${fg}`, background: "none", color: fg, textAlign: "left", cursor: "pointer" } },
@@ -3621,14 +4138,17 @@ function usePosterInfo() {
     const [h] = useStored("taille-corps", "");
     const [cfg] = useStored("nutri-cal-cfg", null);
     const [fin] = useStored("fin-expenses", []);
-    const prog = resolveProgramme(profile, sLogs), today = sessionForDate(isoToday(), prog);
+    const [swModels] = useStored("natation-modeles", []);
+    const [swLogs] = useStored("natation-logs", []);
+    const iso = isoToday(), prog = resolveProgramme(profile, sLogs), today = sessionForDate(iso, prog);
     const bt = bodyTargets(nLogs, mens, parseFloat(h) || 0, normCalCfg(cfg));
-    const tgt = dayMenu(today ? "training" : "rest", profile, {}, bt).dayTgt;
+    const tgt = dayMenu(today ? "training" : "rest", profile, {}, bt, swimKcalOn(swLogs, iso)).dayTgt;
+    const swim = swLogs.some(l => l.dateISO === iso) || !!swimPlannedFor(swModels, iso);
     const weigh = nLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
     const rate = weigh.length >= 2 ? weeklyRate(weigh) : null;
     const dep7 = Math.round(fin.filter(e => withinDays(e.dateISO, 7)).reduce((a, e) => a + (+e.montant || 0), 0));
     return {
-        sport: today ? today.emoji + " " + today.label + " · " + CRENEAUX[normProfile(profile).creneau].seance : "Repos aujourd'hui",
+        sport: today ? today.emoji + " " + today.label + " · " + CRENEAUX[normProfile(profile).creneau].seance + (swim ? " · 🏊" : "") : swim ? "🏊 Natation aujourd'hui" : "Repos aujourd'hui",
         nutrition: tgt.toLocaleString("fr-FR") + " kcal" + (today ? "" : " · repos"),
         budget: dep7 + " € · 7 jours",
         review: rate == null ? "Tendance du poids" : (rate > 0 ? "+" : "") + rate.toLocaleString("fr-FR") + " kg/sem",
@@ -3641,6 +4161,11 @@ function App() {
     const [compact, setCompact] = useState(false);
     const [arrived, setArrived] = useState(false);
     const openRef = useRef(null);
+    // Programme actif : appliqué avant tout le reste du rendu (les séances perso remplacent le PPL partout)
+    const [progs, , progsReady] = useStored("programmes", []);
+    const [profileA, , profileReady] = useStored("profil", PROFILE_DEFAULT);
+    if (progsReady && profileReady)
+        syncPrograms(progs, profileA);
     const info = usePosterInfo();
     useEffect(() => { const t = setTimeout(() => setArrived(true), 700); return () => clearTimeout(t); }, []);
     // Le bouton « retour » du téléphone referme l'affiche ouverte
@@ -3712,5 +4237,6 @@ class ErrorBoundary extends React.Component {
             React.createElement("button", { onClick: () => this.setState({ err: null }), style: { padding: "12px 22px", borderRadius: 12, border: "none", background: C.green, color: "#04140a", fontWeight: 800, fontSize: 15 } }, "Réessayer"));
     }
 }
-ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(App)));
+// Le programme actif est chargé avant le premier affichage : pas de passage furtif par le PPL
+Promise.all([load("programmes", []), load("profil", PROFILE_DEFAULT)]).then(([p, pr]) => syncPrograms(p, pr)).catch(() => { }).finally(() => ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(ErrorBoundary, null, React.createElement(App))));
 
