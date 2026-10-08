@@ -231,6 +231,7 @@ const nutritionConseils = [{ t: "Prépare la veille", d: "Patate douce, œufs, q
 const PROFILE_DEFAULT = { programme: "auto", creneau: "midi", reveil: "6h45" };
 const PROGRAMMES = {
     maison: { label: "Maison", days: { 1: "A", 3: "B", 5: "C", 6: "D" } },
+    aucun: { label: "Natation seule", days: {} },
     salle: { label: "Salle", days: { 1: "Push", 2: "Pull", 3: "Legs", 5: "Upper", 6: "Lower" } },
 };
 const ICS_DAYS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
@@ -773,7 +774,7 @@ function suggestFor(logs, seanceId, ex, phaseIdx, sci) {
         src = "science";
     }
     else if (last) {
-        const p = progressFor(seanceId, last, sci?.recovery, logs);
+        const p = progressFor(seanceId, last, recupMode(sci), logs);
         weight = p.weight;
         reps = p.reps || reps;
         src = "coach";
@@ -925,7 +926,7 @@ function SuiviSport() {
                 "🪶 Semaine de décharge ",
                 deloadDay ? "✓" : ""),
             deloadDay && React.createElement("div", { style: { fontSize: 10, color: "#4A3FCB", marginBottom: 10 } }, "Charges réduites de 40 %, volume maintenu. Réglage partagé avec l'onglet Salle et Science. Les PR ne sont pas comptabilisés."),
-            React.createElement(RestTimer, { color: C.amber, recovery: !!sci.recovery }),
+            React.createElement(RestTimer, { color: C.amber, recovery: recupMode(sci) }),
             (() => { const hit = se.exercices.map(ex => ({ ex, p: painFor(ex.nom, pains) })).filter(x => x.p.length); if (!hit.length)
                 return null; const zones = [...new Set(hit.flatMap(x => x.p.map(p => p.zone + " " + p.i + "/10")))]; return React.createElement(Card, { border: C.danger + "66", style: { background: `linear-gradient(135deg,${C.danger}18,${C.surface})` } },
                 React.createElement("div", { style: { fontSize: 12.5, fontWeight: 800, color: C.danger, marginBottom: 4 } }, "🩹 Douleur récente : " + zones.join(" · ")),
@@ -1983,13 +1984,16 @@ function CoachSport() {
     const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
     const A = C.amber;
     const vol = weeklyMuscleVolume(sLogs, 7);
-    const sugg = nextSuggestions(sLogs, !!sci.recovery);
+    const sugg = nextSuggestions(sLogs, recupMode(sci));
     const gate = maisonGate(mLogs, dLogs);
     const prog = resolveProgramme(profile, sLogs);
     if (loading)
         return React.createElement("div", { style: { color: C.textMut, padding: 20 } }, "Chargement…");
     const actionCfg = { up: { c: C.green, e: "⬆️" }, range: { c: C.blue, e: "↕️" }, reps: { c: A, e: "🔁" }, hold: { c: C.gluc, e: "⏸️" }, keep: { c: C.textMut, e: "✓" } };
     return React.createElement("div", null,
+        RECUP_TODAY != null && RECUP_TODAY < 50 && !sci.recovery && React.createElement(Card, { border: C.danger + "66" },
+            React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 2 } }, "🫀 Récupération du matin : " + RECUP_TODAY + "/100"),
+            React.createElement("div", { style: { fontSize: 11.5, color: C.textMut, lineHeight: 1.45 } }, "Mode récup automatique aujourd'hui : aucune hausse de charge proposée, charges et reps de la dernière séance gardées. Il repart demain avec ta prochaine saisie.")),
         React.createElement(Card, { border: gate.ready ? C.green + "55" : C.border },
             React.createElement("div", { style: { fontSize: 13, fontWeight: 800, marginBottom: 2 } },
                 gate.ready ? "✅" : "🏠",
@@ -2469,14 +2473,14 @@ function SportSection({ initialTab } = {}) {
         { l: "Poids", v: (curW || startW) + " kg", s: curW && curW !== startW ? "départ " + startW + " kg (" + (curW - startW > 0 ? "+" : "") + Math.round((curW - startW) * 10) / 10 + ")" : "départ" },
         { l: "Semaine", v: weekN ? "S" + weekN : "—", s: suggestedP != null ? phases[suggestedP].ph + " conseillée" : "aucune séance" },
         { l: "Fréquence", v: programmeDays(prog).length + "j/sem", s: progInfo(prog).label.toLowerCase() + " · lever " + pr.reveil },
-        profil[3],
+        pr.owner ? profil[3] : { l: "Niveau", v: LEVELS[LEVEL - 1].name, s: "niveau " + LEVEL + " sur 4" },
     ];
     const phaseHint = suggestedP != null && suggestedP !== actP && React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, fontSize: 10.5, color: C.textMut, background: C.surfaceAlt, borderRadius: 10, padding: "7px 10px", marginBottom: 10 } },
         React.createElement("span", { style: { flex: 1 } }, "📆 Semaine " + weekN + " du programme → ", React.createElement("b", { style: { color: phases[suggestedP].c } }, phases[suggestedP].ph), " conseillée."),
         React.createElement("button", { onClick: () => { setActP(suggestedP); toast("🎯 " + phases[suggestedP].ph + " appliquée"); }, style: { padding: "4px 10px", borderRadius: 8, border: `1px solid ${phases[suggestedP].c}`, background: "transparent", color: phases[suggestedP].c, fontSize: 10.5, fontWeight: 700, cursor: "pointer" } }, "Appliquer"));
     const se = salleSeances.find(s => s.id === actS) || salleSeances[0];
     const custom = ACTIVE_GYM !== "salle";
-    const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", custom ? "🏋️ " + progInfo(ACTIVE_GYM).label : "Salle"], ["natation", "🏊 Natation"], ["programmes", "📋 Programmes"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["rm", "💪 Plan RM"], ["coach", "🧠 Coach"], ["douleur", "🩹 Douleur"], ["conseils", "Conseils"]];
+    const tabs = [["resume", "Résumé"], ["maison", "Maison"], ["salle", custom ? "🏋️ " + progInfo(ACTIVE_GYM).label : "Salle"], ["natation", "🏊 Natation"], ["programmes", "📋 Programmes"], ["progression", "Progression"], ["suivi", "📊 Suivi"], ["rm", lx("💪 Max estimés", "💪 Plan RM")], ["coach", "🧠 Coach"], ["douleur", "🩹 Douleur"], ["conseils", "Conseils"]].filter(([k]) => tabOk("sport", k) && (k !== "maison" || LEVEL >= 4 || prog === "maison") && (k !== "salle" || LEVEL >= 4 || prog !== "maison"));
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.amber }, l))),
         tab === "resume" && React.createElement("div", null,
@@ -2486,7 +2490,7 @@ function SportSection({ initialTab } = {}) {
                 React.createElement("div", { style: { fontSize: 11, color: C.textMut } }, p.s)))),
             React.createElement(Card, { border: C.danger + "33" },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.danger, marginBottom: 8 } }, "⚠️ Règles de sécurité"),
-                regles.map((r, i) => React.createElement("div", { key: i, style: { fontSize: 12, color: C.text, lineHeight: 1.5, marginBottom: 6, paddingLeft: 12, position: "relative" } },
+                (pr.owner ? regles : REGLES_GEN).map((r, i) => React.createElement("div", { key: i, style: { fontSize: 12, color: C.text, lineHeight: 1.5, marginBottom: 6, paddingLeft: 12, position: "relative" } },
                     React.createElement("span", { style: { position: "absolute", left: 0, color: C.danger } }, "•"),
                     r))),
             React.createElement(Card, null,
@@ -2694,7 +2698,7 @@ function dayMenu(dayType, profile, mealAlt, bt, extra) {
     return { ...plan, dayTgt, swimExtra, dayMacros, itemF, mealMacros, menuTot, menuKcal };
 }
 const activityOpts = [{ l: "Sédentaire", v: 1.2 }, { l: "Léger", v: 1.375 }, { l: "Modéré", v: 1.55 }, { l: "Élevé", v: 1.725 }];
-const objectifOpts = [{ l: "−500 kcal", v: 500 }, { l: "−550 kcal", v: 550 }, { l: "−700 kcal", v: 700 }, { l: "−1000 kcal", v: 1000 }, { l: "Maintien", v: 0 }];
+const objectifOpts = [{ l: "+250 kcal", v: -250 }, { l: "−300 kcal", v: 300 }, { l: "−500 kcal", v: 500 }, { l: "−550 kcal", v: 550 }, { l: "−700 kcal", v: 700 }, { l: "−1000 kcal", v: 1000 }, { l: "Maintien", v: 0 }];
 function NutritionCalories() {
     const [nLogs, setNLogs] = useState([]);
     const [mens, setMens] = useState([]);
@@ -2946,7 +2950,7 @@ function NutritionSection({ initialTab } = {}) {
     const menu = dayMenu(day, profile, mealAlt, bt, swimKcalOn(swLogsN, isoToday()));
     const { meals: repasEff, dayTgt, dayMacros, itemF, mealMacros, menuTot, menuKcal } = menu;
     const planning = menu.timeline.map(x => [x.h, x.t]);
-    const tabs = [["resume", "Résumé"], ["cal", "🔥 Calories"], ["repas", "Repas"], ["journal", "📓 Journal"], ["aliments", "Aliments"], ["complements", "Compléments"], ["suivi", "📊 Suivi"], ["corps", "📐 Corps"], ["conseils", "Conseils"]];
+    const tabs = [["resume", "Résumé"], ["cal", lx("🎯 Mon objectif", "🔥 Calories")], ["repas", "Repas"], ["journal", "📓 Journal"], ["aliments", "Aliments"], ["complements", "Compléments"], ["suivi", "📊 Suivi"], ["corps", "📐 Corps"], ["conseils", "Conseils"]].filter(([k]) => tabOk("nutrition", k));
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.green }, l))),
         tab === "resume" && React.createElement("div", null,
@@ -3316,7 +3320,7 @@ function BudgetSection() {
     const filtered = cat === "Tous" ? budgetAliments : budgetAliments.filter(a => a.cat === cat);
     const totalF = filtered.reduce((a, x) => a + x.sem, 0);
     const totalPostes = postes.reduce((a, p) => a + p.val, 0);
-    const tabs = [["resume", "📊 Résumé"], ["finances", "💰 Finances"], ["aliments", "🛒 Aliments"], ["alternatives", "💸 Alternatives"], ["suivi", "📊 Suivi"], ["conseils", "💡 Conseils"]];
+    const tabs = [["resume", "📊 Résumé"], ["finances", "💰 Finances"], ["aliments", "🛒 Aliments"], ["alternatives", "💸 Alternatives"], ["suivi", "📊 Suivi"], ["conseils", "💡 Conseils"]].filter(([k]) => tabOk("budget", k));
     return React.createElement("div", null,
         React.createElement("div", { style: { display: "flex", gap: 6, overflowX: "auto", paddingBottom: 14 } }, tabs.map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.budget }, l))),
         tab === "finances" && React.createElement(FinancePerso, null),
@@ -3387,14 +3391,477 @@ function BudgetSection() {
                 c.t),
             React.createElement("div", { style: { fontSize: 12, color: C.textMut, lineHeight: 1.5 } }, c.d)))));
 }
-/* ═══ REVIEW DATA ═══ */
-/* ═══ AJUSTEMENTS SCIENTIFIQUES ═══ */
+/* ═══ RÉCUPÉRATION DU MATIN ═══
+ * "recup-logs" = [{ id, dateISO, ans (statut SNA −10…+10), rmssd (VFC, ms), fc (FC nocturne, bpm), sleep (h) }] : saisie Polar du matin.
+ * "bilans"     = [{ id, dateISO, nom, valeur, unite, lo, hi }] : prises de sang, jamais dans le score.
+ * Score /100 = moyenne pondérée des facteurs disponibles (un facteur sans données est retiré et les poids sont recalculés).
+ * Chaque ligne de détail porte son type : m = mesuré (montre, balance), c = calculé (formule sur tes logs), e = estimé (tendance probable). */
+let RECUP_TODAY = null, RECUP_RES = null; // calculés par App à chaque rendu
+/* Sous 50 le matin, le coach passe tout seul en mode récup (aucune hausse de charge ce jour-là) */
+const recupMode = sci => !!(sci?.recovery || (RECUP_TODAY != null && RECUP_TODAY < 50));
+const RECUP_W = { nerv: .30, sleep: .20, charge: .15, muscle: .15, fc: .10, energy: .10 };
+const RECUP_ORDER = ["nerv", "sleep", "charge", "muscle", "fc", "energy"];
+const RECUP_NAMES = { nerv: "Système nerveux", sleep: "Sommeil", charge: "Charge d'entraînement", muscle: "Fatigue musculaire", fc: "FC nocturne", energy: "Énergie" };
+const LEG_MUSCLES = ["Quadriceps", "Ischios", "Fessiers", "Mollets"], UPPER_MUSCLES = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps"];
+const regionOf = nom => { const m = muscleOf(nom); return LEG_MUSCLES.includes(m) ? "legs" : UPPER_MUSCLES.includes(m) ? "upper" : null; };
+const PAIN_REGION = { "Genou droit": ["legs"], "Pied droit": ["legs"], "Hanche": ["legs"], "Épaule": ["upper"], "Poignet": ["upper"], "Coude": ["upper"], "Bas du dos": ["legs", "upper"] };
+const MAISON_REGION = { A: ["legs"], B: ["upper"], C: ["legs", "upper"], D: ["legs", "upper"] };
+const REGION_FR = { legs: "jambes", upper: "haut du corps", both: "corps entier" };
+const exSets = e => e.setsDetail?.length || e.sets || 0;
+const rClamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
+const avgOf = a => a.reduce((s, v) => s + v, 0) / a.length;
+const frN = (v, d = 1) => Number(v).toLocaleString("fr-FR", { maximumFractionDigits: d });
+const sgn = (v, d = 1) => (v > 0 ? "+" : v < 0 ? "−" : "") + frN(Math.abs(v), d);
+const fmtHM = h => { let H = Math.floor(h), M = Math.round((h - H) * 60); if (M === 60) {
+    H++;
+    M = 0;
+} return H + " h " + String(M).padStart(2, "0"); };
+/* « 7:45 », « 7h45 », « 7,5 » → heures */
+function parseSleepH(s) { const t = String(s ?? "").trim().replace(",", "."); if (!t)
+    return null; const m = t.match(/^(\d{1,2})\s*[h:]\s*(\d{1,2})?$/i); if (m)
+    return +m[1] + (+m[2] || 0) / 60; const v = parseFloat(t); return isFinite(v) ? v : null; }
+function recupVerdict(s) { return s >= 80 ? { t: "Prêt pour une séance intense", short: "prêt", c: C.green } : s >= 65 ? { t: "Séance normale", short: "séance normale", c: C.green } : s >= 50 ? { t: "Séance allégée", short: "séance allégée", c: C.gluc } : { t: "Repos actif", short: "repos actif", c: C.danger }; }
+const recupTone = v => v >= 75 ? { c: C.green, tc: C.greenLight, t: "bon" } : v >= 55 ? { c: C.gluc, tc: C.blueLight, t: "moyen" } : { c: C.danger, tc: C.danger, t: "bas" };
+/* Muscles travaillés par une séance prévue : jambes, haut du corps ou les deux */
+function sessionRegion(s) {
+    if (!s)
+        return null;
+    if (s.prog === "maison") {
+        const r = MAISON_REGION[s.code] || ["legs", "upper"];
+        return r.length > 1 ? "both" : r[0];
+    }
+    const se = seanceById(s.code);
+    if (!se)
+        return "both";
+    let L = 0, U = 0;
+    se.exercices.forEach(e => { const r = regionOf(e.nom), n = parseRepRange(e.detail)?.sets || 3; if (r === "legs")
+        L += n;
+    else if (r === "upper")
+        U += n; });
+    return L + U === 0 ? "both" : L >= .7 * (L + U) ? "legs" : U >= .7 * (L + U) ? "upper" : "both";
+}
+/* Toutes les données utiles au score, abonnées en direct */
+function useRecoveryData() {
+    const [rl] = useStored("recup-logs", []);
+    const [sl] = useStored("sport-logs", []);
+    const [ml] = useStored("maison-logs", []);
+    const [swl] = useStored("natation-logs", []);
+    const [models] = useStored("natation-modeles", []);
+    const [nl] = useStored("nutri-logs", []);
+    const [food] = useStored("food-log", {});
+    const [dl] = useStored("douleur-logs", []);
+    const [mens] = useStored("mensurations", []);
+    const [h] = useStored("taille-corps", "");
+    const [cfg] = useStored("nutri-cal-cfg", null);
+    const [profile] = useStored("profil", PROFILE_DEFAULT);
+    const [alts] = useStored("repas-alts", {});
+    return { rl: rl || [], sl: sl || [], ml: ml || [], swl: swl || [], models: models || [], nl: nl || [], food: food || {}, dl: dl || [], mens: mens || [], cm: parseFloat(h) || 0, cfg: normCalCfg(cfg), profile, alts: alts || {} };
+}
+/* Score de récupération d'un matin (null sans saisie ce jour-là). Seules les données d'avant ce matin comptent. */
+function recoveryFor(iso, D) {
+    const { rl, sl, ml, swl, nl } = D;
+    const e = rl.find(l => l.dateISO === iso);
+    if (!e)
+        return null;
+    const P = {}, det = { nerv: [], sleep: [], charge: [], muscle: [], fc: [], energy: [] }, info = {};
+    const y = shiftISO(iso, -1);
+    const prior = rl.filter(l => l.dateISO < iso && daysBetween(l.dateISO, iso) <= 30);
+    // Système nerveux : statut SNA + VFC face à ta zone normale (log de la VFC sur 30 jours, moyenne ± ½ écart-type)
+    let hrvS = null;
+    if (e.rmssd > 0) {
+        const ph = prior.filter(l => l.rmssd > 0);
+        if (ph.length >= 5) {
+            const ln = ph.map(l => Math.log(l.rmssd)), m = avgOf(ln);
+            const sd = Math.max(.03, Math.sqrt(ln.reduce((a, v) => a + (v - m) ** 2, 0) / (ln.length - 1)));
+            const win = rl.filter(l => l.rmssd > 0 && l.dateISO <= iso && daysBetween(l.dateISO, iso) <= 6);
+            const roll = Math.round(Math.exp(avgOf(win.map(l => Math.log(l.rmssd)))));
+            const lo = Math.round(Math.exp(m - sd / 2)), hi = Math.round(Math.exp(m + sd / 2));
+            hrvS = rClamp(75 + 25 * (Math.log(e.rmssd) - m) / sd);
+            info.zone = { lo, hi, roll };
+            det.nerv.push(["VFC " + e.rmssd + " ms, " + (e.rmssd < lo ? "sous" : e.rmssd > hi ? "au-dessus de" : "dans") + " ta zone normale (" + lo + "–" + hi + " ms) · moyenne 7 j : " + roll + " ms", "m"]);
+        }
+        else
+            det.nerv.push(["VFC " + e.rmssd + " ms · ta zone normale se calcule après 5 matins (" + ph.length + "/5)", "m"]);
+    }
+    const ansS = typeof e.ans === "number" ? rClamp(70 + 5 * e.ans) : null;
+    if (ansS != null)
+        det.nerv.unshift(["Statut SNA " + sgn(e.ans) + " (recharge nocturne)", "m"]);
+    const nv = [ansS, hrvS].filter(v => v != null);
+    if (nv.length)
+        P.nerv = avgOf(nv);
+    // Sans montre : une seule question au réveil (0 mal dormi, 1 correct, 2 très bien)
+    if (P.nerv == null && typeof e.feel === "number") {
+        P.nerv = [45, 70, 88][e.feel] ?? 70;
+        det.nerv.push(["Ton ressenti au réveil : " + ["mal dormi", "nuit correcte", "très bien dormi"][e.feel], "m"]);
+    }
+    // FC nocturne face à ta moyenne sur 30 jours
+    if (e.fc > 0) {
+        const pf = prior.filter(l => l.fc > 0);
+        if (pf.length >= 5) {
+            const fm = avgOf(pf.map(l => l.fc)), d = e.fc - fm;
+            P.fc = rClamp(80 - 10 * d);
+            det.fc.push([e.fc + " bpm, " + (Math.abs(d) < .5 ? "comme ta moyenne" : sgn(d) + " bpm face à ta moyenne de " + frN(fm)), "m"]);
+        }
+        else
+            det.fc.push([e.fc + " bpm · ta moyenne de référence se calcule après 5 matins (" + pf.length + "/5)", "m"]);
+    }
+    // Sommeil (montre, sinon la valeur notée dans Suivi nutrition) : 8 h = 100
+    const nTo = nl.find(l => l.dateISO === iso);
+    const sh = e.sleep > 0 ? e.sleep : nTo?.sleep > 0 ? +nTo.sleep : null;
+    if (sh) {
+        P.sleep = rClamp((sh - 4) / 4 * 100);
+        det.sleep.push([fmtHM(sh) + " cette nuit" + (e.sleep > 0 ? "" : " (noté dans Suivi nutrition)"), "m"]);
+    }
+    // Charge : séries pondérées par le RPE + circuits maison + natation, 7 jours face à la moyenne sur 28 jours
+    const loads = [...sl.map(l => [l.dateISO, (l.exercices || []).reduce((a, x) => a + exSets(x) * ((x.rpe || 7) / 7), 0) * (l.deload ? .6 : 1)]),
+        ...ml.map(l => [l.dateISO, (l.exercices || []).reduce((a, x) => a + (x.tours || 0) * .7, 0)]),
+        ...swl.map(l => [l.dateISO, (l.duree || 0) / 240 * ((l.rpe || 6) / 7)])].filter(([d]) => d < iso);
+    if (loads.length) {
+        const first = loads.reduce((a, [d]) => d < a ? d : a, iso);
+        const acute = loads.filter(([d]) => daysBetween(d, iso) <= 7).reduce((a, [, v]) => a + v, 0);
+        const chronic = loads.filter(([d]) => daysBetween(d, iso) <= 28).reduce((a, [, v]) => a + v, 0) / 4;
+        if (daysBetween(first, iso) >= 14 && chronic > 0) {
+            const r = acute / chronic;
+            P.charge = r <= .8 ? 95 : r <= 1.3 ? 90 - (r - .8) * 20 : r <= 1.5 ? 80 - (r - 1.3) * 150 : Math.max(20, 50 - (r - 1.5) * 100);
+            det.charge.push(["7 derniers jours : " + frN(r, 2) + " fois ta moyenne sur 28 jours" + (r > 1.3 ? ", pic de charge" : r < .8 ? ", semaine légère" : ""), "c"]);
+        }
+        else
+            det.charge.push(["Calcul disponible après 2 semaines d'entraînement enregistrées", "c"]);
+    }
+    const yTxt = [];
+    sl.filter(l => l.dateISO === y).forEach(l => { const ex = l.exercices || [], n = ex.reduce((a, x) => a + exSets(x), 0), rp = ex.filter(x => x.rpe > 0); yTxt.push(l.seance + " (" + n + " séries" + (rp.length ? ", RPE moyen " + frN(avgOf(rp.map(x => x.rpe))) : "") + ")"); });
+    ml.filter(l => l.dateISO === y).forEach(l => yTxt.push("Maison " + l.seance));
+    swl.filter(l => l.dateISO === y).forEach(l => yTxt.push(l.distance.toLocaleString("fr-FR") + " m de natation"));
+    if (yTxt.length)
+        det.charge.push(["Hier : " + yTxt.join(", "), "c"]);
+    // Fatigue musculaire par région : baisse de force estimée (1RM Epley) face au meilleur des 4 semaines, séance récente, douleurs
+    const region = r => {
+        const hist = sl.filter(l => !l.deload && l.dateISO < iso && (l.exercices || []).some(x => regionOf(x.nom) === r && exSets(x) > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO));
+        const last = hist[0];
+        let drop = null, since = null, recent = 0;
+        if (last) {
+            since = daysBetween(last.dateISO, iso);
+            const mine = last.exercices.filter(x => regionOf(x.nom) === r);
+            if (since <= 7) {
+                const ref = sl.filter(l => !l.deload && l.dateISO < last.dateISO && daysBetween(l.dateISO, last.dateISO) <= 28);
+                const drops = mine.filter(x => x.weight > 0 && x.reps > 0).map(x => { const b = ref.flatMap(l => (l.exercices || []).filter(z => z.nom === x.nom && z.weight > 0 && z.reps > 0).map(exBest1RM)); const best = b.length ? Math.max(...b) : 0; return best > 0 ? Math.min(0, (exBest1RM(x) - best) / best * 100) : null; }).filter(v => v != null);
+                if (drops.length)
+                    drop = avgOf(drops);
+            }
+            const hard = mine.reduce((a, x) => a + exSets(x) * ((x.rpe || 7) / 8), 0);
+            recent = since === 1 ? Math.min(25, hard * 1.2) : since === 2 ? Math.min(12, hard * .6) : 0;
+        }
+        if (ml.some(l => l.dateISO === y && (MAISON_REGION[l.seance] || []).includes(r))) {
+            recent = Math.max(recent, 8);
+            since = 1;
+        }
+        const pains = D.dl.filter(l => l.dateISO <= iso && daysBetween(l.dateISO, iso) <= 3 && (PAIN_REGION[l.zone] || []).includes(r) && l.intensite > 0);
+        const pain = pains.length ? pains.reduce((a, l) => l.intensite > a.i ? { i: l.intensite, z: l.zone } : a, { i: 0, z: "" }) : null;
+        return { score: rClamp(95 + (drop || 0) * 6 - (pain ? pain.i * 5 : 0) - recent), drop, since, pain, has: !!last || !!pain || recent > 0 };
+    };
+    const legs = region("legs"), upper = region("upper");
+    const prog = resolveProgramme(D.profile, sl), sess = sessionForDate(iso, prog), sReg = sessionRegion(sess);
+    if (legs.has || upper.has) {
+        P.muscle = sReg === "legs" ? legs.score : sReg === "upper" ? upper.score : (legs.score + upper.score) / 2;
+        [["Jambes", legs], ["Haut du corps", upper]].forEach(([lab, st]) => { if (!st.has)
+            return; const bits = []; if (st.drop != null)
+            bits.push(st.drop > -.5 ? "force stable face à ton meilleur des 4 semaines" : "force estimée " + sgn(st.drop) + " % face à ton meilleur des 4 semaines"); if (st.since != null && st.since <= 2)
+            bits.push("séance il y a " + (st.since === 1 ? "1 jour" : st.since + " jours")); if (st.pain)
+            bits.push("douleur " + st.pain.z.toLowerCase() + " " + st.pain.i + "/10"); det.muscle.push([lab + " " + Math.round(st.score) + "/100" + (bits.length ? " : " + bits.join(", ") : ""), "e"]); });
+    }
+    Object.assign(info, { legs, upper, sess, sReg, prog });
+    // Énergie : apports face à ton plan (3 jours), disponibilité énergétique, glycogène estimé, rythme de perte
+    const bt = bodyTargets(nl, D.mens, D.cm, D.cfg);
+    const dayData = d => {
+        const nlog = nl.find(l => l.dateISO === d), foods = D.food[d] || [];
+        const dayType = nlog?.dayType || (sessionForDate(d, prog) ? "training" : "rest");
+        const sw = swimKcalOn(swl, d), menu = dayMenu(dayType, D.profile, D.alts, bt, sw);
+        let kc = 0, g = 0;
+        menu.meals.forEach((m, i) => { const id = MEAL_ID[m.m], mm = menu.mealMacros[i]; if (id && nlog?.meals?.[id]) {
+            kc += mm.p * 4 + mm.g * 4 + mm.l * 9;
+            g += mm.g;
+        } });
+        const pl = foods.filter(f => f.plan), ex = foods.filter(f => !f.plan), pk = pl.reduce((a, f) => a + (f.kcal || 0), 0);
+        if (pk > kc) {
+            kc = pk;
+            g = pl.reduce((a, f) => a + (f.gl || 0), 0);
+        }
+        kc += ex.reduce((a, f) => a + (f.kcal || 0), 0);
+        g += ex.reduce((a, f) => a + (f.gl || 0), 0);
+        if (kc <= 0)
+            return null;
+        const sets = sl.filter(l => l.dateISO === d).reduce((a, l) => a + (l.exercices || []).reduce((b, x) => b + exSets(x), 0), 0);
+        return { kc, g, tgt: menu.dayTgt, gTgt: menu.dayMacros.g, exo: sw + sets * .06 * (bt.curW || 100) };
+    };
+    const d3 = [1, 2, 3].map(k => dayData(shiftISO(iso, -k))), has3 = d3.filter(Boolean);
+    let eaS = null, glyS = null, rateS = null;
+    if (has3.length) {
+        const ik = has3.reduce((a, x) => a + x.kc, 0), tk = has3.reduce((a, x) => a + x.tgt, 0), xk = has3.reduce((a, x) => a + x.exo, 0), pct = ik / tk * 100;
+        eaS = pct >= 90 ? Math.min(100, 80 + (pct - 90) * 2) : pct >= 75 ? 45 + (pct - 75) * 35 / 15 : Math.max(10, 45 - (75 - pct) * 5);
+        info.intake = { pct, n: has3.length, gap: Math.max(0, (tk - ik) / has3.length) };
+        det.energy.push(["Apports " + (has3.length > 1 ? "des " + has3.length + " derniers jours" : "d'hier") + " : " + Math.round(pct) + " % de ton plan", "c"]);
+        if (bt.lean > 0)
+            det.energy.push(["Disponibilité énergétique ≈ " + frN((ik - xk) / has3.length / bt.lean, 0) + " kcal/kg de masse maigre (plan : " + frN((tk - xk) / has3.length / bt.lean, 0) + ")", "c"]);
+    }
+    const d2 = d3.slice(0, 2).filter(Boolean);
+    if (d2.length) {
+        const ySets = sl.filter(l => l.dateISO === y).reduce((a, l) => a + (l.exercices || []).reduce((b, x) => b + exSets(x), 0), 0);
+        const yLegs = sl.some(l => l.dateISO === y && (l.exercices || []).some(x => regionOf(x.nom) === "legs" && exSets(x) > 0));
+        const ratio = d2.reduce((a, x) => a + x.g, 0) / d2.reduce((a, x) => a + x.gTgt, 0) - (ySets >= 15 ? .05 : 0) - (yLegs ? .05 : 0);
+        glyS = rClamp(ratio * 100);
+        det.energy.push(["Glycogène " + (ratio >= .9 ? "probablement rempli" : ratio >= .7 ? "probablement partiellement diminué" : "probablement bas") + " (glucides des 48 h face à ton plan et à ta séance d'hier)", "e"]);
+    }
+    const weigh = nl.filter(l => l.weight > 0 && l.dateISO <= iso).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
+    if (weigh.length >= 3 && daysBetween(weigh[0].dateISO, weigh[weigh.length - 1].dateISO) >= 10) {
+        const rt = weeklyRate(weigh), cw = avgRecent(weigh, 7);
+        if (rt != null && cw) {
+            const pc = rt / cw * 100;
+            rateS = pc < -1 ? rClamp(90 - (-pc - 1) * 80) : pc > -.25 ? 85 : 90;
+            det.energy.push(["Poids " + sgn(pc) + " % par semaine" + (pc < -1 ? ", perte trop rapide" : ""), "m"]);
+        }
+    }
+    const en = [[eaS, .5], [glyS, .25], [rateS, .25]].filter(([v]) => v != null);
+    if (en.length)
+        P.energy = en.reduce((a, [v, w]) => a + v * w, 0) / en.reduce((a, [, w]) => a + w, 0);
+    info.eaS = eaS;
+    const keys = Object.keys(P);
+    if (!keys.length)
+        return { iso, entry: e, score: null, parts: P, det, info };
+    const ws = keys.reduce((a, k) => a + RECUP_W[k], 0);
+    const score = Math.round(keys.reduce((a, k) => a + RECUP_W[k] * P[k], 0) / ws);
+    const res = { iso, entry: e, score, parts: P, det, info, lowest: keys.slice().sort((a, b) => P[a] - P[b])[0], verdict: recupVerdict(score) };
+    res.advice = recupAdvice(res, D);
+    return res;
+}
+/* Conseil pour la séance prévue (programme actif) */
+function recupAdvice(r, D) {
+    let s = r.info.sess;
+    const { sReg: reg, prog } = r.info, sc = r.score, swimP = swimPlannedFor(D.models, r.iso);
+    let a;
+    if (!s)
+        a = sc < 50 ? "Pas de muscu aujourd'hui : marche, mobilité et coucher tôt." + (swimP ? " Natation en allure facile, sans série rapide." : "") : "Pas de muscu prévue aujourd'hui." + (swimP ? (sc < 65 ? " Natation : garde une allure facile, sans série rapide." : " Natation prévue : feu vert.") : " Marche et mobilité suffisent.");
+    else {
+        const st = reg === "legs" ? r.info.legs : reg === "upper" ? r.info.upper : null;
+        const light = "une série de moins par exercice, " + lx("difficulté 7 sur 10 maximum", "RPE 7 maximum");
+        const nm = o => o.prog === "maison" ? o.label : seanceLabel(o.code); // lexique : « Jambes » plutôt que « Legs » avant le niveau expert
+        s = { ...s, label: nm(s) };
+        if (sc < 50)
+            a = "Repos actif : 30 à 40 min de marche ou de natation souple, puis mobilité. Décale " + s.label + " si ton planning le permet.";
+        else if (st && st.has && st.score < 55) {
+            let alt = null;
+            for (let d = 1; d <= 6 && !alt; d++) {
+                const o = sessionForDate(shiftISO(r.iso, d), prog), oR = sessionRegion(o);
+                if (o && oR && oR !== reg && oR !== "both")
+                    alt = { o, d };
+            }
+            a = (reg === "legs" ? "Tes jambes sont encore fatiguées" : "Ton haut du corps est encore fatigué") + " (" + Math.round(st.score) + "/100). " +
+                (alt ? "Si ton planning le permet, inverse : " + nm(alt.o) + " aujourd'hui, " + s.label + " " + (alt.d === 1 ? "demain" : fmtDateLong(shiftISO(r.iso, alt.d)).split(" ")[0]) + ". Sinon, fais " : "Fais ") +
+                s.label + " avec " + light + (st.pain ? ", et surveille ton " + st.pain.z.toLowerCase() : "") + ".";
+        }
+        else if (sc < 65)
+            a = s.label + " allégée : " + light + ", charges du coach inchangées.";
+        else if (sc < 80)
+            a = s.label + " normale : charges du coach, " + lx("difficulté 8 sur 10 maximum", "RPE 8 maximum") + ", pas de record aujourd'hui.";
+        else
+            a = "Feu vert pour " + s.label + " : charges du coach, vise le haut de ta fourchette de reps.";
+    }
+    if (r.info.eaS != null && r.info.eaS < 50 && r.info.intake)
+        a += " Mange ton plan complet aujourd'hui : il te manque environ " + Math.round(r.info.intake.gap / 10) * 10 + " kcal par jour.";
+    if (sc < 50)
+        a += " Le coach ne propose aucune hausse de charge aujourd'hui.";
+    return a;
+}
+/* Saisie du matin : 4 champs lus dans Polar Flow (Recharge nocturne + Sommeil) */
+function RecupForm({ fg, bg, onDone, onCancel }) {
+    const [rl, setRl] = useStored("recup-logs", []);
+    const today = isoToday(), ex = rl.find(l => l.dateISO === today);
+    const fromEntry = x => ({ ans: x?.ans != null ? String(x.ans).replace(".", ",") : "", rmssd: x?.rmssd ? String(x.rmssd) : "", fc: x?.fc ? String(x.fc) : "", sleep: x?.sleep ? fmtHM(x.sleep).replace(" h ", ":") : "" });
+    const [f, setF] = useState(() => fromEntry(ex));
+    useEffect(() => { if (ex)
+        setF(fromEntry(ex)); }, [ex?.id]);
+    const num = (v, lo, hi) => { const x = parseFloat(String(v).replace(",", ".").replace(/[−–]/, "-")); return isFinite(x) ? Math.max(lo, Math.min(hi, x)) : null; };
+    const submit = async () => {
+        const sl = parseSleepH(f.sleep), ans = num(f.ans, -10, 10), rm = num(f.rmssd, 5, 300), fc = num(f.fc, 25, 130);
+        const entry = { id: ex?.id || Date.now(), dateISO: today, ans: ans == null ? null : Math.round(ans * 10) / 10, rmssd: rm == null ? null : Math.round(rm), fc: fc == null ? null : Math.round(fc), sleep: sl && sl > 0 && sl < 16 ? Math.round(sl * 100) / 100 : null };
+        if (entry.ans == null && entry.rmssd == null && entry.fc == null && entry.sleep == null)
+            return toast("Remplis au moins un champ", { tone: "danger" });
+        await setRl([...rl.filter(l => l.dateISO !== today), entry].sort((a, b) => a.dateISO.localeCompare(b.dateISO)));
+        toast("🫀 Saisie du matin enregistrée");
+        onDone && onDone();
+    };
+    const field = (k, label, hint, mode, ph) => hx("label", { style: { display: "grid", gap: 3, minWidth: 0 } },
+        hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" } }, label),
+        hx("input", { value: f[k], inputMode: mode, placeholder: ph, onChange: e => { const v = e.target.value; setF(x => ({ ...x, [k]: v })); }, style: { ...inputStyle, borderColor: fg, fontWeight: 700, fontSize: 18 } }),
+        hx("small", { style: { fontSize: 11.5, fontWeight: 600, opacity: .8 } }, hint));
+    return hx("div", { style: { display: "grid", gap: 10 } },
+        hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
+            field("ans", "Statut SNA", "de −10 à +10", "decimal", "+1,5"),
+            field("rmssd", "VFC (ms)", "moyenne de la nuit", "numeric", "45"),
+            field("fc", "FC nocturne", "bpm, moyenne de la nuit", "numeric", "57"),
+            field("sleep", "Sommeil", "ex. 7:45", "decimal", "7:45")),
+        hx("p", { style: { fontSize: 12.5, fontWeight: 600, opacity: .85, margin: 0, lineHeight: 1.4 } }, "Dans Polar Flow : Recharge nocturne pour les trois premiers chiffres, Sommeil pour la durée. Un champ vide est simplement ignoré."),
+        hx("div", { style: { display: "flex", gap: 8 } },
+            onCancel && hx("button", { onClick: onCancel, style: { flex: 1, padding: "12px 0", borderRadius: 4, border: `2px solid ${fg}`, background: "transparent", color: fg, fontWeight: 800, fontSize: 14, cursor: "pointer" } }, "Annuler"),
+            hx("button", { onClick: submit, style: { flex: 2, padding: "12px 0", borderRadius: 4, border: `2px solid ${fg}`, background: fg, color: bg, fontWeight: 800, fontSize: 14, cursor: "pointer" } }, ex ? "Mettre à jour" : "Enregistrer")));
+}
+/* En-tête : score, verdict, facteur qui pèse le plus, conseil pour la séance prévue */
+function RecupHead({ r, fg, bg, giant }) {
+    if (r.score == null)
+        return hx("p", { style: { fontSize: 15, fontWeight: 700, lineHeight: 1.4, margin: "0 0 12px" } }, "Saisie enregistrée. Le score s'affiche dès que le statut SNA ou le sommeil est renseigné, ou après 5 matins de VFC.");
+    const v = r.verdict, low = r.lowest, lv = r.parts[low];
+    // Facteur le plus bas, avec sa raison (pour les muscles : la région de la séance prévue)
+    let lowName = low === "fc" ? RECUP_NAMES.fc : RECUP_NAMES[low].toLowerCase(), lowDet = r.det[low][0] ? r.det[low][0][0] : "";
+    if (low === "muscle") {
+        const reg = r.info.sReg === "upper" ? "upper" : "legs", line = r.det.muscle.find(([t]) => t.startsWith(reg === "upper" ? "Haut du corps" : "Jambes")) || r.det.muscle[0];
+        lowName = "fatigue musculaire (" + (r.info.sReg === "both" ? "corps entier" : REGION_FR[reg]) + ")";
+        lowDet = line && line[0].includes(" : ") ? line[0].split(" : ").slice(1).join(" : ") : "";
+        lowDet = lowDet ? lowDet[0].toUpperCase() + lowDet.slice(1) : "";
+    }
+    return hx(Fragment, null,
+        hx("div", { style: { display: "flex", alignItems: "flex-end", gap: 8 } }, hx("div", { style: giant }, r.score), hx("span", { style: { fontFamily: AN, fontSize: 30, lineHeight: 1, paddingBottom: 12 } }, "/100")),
+        hx("div", { style: { display: "inline-flex", alignItems: "center", gap: 8, background: fg, color: bg, fontWeight: 800, fontSize: 15, padding: "7px 12px", borderRadius: 3, marginBottom: 10 } }, hx("i", { style: { width: 11, height: 11, borderRadius: "50%", background: v.c, display: "inline-block" } }), v.t),
+        hx("p", { style: { fontSize: 15.5, fontWeight: 700, lineHeight: 1.35, margin: "0 0 12px" } }, lv < 75 ? "Ce qui pèse le plus : " + lowName + ", " + Math.round(lv) + "/100." + (lowDet ? " " + lowDet + "." : "") : "Tous les facteurs sont bons ce matin."),
+        hx("div", { style: { borderTop: `2.5px solid ${fg}`, paddingTop: 10, marginBottom: 14 } },
+            hx("small", { style: { display: "block", fontSize: 11, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", marginBottom: 4 } }, r.info.sess ? "Séance prévue : " + (r.info.sess.prog === "maison" ? r.info.sess.label : seanceLabel(r.info.sess.code)) + (r.info.sReg ? " · " + REGION_FR[r.info.sReg] : "") : "Aujourd'hui"),
+            hx("p", { style: { fontSize: 16, fontWeight: 750, lineHeight: 1.3, margin: 0 } }, r.advice)));
+}
+/* Détail par facteur, avec le type de chaque donnée */
+const RECUP_TAG = { m: ["Mesuré", { background: C.ink, color: "#fff", border: `1.5px solid ${C.ink}` }], c: ["Calculé", { border: `1.5px solid ${C.ink}` }], e: ["Estimé", { border: `1.5px dashed ${C.ink}` }] };
+function RecupDetail({ r }) {
+    const tag = k => hx("em", { style: { fontStyle: "normal", fontSize: 9.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", padding: "3px 6px", borderRadius: 3, whiteSpace: "nowrap", ...RECUP_TAG[k][1] } }, RECUP_TAG[k][0]);
+    return hx("div", null,
+        hx("div", { style: { display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12.5, color: C.textMut, margin: "0 0 10px" } }, [["m", "par ta montre ou ta balance"], ["c", "formule sur tes logs"], ["e", "tendance probable"]].map(([k, t]) => hx("span", { key: k, style: { display: "inline-flex", gap: 6, alignItems: "center" } }, tag(k), t))),
+        hx("div", { style: { borderTop: `2.5px solid ${C.ink}` } }, RECUP_ORDER.filter(k => r.parts[k] != null || r.det[k].length).map(k => {
+            const v = r.parts[k], t = v != null ? recupTone(v) : null;
+            return hx("div", { key: k, style: { borderBottom: `2px solid ${C.ink}`, padding: "11px 0", display: "grid", gap: 6 } },
+                hx("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 } },
+                    hx("span", { style: { fontSize: 17, fontWeight: 750, lineHeight: 1.2 } }, RECUP_NAMES[k], t ? hx("span", { style: { color: t.tc, fontWeight: 800 } }, " · " + t.t) : hx("span", { style: { color: C.textMut, fontWeight: 700, fontSize: 13 } }, " · pas encore de calcul"), hx("small", { style: { color: C.textMut, fontWeight: 600, fontSize: 11.5 } }, "  " + Math.round(RECUP_W[k] * 100) + " % du score")),
+                    v != null && hx("span", { style: { fontFamily: AN, fontSize: 24, lineHeight: 1 } }, Math.round(v))),
+                v != null && hx("div", { style: { height: 10, border: `2px solid ${C.ink}`, position: "relative" } }, hx("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: v + "%", background: t.c, transition: "width .5s cubic-bezier(.7,0,.2,1)" } })),
+                r.det[k].map(([txt, kind], i) => hx("div", { key: i, style: { display: "flex", justifyContent: "space-between", gap: 8, alignItems: "flex-start", fontSize: 13.5, lineHeight: 1.35 } }, hx("span", { style: { minWidth: 0 } }, txt), tag(kind))));
+        })));
+}
+/* 14 jours : score du matin, puis VFC face à ta zone normale */
+function RecupCharts({ D }) {
+    const today = isoToday(), days = Array.from({ length: 14 }, (_, i) => shiftISO(today, i - 13));
+    const res = days.map(d => recoveryFor(d, D));
+    const W = 340, H = 140, L = 30, R = 10, T = 14, B = 22, iw = W - L - R, ih = H - T - B, x = i => L + i * iw / 13;
+    const xLabels = days.map((d, i) => (i % 2 === 1 || i === 13) ? hx("text", { key: "x" + i, x: x(i), y: H - 5, textAnchor: "middle", fontSize: 10, fontWeight: 700, fill: C.textMut }, +d.slice(8, 10)) : null);
+    const cap = txt => hx("div", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: C.textMut, margin: "16px 0 4px" } }, txt);
+    const empty = txt => hx("p", { style: { fontSize: 13, color: C.textMut, margin: "4px 0 0" } }, txt);
+    const sw = style => hx("i", { style: { width: 16, height: 10, display: "inline-block", ...style } });
+    const item = (s, t) => hx("span", { style: { display: "inline-flex", gap: 6, alignItems: "center" } }, s, t);
+    const legend = (...items) => hx("div", { style: { display: "flex", flexWrap: "wrap", gap: 12, fontSize: 12, color: C.textMut, marginTop: 4 } }, ...items);
+    // Score
+    const y = v => T + ih - v / 100 * ih;
+    const pts = res.map((r, i) => r && r.score != null ? { i, v: r.score } : null).filter(Boolean);
+    const lastS = pts[pts.length - 1];
+    const scoreSvg = pts.length < 2 ? empty("Le graphique apparaît après 2 matins saisis.") : hx("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", height: "auto", display: "block" }, role: "img", "aria-label": "Score de récupération des 14 derniers jours" },
+        hx("rect", { x: L, y: y(100), width: iw, height: y(80) - y(100), fill: C.sci }),
+        [0, 50, 80, 100].map(v => hx(Fragment, { key: v }, hx("line", { x1: L, x2: W - R, y1: y(v), y2: y(v), stroke: C.ink + "22" }), hx("text", { x: L - 6, y: y(v) + 3.5, textAnchor: "end", fontSize: 10, fill: C.textMut }, v))),
+        hx("polyline", { fill: "none", stroke: C.ink, strokeWidth: 2.5, strokeLinejoin: "round", points: pts.map(p => x(p.i) + "," + y(p.v)).join(" ") }),
+        pts.map(p => hx("circle", { key: p.i, cx: x(p.i), cy: y(p.v), r: p === lastS ? 5.5 : 3, fill: p === lastS ? C.sci : C.ink, stroke: C.ink, strokeWidth: p === lastS ? 2.5 : 0 })),
+        hx("text", { x: x(lastS.i), y: y(lastS.v) - 10, textAnchor: "end", fontFamily: "Anton, Impact, sans-serif", fontSize: 15, fill: C.ink }, lastS.v),
+        xLabels);
+    // VFC + zone normale (celle du dernier matin calculé) + moyenne sur 7 jours
+    const hv = days.map(d => D.rl.find(l => l.dateISO === d && l.rmssd > 0)?.rmssd || null);
+    const zone = [...res].reverse().find(r => r?.info?.zone)?.info.zone || null;
+    const vals = hv.filter(Boolean);
+    let hrvSvg;
+    if (vals.length < 2)
+        hrvSvg = empty("La VFC s'affiche après 2 matins saisis. Ta zone normale apparaît après 5.");
+    else {
+        const roll = days.map((d, i) => { if (!hv[i])
+            return null; const win = D.rl.filter(l => l.rmssd > 0 && l.dateISO <= d && daysBetween(l.dateISO, d) <= 6); return Math.exp(avgOf(win.map(l => Math.log(l.rmssd)))); });
+        const all = [...vals, ...(zone ? [zone.lo, zone.hi] : [])];
+        const lo = Math.floor(Math.min(...all) / 5) * 5 - 5, hi = Math.ceil(Math.max(...all) / 5) * 5 + 5;
+        const y2 = v => T + ih - (v - lo) / (hi - lo) * ih;
+        const rp = roll.map((v, i) => v ? x(i) + "," + y2(v) : null).filter(Boolean);
+        const lastI = hv.map((v, i) => v ? i : -1).filter(i => i >= 0).pop();
+        hrvSvg = hx("svg", { viewBox: `0 0 ${W} ${H}`, style: { width: "100%", height: "auto", display: "block" }, role: "img", "aria-label": "VFC des 14 derniers jours face à ta zone normale" },
+            zone && hx("rect", { x: L, y: y2(zone.hi), width: iw, height: y2(zone.lo) - y2(zone.hi), fill: C.green + "33", stroke: C.green, strokeWidth: 1 }),
+            [...new Set([lo, hi, ...(zone ? [zone.lo, zone.hi] : [])])].map(v => hx("text", { key: v, x: L - 6, y: y2(v) + 3.5, textAnchor: "end", fontSize: 10, fill: C.textMut }, v)),
+            hx("line", { x1: L, x2: W - R, y1: y2(lo), y2: y2(lo), stroke: C.ink + "22" }),
+            hv.map((v, i) => v ? hx("circle", { key: i, cx: x(i), cy: y2(v), r: i === lastI ? 4.5 : 3, fill: i === lastI ? C.ink : C.textMut }) : null),
+            rp.length > 1 && hx("polyline", { fill: "none", stroke: C.ink, strokeWidth: 2.5, strokeLinejoin: "round", points: rp.join(" ") }),
+            hx("text", { x: x(lastI), y: y2(hv[lastI]) + (roll[lastI] && hv[lastI] < roll[lastI] ? 18 : -9), textAnchor: "end", fontFamily: "Anton, Impact, sans-serif", fontSize: 14, fill: C.ink }, hv[lastI] + " ms"),
+            xLabels);
+    }
+    return hx("div", null,
+        cap("Score du matin · 14 jours"), scoreSvg,
+        pts.length >= 2 && legend(item(sw({ background: C.ink }), "score"), item(sw({ background: C.sci, border: `1.5px solid ${C.ink}` }), "zone « prêt » (80 et plus)")),
+        cap("VFC face à ta zone normale · 14 jours"), hrvSvg,
+        vals.length >= 2 && legend(zone && item(sw({ background: C.green + "33", border: `1.5px solid ${C.green}` }), "zone normale (30 jours)"), item(sw({ background: C.ink }), "moyenne 7 jours"), item(sw({ background: C.textMut, width: 7, height: 7, borderRadius: "50%" }), "valeur de la nuit")));
+}
+/* Prises de sang : notées à part, jamais dans le score du jour */
+const BILAN_PRESETS = [["Testostérone totale", "ng/mL"], ["Cortisol (8 h, à jeun)", "µg/dL"], ["CRP ultrasensible", "mg/L"], ["CK", "UI/L"], ["Ferritine", "ng/mL"], ["Vitamine D", "ng/mL"], ["Autre", ""]];
+function BilansPonctuels() {
+    const [bl, setBl] = useStored("bilans", []);
+    const [sl] = useStored("sport-logs", []);
+    const [open, setOpen] = useState(false);
+    const [f, setF] = useState({ preset: 0, nom: "", valeur: "", unite: BILAN_PRESETS[0][1], lo: "", hi: "", date: isoToday() });
+    const n = v => { const x = parseFloat(String(v).replace(",", ".")); return isFinite(x) ? x : null; };
+    const fmt = v => String(v).replace(".", ",");
+    const add = async () => {
+        const nom = f.preset === BILAN_PRESETS.length - 1 ? f.nom.trim() : BILAN_PRESETS[f.preset][0], val = n(f.valeur);
+        if (!nom || val == null)
+            return toast("Indique le nom et la valeur", { tone: "danger" });
+        await setBl([...bl, { id: Date.now(), dateISO: f.date, nom, valeur: val, unite: f.unite.trim(), lo: n(f.lo), hi: n(f.hi) }]);
+        toast("🩸 " + nom + " enregistré");
+        setF(x => ({ ...x, valeur: "", lo: "", hi: "" }));
+        setOpen(false);
+    };
+    const lab = (k, label, mode, ph, flex) => hx("label", { style: { display: "grid", gap: 3, minWidth: 0, flex: flex || 1 } }, hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: C.textMut } }, label), hx("input", { value: f[k], inputMode: mode, placeholder: ph, onChange: e => { const v = e.target.value; setF(x => ({ ...x, [k]: v })); }, style: inputStyle }));
+    return hx("div", null,
+        hx("div", { style: { fontFamily: AN, fontSize: 30, textTransform: "uppercase", margin: "24px 0 4px" } }, "Bilans ponctuels"),
+        hx("p", { style: { fontSize: 13.5, color: C.textMut, lineHeight: 1.45, margin: "0 0 10px" } }, "Prises de sang, notées quand tu en fais une. Elles n'entrent jamais dans le score du jour. Recopie la plage de référence de ton compte rendu : elle change d'un laboratoire à l'autre."),
+        !bl.length && hx("p", { style: { fontSize: 13.5, color: C.textMut, margin: "0 0 10px" } }, "Aucun bilan noté pour l'instant."),
+        bl.length > 0 && hx("div", { style: { borderTop: `2px solid ${C.ink}` } }, [...bl].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || b.id - a.id).map(b => {
+            const out = b.lo != null && b.valeur < b.lo ? "en dessous" : b.hi != null && b.valeur > b.hi ? "au-dessus" : null;
+            const range = b.lo != null && b.hi != null ? fmt(b.lo) + "–" + fmt(b.hi) : b.hi != null ? "< " + fmt(b.hi) : b.lo != null ? "> " + fmt(b.lo) : null;
+            const heavy = /^CK\b/i.test(b.nom) && sl.some(l => !l.deload && l.dateISO <= b.dateISO && daysBetween(l.dateISO, b.dateISO) <= 2 && (l.exercices || []).reduce((a, x) => a + exSets(x), 0) >= 10);
+            return hx("div", { key: b.id, style: { display: "grid", gridTemplateColumns: "1fr auto auto", gap: "2px 10px", alignItems: "baseline", padding: "10px 0", borderBottom: `1.5px solid ${C.ink}22` } },
+                hx("b", { style: { fontWeight: 750, fontSize: 15 } }, b.nom),
+                hx("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 20, whiteSpace: "nowrap", color: out ? C.danger : C.ink } }, fmt(b.valeur) + (b.unite ? " " + b.unite : "")),
+                hx("button", { "aria-label": "Supprimer", onClick: () => commitWithUndo("bilans", bl, bl.filter(x => x.id !== b.id), setBl, "🗑️ Bilan supprimé"), style: { border: 0, background: "none", color: C.textMut, fontSize: 15, cursor: "pointer" } }, "✕"),
+                hx("small", { style: { gridColumn: "1 / -1", fontSize: 12.5, color: C.textMut, lineHeight: 1.4 } }, (range ? "labo " + range + " · " : "") + fmtDateShort(b.dateISO), out && hx("span", { style: { color: C.danger, fontWeight: 800 } }, " · " + out + " de la plage du labo"), heavy && hx("span", { style: { color: C.danger, fontWeight: 700 } }, " · séance lourde dans les 48 h avant : CK probablement gonflée")));
+        })),
+        !open ? hx("button", { onClick: () => setOpen(true), style: { ...PM.out, marginTop: 12 } }, "+ Noter un bilan")
+            : hx("div", { style: { border: `2px solid ${C.ink}`, borderRadius: 6, background: C.surface, padding: 12, marginTop: 12, display: "grid", gap: 10 } },
+                hx("div", { style: { display: "flex", flexWrap: "wrap", gap: 5 } }, BILAN_PRESETS.map(([nm, u], i) => hx("button", { key: nm, onClick: () => setF(x => ({ ...x, preset: i, unite: u || x.unite })), style: PM.mini(f.preset === i) }, nm))),
+                f.preset === BILAN_PRESETS.length - 1 && lab("nom", "Nom du dosage", "text", "Ex : TSH"),
+                hx("div", { style: { display: "flex", gap: 8 } }, lab("valeur", "Valeur", "decimal", "5,1", 1.2), lab("unite", "Unité", "text", "ng/mL")),
+                hx("div", { style: { display: "flex", gap: 8 } }, lab("lo", "Labo min", "decimal", "2,5"), lab("hi", "Labo max", "decimal", "8,4")),
+                hx("label", { style: { display: "grid", gap: 3 } }, hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase", color: C.textMut } }, "Date de la prise de sang"), hx("input", { type: "date", value: f.date, max: isoToday(), onChange: e => e.target.value && setF(x => ({ ...x, date: e.target.value })), style: { ...inputStyle, colorScheme: "light" } })),
+                f.preset === 3 && hx("p", { style: { fontSize: 12.5, color: C.textMut, margin: 0 } }, "La CK monte pendant 24 à 72 h après une séance lourde : pour un chiffre utile, fais la prise de sang après 48 h sans séance lourde."),
+                hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 2fr", gap: 8 } }, hx("button", { onClick: () => setOpen(false), style: PM.out }, "Annuler"), hx("button", { onClick: add, style: PM.btn }, "Enregistrer"))));
+}
+/* Onglet Science → 🫀 Récup */
+function RecupTab() {
+    const D = useRecoveryData();
+    const [edit, setEdit] = useState(false);
+    const r = recoveryFor(isoToday(), D);
+    return hx("div", null,
+        hx("div", { style: { fontFamily: AN, fontSize: 40, lineHeight: .95, textTransform: "uppercase", margin: "2px 0 8px" } }, "Récupération"),
+        r && !edit ? hx(Fragment, null,
+            hx(RecupHead, { r, fg: C.ink, bg: C.sci, giant: { fontFamily: AN, fontSize: 104, lineHeight: .82 } }),
+            hx("button", { onClick: () => setEdit(true), style: { ...PM.mini(false), marginBottom: 16 } }, "Modifier ma saisie du matin"))
+            : hx("div", { style: { marginBottom: 18 } },
+                hx("p", { style: { fontSize: 13.5, color: C.textMut, lineHeight: 1.45, margin: "0 0 10px" } }, "Saisie du matin : 20 secondes depuis ta montre Polar. Le score se calcule avec ces chiffres et ce que RECOMP enregistre déjà (charges, RPE, douleurs, repas, poids, natation)."),
+                hx(RecupForm, { fg: C.ink, bg: "#fff", onDone: () => setEdit(false), onCancel: r ? () => setEdit(false) : null })),
+        r && r.score != null && hx(RecupDetail, { r }),
+        hx(RecupCharts, { D }),
+        hx("details", { style: { marginTop: 16, fontSize: 13, color: C.textMut, lineHeight: 1.5 } },
+            hx("summary", { style: { cursor: "pointer", fontWeight: 800, color: C.ink } }, "Comment le score est calculé"),
+            hx("p", { style: { margin: "8px 0 0" } }, "Système nerveux 30 % (statut SNA + VFC comparée à ta zone normale : moyenne du logarithme de ta VFC sur 30 jours ± un demi écart-type), sommeil 20 % (8 h = 100), charge d'entraînement 15 % (séries × RPE, circuits et natation sur 7 jours face à ta moyenne sur 28 jours), fatigue musculaire 15 % (muscles de la séance prévue : baisse de force estimée, séance récente, douleurs), FC nocturne 10 % (écart avec ta moyenne sur 30 jours), énergie 10 % (apports face à ton plan, glycogène estimé, rythme de perte). Un facteur sans données est retiré et les autres comptent davantage. La disponibilité énergétique est jugée par rapport à ton plan de déficit, pas au seuil de 30 kcal/kg de masse maigre, qui te mettrait en alerte tous les jours. Sous 50, le coach ne propose aucune hausse de charge ce jour-là.")),
+        hx(BilansPonctuels, null));
+}
 /* ═══ AJUSTEMENTS SCIENTIFIQUES ═══
  * Rythme de perte jugé en % du poids de corps (−0,5 à −1 %/sem), mesuré par régression sur
  * les dernières pesées ; le bouton « Appliquer » modifie VRAIMENT le déficit de l'onglet Calories.
  * La surcharge utilise le même moteur que le Coach et le pré-remplissage du log. */
 const PACE_MIN = -1.0, PACE_MAX = -0.5, PACE_SLOW = -0.25, ADJUST_COOLDOWN = 10;
-function ScienceSection() {
+function ScienceSection({ initialTab } = {}) {
     const [sportLogs, setSportLogs] = useState([]);
     const [maisonLogs, setMaisonLogs] = useState([]);
     const [nutriLogs, setNutriLogs] = useState([]);
@@ -3404,7 +3871,7 @@ function ScienceSection() {
     const [swLogsS] = useStored("natation-logs", []);
     const [swModelsS] = useStored("natation-modeles", []);
     const [loading, setLoading] = useState(true);
-    const [tab, setTab] = useState("bilan");
+    const [tab, setTab] = useState(initialTab || "recup");
     useEffect(() => { Promise.all([load("sport-logs", []), load("maison-logs", []), load("nutri-logs", []), load("nutri-cal-cfg", null)]).then(([s, m, n, c]) => { setSportLogs(s || []); setMaisonLogs(m || []); setNutriLogs(n || []); setCalRaw(c); setLoading(false); }); }, []);
     const overrides = cfg.weightOverrides || {};
     const repOv = cfg.repOverrides || {};
@@ -3423,13 +3890,13 @@ function ScienceSection() {
     const ovLabel = k => overrides[k] + "kg" + (repOv[k] ? " × " + fmtRange(repOv[k]) : "");
     /* ── Surcharge : moteur de progression partagé ── */
     const recs = salleSeances.flatMap(seance => seance.exercices.map(ex => { const e = lastExerciseLog(sportLogs, seance.id, ex.nom); if (!e)
-        return null; const p = progressFor(seance.id, e, cfg.recovery, sportLogs); const key = seance.id + ":" + ex.nom; return { key, seance: seance.id, emoji: seance.emoji, exo: ex.nom, last: e, p, applied: overrides[key] === p.weight && (!p.range || fmtRange(repOv[key]) === fmtRange(p.range)) }; }).filter(Boolean));
+        return null; const p = progressFor(seance.id, e, recupMode(cfg), sportLogs); const key = seance.id + ":" + ex.nom; return { key, seance: seance.id, emoji: seance.emoji, exo: ex.nom, last: e, p, applied: overrides[key] === p.weight && (!p.range || fmtRange(repOv[key]) === fmtRange(p.range)) }; }).filter(Boolean));
     // Actions à appliquer : hausse de charge (fourchette abaissée) ou remontée de fourchette (même charge)
     const ups = recs.filter(r => r.p.action === "up" || r.p.action === "range");
     /* ── Rythme de perte ── */
     const weighIns = nutriLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
     const curW = avgRecent(weighIns, 7);
-    const span = weighIns.length >= 2 ? daysBetween(weighIns[Math.max(0, weighIns.length - 8)].dateISO, weighIns[weighIns.length - 1].dateISO) : 0;
+    const span = weighIns.length >= 2 ? daysBetween(weighIns[0].dateISO, weighIns[weighIns.length - 1].dateISO) : 0;
     const rate = weighIns.length >= 3 && span >= 10 ? weeklyRate(weighIns) : null;
     const pct = rate != null && curW ? Math.round(rate / curW * 1000) / 10 : null;
     const band = curW ? [Math.round(curW * PACE_MIN / 100 * 10) / 10, Math.round(curW * PACE_MAX / 100 * 10) / 10] : null;
@@ -3460,7 +3927,8 @@ function ScienceSection() {
     const train7 = new Set([...sportLogs, ...maisonLogs].filter(l => withinDays(l.dateISO, 7)).map(l => l.dateISO)).size + swim7;
     const wNutri = nutriLogs.filter(l => withinDays(l.dateISO, 7));
     const avgComp = wNutri.length ? Math.round(wNutri.reduce((a, l) => a + l.compliance, 0) / wNutri.length) : null;
-    const activeCount = Object.keys(overrides).length + (cfg.deload ? 1 : 0) + (cfg.recovery ? 1 : 0);
+    const autoRecup = !cfg.recovery && recupMode(cfg);
+    const activeCount = Object.keys(overrides).length + (cfg.deload ? 1 : 0) + (cfg.recovery || autoRecup ? 1 : 0);
     if (loading)
         return React.createElement(Card, null, React.createElement("div", { style: { color: C.textMut, textAlign: "center", padding: 20 } }, "Chargement des données…"));
     const stat = (label, value, color, sub) => React.createElement(Card, null,
@@ -3475,14 +3943,15 @@ function ScienceSection() {
                 React.createElement("div", { style: { fontSize: 10, color: C.textMut, marginTop: 1, lineHeight: 1.4 } }, desc)),
             React.createElement("button", { onClick: () => { setCfg({ ...cfg, [k]: !cfg[k] }); toast(title + (cfg[k] ? " désactivé" : " activé")); }, style: { padding: "7px 14px", borderRadius: 99, border: `1.5px solid ${cfg[k] ? color : C.borderSoft}`, background: cfg[k] ? color + "22" : "transparent", color: cfg[k] ? color : C.textMut, fontSize: 11, fontWeight: 700, cursor: "pointer" } }, cfg[k] ? "Actif" : "Inactif")));
     return React.createElement("div", null,
-        React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 12, overflowX: "auto" } }, [["bilan", "📊 Bilan"], ["surcharge", "🏋️ Surcharge" + (ups.filter(r => !r.applied).length ? " · " + ups.filter(r => !r.applied).length : "")], ["config", "🔧 Config"]].map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.blue }, l))),
+        React.createElement("div", { style: { display: "flex", gap: 5, marginBottom: 12, overflowX: "auto" } }, [["recup", lx("🫀 Forme", "🫀 Récup")], ["bilan", "📊 Bilan"], ["surcharge", lx("🏋️ Charges à monter", "🏋️ Surcharge") + (ups.filter(r => !r.applied).length ? " · " + ups.filter(r => !r.applied).length : "")], ["config", "🔧 Config"]].filter(([k]) => tabOk("review", k)).map(([k, l]) => React.createElement(Pill, { key: k, active: tab === k, onClick: () => setTab(k), color: C.blue }, l))),
+        tab === "recup" && React.createElement(RecupTab, null),
         tab === "bilan" && React.createElement("div", null,
             activeCount > 0 && React.createElement(Card, { border: C.blue + "44", style: { background: "#FFFFFF" } },
                 React.createElement("div", { style: { fontSize: 12, fontWeight: 700, color: C.blueLight, marginBottom: 8 } }, "🔬 Ajustements actifs (" + activeCount + ")"),
                 React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6 } },
                     Object.entries(overrides).map(([k, v]) => React.createElement("span", { key: k, style: { fontSize: 10, background: C.blue + "15", border: `1px solid ${C.blue}33`, borderRadius: 8, padding: "3px 8px", color: C.blueLight } }, k.split(":")[1] + " → ", React.createElement("b", null, ovLabel(k)))),
                     cfg.deload && React.createElement("span", { style: { fontSize: 10, background: "#5B4FE015", border: "1px solid #5B4FE033", borderRadius: 8, padding: "3px 8px", color: "#5B4FE0" } }, "🪶 Décharge active"),
-                    cfg.recovery && React.createElement("span", { style: { fontSize: 10, background: "#C98A0018", border: "1px solid #C98A0044", borderRadius: 8, padding: "3px 8px", color: "#8A6900" } }, "🛌 Mode récupération"))),
+                    (cfg.recovery || autoRecup) && React.createElement("span", { style: { fontSize: 10, background: "#C98A0018", border: "1px solid #C98A0044", borderRadius: 8, padding: "3px 8px", color: "#8A6900" } }, autoRecup ? "🫀 Mode récup automatique (score " + RECUP_TODAY + "/100)" : "🛌 Mode récupération"))),
             React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 12 } },
                 stat("Séances / 7j", React.createElement(Fragment, null, train7, React.createElement("span", { style: { fontSize: 12, color: C.textMut, fontWeight: 400 } }, "/" + nDays)), train7 >= nDays ? C.green : train7 >= Math.ceil(nDays / 2) ? C.gluc : C.danger, progInfo(prog).label + (swim7 || swimDaysCount(swModelsS) ? " + natation (" + swim7 + ")" : "") + " · " + (train7 >= nDays ? "✅ objectif atteint" : "objectif " + nDays)),
                 stat("Compliance nutri", avgComp != null ? avgComp + "%" : "—", avgComp == null ? C.textMut : avgComp >= 85 ? C.green : avgComp >= 65 ? C.gluc : C.danger, avgComp == null ? "Pas de données" : avgComp >= 85 ? "✅ Excellente" : avgComp >= 65 ? "🟡 Correcte" : "🔴 Faible"),
@@ -3501,7 +3970,7 @@ function ScienceSection() {
         tab === "surcharge" && React.createElement("div", null, recs.length === 0 ? React.createElement(Card, null,
             React.createElement("div", { style: { textAlign: "center", color: C.textMut, padding: 14, fontSize: 12 } }, "Enregistre des séances salle (charge + reps) pour obtenir des recommandations."))
             : React.createElement(Fragment, null,
-                React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10, lineHeight: 1.5 } }, "💡 Cycle en 2 temps. ⬆️ Haut de la fourchette atteint à RPE ≤ 8 → la charge monte (+5 kg jambes, +2,5 kg ailleurs) et la fourchette descend de " + RANGE_DROP + " reps. ↕️ Haut de cette fourchette basse atteint → même charge, retour à la fourchette du programme. « Appliquer » écrit la charge et la fourchette dans l'onglet Salle et le log (✨ Pré-remplir)." + (cfg.recovery ? " Mode récupération actif : aucune hausse proposée." : "")),
+                React.createElement("div", { style: { fontSize: 10.5, color: C.textMut, marginBottom: 10, lineHeight: 1.5 } }, "💡 Cycle en 2 temps. ⬆️ Haut de la fourchette atteint à RPE ≤ 8 → la charge monte (+5 kg jambes, +2,5 kg ailleurs) et la fourchette descend de " + RANGE_DROP + " reps. ↕️ Haut de cette fourchette basse atteint → même charge, retour à la fourchette du programme. « Appliquer » écrit la charge et la fourchette dans l'onglet Salle et le log (✨ Pré-remplir)." + (cfg.recovery ? " Mode récupération actif : aucune hausse proposée." : autoRecup ? " Récupération du matin sous 50 : aucune hausse proposée aujourd'hui." : "")),
                 ups.map(r => React.createElement(Card, { key: r.key, border: r.applied ? C.green + "44" : C.amber + "44" },
                     React.createElement("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 } },
                         React.createElement("div", null,
@@ -3574,7 +4043,7 @@ catch (e) {
 } }
 const _ip = n => String(n).padStart(2, "0");
 function icsLocal(d) { return d.getFullYear() + _ip(d.getMonth() + 1) + _ip(d.getDate()) + "T" + _ip(d.getHours()) + _ip(d.getMinutes()) + "00"; }
-const STORAGE_KEYS = ["sport-logs", "sport-phase", "nutri-logs", "budget-logs", "mensurations", "photos-index", "douleur-logs", "science-config", "maison-logs", "fin-income", "fin-expenses", "fin-caps", "fin-goal", "taille-corps", "nutri-cal-cfg", "repas-alts", "food-log", "foods-custom", "profil", "programmes", "exos-perso", "natation-modeles", "natation-logs"];
+const STORAGE_KEYS = ["sport-logs", "sport-phase", "nutri-logs", "budget-logs", "mensurations", "photos-index", "douleur-logs", "science-config", "maison-logs", "fin-income", "fin-expenses", "fin-caps", "fin-goal", "taille-corps", "nutri-cal-cfg", "repas-alts", "food-log", "foods-custom", "profil", "programmes", "exos-perso", "natation-modeles", "natation-logs", "recup-logs", "bilans"];
 /* Sur iPhone (app installée), un lien de téléchargement est souvent ignoré :
    on passe par la feuille de partage (Enregistrer dans Fichiers, AirDrop, mail…),
    et on retombe sur le téléchargement classique ailleurs. */
@@ -3748,109 +4217,6 @@ function BackupReminder({ hasData }) {
                 toast("✅ Sauvegarde créée"); }, style: { padding: "9px 12px", borderRadius: 3, border: "none", background: C.ink, color: "#fff", fontSize: 12.5, fontWeight: 800, cursor: "pointer", opacity: busy ? .6 : 1 } }, "Exporter"),
         React.createElement("button", { onClick: () => setHidden(true), "aria-label": "Masquer", style: { border: "none", background: "transparent", color: C.ink, fontSize: 15, fontWeight: 800, cursor: "pointer", padding: 2 } }, "✕"));
 }
-function HomeScreen({ goTo }) {
-    const [sLogs, setSLogs] = useState([]);
-    const [nLogs, setNLogs] = useState([]);
-    const [bLogs, setBLogs] = useState([]);
-    const [mLogs, setMLogs] = useState([]);
-    const [fExp, setFExp] = useState([]);
-    const [ok, setOk] = useState(false);
-    const [hCalCfg, setHCalCfg] = useState(null);
-    const [hCm, setHCm] = useState(0);
-    const [hMens, setHMens] = useState([]);
-    useEffect(() => { Promise.all([load("sport-logs", []), load("nutri-logs", []), load("budget-logs", []), load("maison-logs", []), load("fin-expenses", []), load("nutri-cal-cfg", null), load("taille-corps", ""), load("mensurations", [])]).then(([s, n, b, m, f, cc, h, me]) => { setSLogs(s); setNLogs(n); setBLogs(b); setMLogs(m); setFExp(f || []); setHCalCfg(normCalCfg(cc)); setHCm(parseFloat(h) || 0); setHMens(me || []); setOk(true); }); }, []);
-    const [swLogs] = useStored("natation-logs", []);
-    const [swModels] = useStored("natation-modeles", []);
-    const trainDates = [...new Set([...sLogs.map(l => l.dateISO), ...mLogs.map(l => l.dateISO)])];
-    // Séances de la semaine : jours de muscu (salle ou maison) + séances de natation
-    const swim7 = swLogs.filter(l => withinDays(l.dateISO, 7)).length;
-    const train7 = trainDates.filter(d => withinDays(d, 7)).length + swim7;
-    const nutriStreak = streakFromDates(nLogs.filter(l => l.compliance >= 80).map(l => l.dateISO));
-    const creaStreak = streakFromDates(nLogs.filter(l => l.supps && l.supps["Créatine"]).map(l => l.dateISO));
-    const weighIns = nLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
-    const { cal: hCalRes, macros: hMacros } = bodyTargets(nLogs, hMens, hCm, hCalCfg);
-    const [profile] = useStored("profil", PROFILE_DEFAULT);
-    const prog = resolveProgramme(profile, sLogs);
-    const nDays = programmeDays(prog).length + swimDaysCount(swModels);
-    const todayISO = isoToday();
-    const seanceToday = sessionForDate(todayISO, prog);
-    const swimPlan = swimPlannedFor(swModels, todayISO), swimToday = swLogs.filter(l => l.dateISO === todayISO);
-    const swimKcalToday = swimKcalOn(swLogs, todayISO);
-    const todaySeance = seanceToday ? seanceToday.label : null;
-    const isRest = !seanceToday;
-    const plan = dayPlan(isRest ? "rest" : "training", profile);
-    const didTrain = sLogs.some(l => l.dateISO === todayISO) || mLogs.some(l => l.dateISO === todayISO);
-    const todayN = nLogs.find(l => l.dateISO === todayISO);
-    const didNutri = !!todayN;
-    const didWeigh = !!(todayN && todayN.weight);
-    const todayTgt = hCalRes ? (isRest ? Math.max(hCalRes.target - REST_CUT, hCalRes.bmr) : hCalRes.target) + swimKcalToday : null;
-    const lastW = [...sLogs.map(l => ({ ...l, emoji: seanceById(l.seance)?.emoji || "🏋️", nom: l.seance })), ...mLogs.map(l => ({ ...l, emoji: "🏠", nom: "Maison " + l.seance })), ...swLogs.map(l => ({ ...l, emoji: "🏊", nom: "Natation " + l.distance.toLocaleString("fr-FR") + " m" }))].sort((a, b) => a.dateISO.localeCompare(b.dateISO) || (a.id || 0) - (b.id || 0)).pop() || null;
-    const totalS = sLogs.length + mLogs.length + swLogs.length;
-    const wE = nLogs.filter(l => l.weight).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
-    const latW = wE.length ? wE[wE.length - 1].weight : null;
-    const fstW = wE.length ? wE[0].weight : null;
-    const diffW = latW && fstW ? (latW - fstW).toFixed(1) : null;
-    const l7 = nLogs.filter(l => withinDays(l.dateISO, 7));
-    const avgC = l7.length ? Math.round(l7.reduce((a, l) => a + l.compliance, 0) / l7.length) : null;
-    const w7 = weighIns.filter(x => withinDays(x.dateISO, 8));
-    const dW7 = w7.length >= 2 ? Math.round((w7[w7.length - 1].kg - w7[0].kg) * 10) / 10 : null;
-    const dep7 = Math.round(fExp.filter(e => withinDays(e.dateISO, 7)).reduce((s, e) => s + (+e.montant || 0), 0) * 100) / 100;
-    const [phaseIdx] = useStored("sport-phase", 0);
-    const firstISO = trainDates.slice().sort()[0];
-    const weekN = firstISO ? Math.floor(daysBetween(firstISO, isoToday()) / 7) + 1 : null;
-    const seanceH = CRENEAUX[normProfile(profile).creneau].seance;
-    const dayLabel = new Date().toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "");
-    const todo = [
-        { t: isRest ? "Repos aujourd'hui" : seanceToday.label + " à " + seanceH, s: isRest ? "récup" : (didTrain ? "faite" : "à faire"), done: isRest || didTrain, go: () => goTo("sport") },
-        { t: plan.meals.length + " repas · " + (todayTgt ? todayTgt.toLocaleString("fr-FR") : (macrosTarget.kcal + swimKcalToday).toLocaleString("fr-FR")) + " kcal", s: (didNutri ? todayN.mealsOk + "/" + todayN.mealsTotal + " repas" : "à cocher") + (swimKcalToday ? " · +" + swimKcalToday + " natation" : ""), done: didNutri && todayN.compliance >= 80, go: () => goTo("nutrition") },
-        { t: "Pesée du matin", s: didWeigh ? todayN.weight.toLocaleString("fr-FR") + " kg" : "à faire", done: didWeigh, go: () => goTo("nutrition", "suivi") },
-    ];
-    // Natation prévue ou faite aujourd'hui : une ligne de plus
-    if (swimPlan || swimToday.length)
-        todo.splice(1, 0, { t: "🏊 Natation · " + (swimToday.length ? swimToday.reduce((a, l) => a + l.distance, 0) : swimDist(swimPlan)).toLocaleString("fr-FR") + " m", s: swimToday.length ? "faite" : "à faire", done: swimToday.length > 0, go: () => goTo("sport", "natation") });
-    const doneCount = todo.filter(x => x.done).length;
-    const week = [
-        { v: train7 + "/" + nDays, l: "séances" },
-        { v: dW7 == null ? "—" : (dW7 > 0 ? "+" : "") + dW7.toLocaleString("fr-FR"), l: "kg en 7 j", c: dW7 == null ? C.ink : dW7 <= 0 ? C.greenLight : C.amberLight },
-        { v: avgC == null ? "—" : avgC + "%", l: "nutrition" },
-        { v: dep7 > 0 ? Math.round(dep7) + "€" : "—", l: "dépenses" },
-    ];
-    return React.createElement("div", { className: "home" },
-        React.createElement("div", { className: "home-meta" },
-            React.createElement("span", null, weekN ? "Semaine " + weekN : "Semaine 1"),
-            React.createElement("span", null, "Phase " + ((+phaseIdx || 0) + 1)),
-            React.createElement("span", null, dayLabel)),
-        React.createElement("h1", { className: "home-logo", "aria-label": "RECOMP" }, [..."RECOMP"].map((ch, i) => React.createElement("span", { key: i, style: { animationDelay: i * 60 + "ms" } }, ch))),
-        React.createElement("div", { className: "home-wrow" },
-            latW ? React.createElement(Odometer, { value: latW.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }) : React.createElement("div", { className: "odo" }, "—"),
-            React.createElement("div", { className: "home-unit" },
-                React.createElement("b", null, "KG"),
-                diffW != null && React.createElement("em", { style: { background: parseFloat(diffW) <= 0 ? C.green : C.amber } }, (parseFloat(diffW) > 0 ? "+" : "") + String(diffW).replace(".", ",") + " kg"))),
-        !latW && ok && React.createElement("p", { className: "home-hint" }, "Ta première pesée apparaîtra ici en grand. Nutrition → Suivi."),
-        React.createElement(BackupReminder, { hasData: ok && (sLogs.length + nLogs.length + mLogs.length) > 0 }),
-        React.createElement("div", { className: "home-h" }, React.createElement("span", null, "Aujourd'hui"), React.createElement("b", null, doneCount + "/" + todo.length)),
-        React.createElement("ul", { className: "home-todo" }, todo.map((x, i) => React.createElement("li", { key: i },
-            React.createElement("button", { className: x.done ? "done" : "", onClick: x.go },
-                React.createElement("span", null, x.t),
-                React.createElement("small", null, x.s + " →"))))),
-        hMacros && React.createElement("div", { className: "home-macros" },
-            [["Prot.", (isRest || swimKcalToday ? macrosFor(todayTgt, hMacros.p) : hMacros).p, C.prot], ["Gluc.", (isRest || swimKcalToday ? macrosFor(todayTgt, hMacros.p) : hMacros).g, C.gluc], ["Lip.", (isRest || swimKcalToday ? macrosFor(todayTgt, hMacros.p) : hMacros).l, C.lip]].map(([l, v, c]) => React.createElement("div", { key: l }, React.createElement("i", { style: { background: c } }), React.createElement("b", null, v + " g"), React.createElement("span", null, l)))),
-        React.createElement("div", { className: "home-h" }, React.createElement("span", null, "La semaine"), React.createElement("small", null, "7 derniers jours")),
-        React.createElement("div", { className: "home-week" }, week.map(w => React.createElement("div", { key: w.l }, React.createElement("b", { style: w.c ? { color: w.c } : null }, w.v), React.createElement("span", null, w.l)))),
-        React.createElement("div", { className: "home-streaks" },
-            React.createElement("span", null, "🔥 Série nutrition ", React.createElement("b", null, nutriStreak.current + " j"), nutriStreak.best > 1 ? " · record " + nutriStreak.best + " j" : ""),
-            React.createElement("span", null, "⚡ Créatine ", React.createElement("b", null, creaStreak.current + " j")),
-            lastW && React.createElement("span", null, "Dernière séance : ", React.createElement("b", null, lastW.emoji + " " + lastW.nom), " · " + lastW.date + " · " + totalS + " au total")),
-        React.createElement("div", { className: "home-h" }, React.createElement("span", null, "Planning"), React.createElement("small", null, isRest ? "jour de repos" : seanceToday.emoji + " " + seanceToday.label + " · créneau " + CRENEAUX[normProfile(profile).creneau].label.toLowerCase())),
-        React.createElement("div", { className: "home-plan" }, plan.timeline.map((x, i) => React.createElement("div", { key: i, className: /Séance/.test(x.t) ? "hl" : "" }, React.createElement("time", null, x.h), React.createElement("span", null, x.t)))),
-        React.createElement("button", { className: "home-cta", onClick: async () => { const r = await shareOrDownload("recomp-routine.ics", buildProfileICS(profile, prog), "text/calendar"); if (r === "shared" || r === "downloaded")
-                toast("📅 Ouvre le fichier pour l'ajouter à ton calendrier"); } }, "📅 Ajouter les rappels au calendrier"),
-        React.createElement("p", { className: "home-hint" }, "Réveil, séances (" + progInfo(prog).label.toLowerCase() + ", " + programmeDays(prog).length + " j/sem) et repas aux horaires de ton profil, jours d'entraînement et de repos distincts."),
-        React.createElement("div", { className: "home-cards" },
-            React.createElement(ProfileCard, { prog }),
-            React.createElement(ProjectionCard, { weighIns: weighIns }),
-            React.createElement(DataCard, null)));
-}
 /* Compteur mécanique : chaque chiffre défile jusqu'à sa valeur (arrivée sur l'accueil) */
 function Odometer({ value }) {
     const [go, setGo] = useState(false);
@@ -3861,10 +4227,10 @@ function Odometer({ value }) {
         : React.createElement("span", { key: i, className: "odo-sep" }, ch)));
 }
 /* ═══ PROFIL — programme, créneau de séance, réveil ═══ */
-function ProfileCard({ prog }) {
+function ProfileCard({ prog, defaultOpen }) {
     const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
     const [progs] = useStored("programmes", []);
-    const [open, setOpen] = useState(false);
+    const [open, setOpen] = useState(!!defaultOpen);
     const pr = normProfile(profile);
     const upd = patch => setProfile({ ...pr, ...patch });
     const chip = (active, onClick, label) => React.createElement("button", { onClick, style: { flex: 1, padding: "8px 4px", borderRadius: 9, border: `2px solid ${active ? C.amber : "transparent"}`, background: active ? C.amber + "22" : C.surfaceAlt, color: active ? C.amber : C.textMut, fontSize: 11.5, fontWeight: 700, cursor: "pointer" } }, label);
@@ -3965,10 +4331,13 @@ function TodaySport({ fg, bg, goTab }) {
         React.createElement("span", { style: { fontSize: 22 } }, "🏊"),
         React.createElement("span", { style: { flex: 1, fontSize: 15, fontWeight: 750, lineHeight: 1.25 } }, swDone.length ? "Natation faite : " + swDone.map(l => l.distance.toLocaleString("fr-FR") + " m en " + fmtDur(l.duree)).join(" + ") : "Natation aujourd'hui : " + swPlan.name + " · " + swimDist(swPlan).toLocaleString("fr-FR") + " m"),
         React.createElement("b", { style: { fontSize: 13, whiteSpace: "nowrap" } }, swDone.length ? "Voir →" : "Le détail →"));
+    // Récupération du matin : rappel du conseil au moment de lancer la séance
+    const recupStrip = RECUP_RES && RECUP_RES.score != null && React.createElement("div", { style: { border: `2.5px solid ${fg}`, borderRadius: 4, padding: "9px 12px", margin: "0 0 14px", fontSize: 14, fontWeight: 600, lineHeight: 1.35 } },
+        React.createElement("b", { style: { fontWeight: 800 } }, "🫀 Récupération " + RECUP_RES.score + "/100 · " + RECUP_RES.verdict.short + ". "), RECUP_RES.advice);
     const pickers = React.createElement("div", { style: { margin: "4px 0 14px" } },
         React.createElement("button", { onClick: () => setShowPick(v => !v), style: { ...TD.chip(fg) } }, showPick ? "Fermer" : (cur ? "Changer de séance" : "Faire une séance quand même")),
         showPick && React.createElement("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 8 } },
-            salleSeances.map(s => React.createElement("button", { key: s.id, onClick: () => { setPick({ prog: "salle", code: s.id }); setShowPick(false); }, style: { ...TD.chip(fg), background: cur?.code === s.id ? fg : "transparent", color: cur?.code === s.id ? bg : fg } }, s.id)),
+            salleSeances.map(s => React.createElement("button", { key: s.id, onClick: () => { setPick({ prog: "salle", code: s.id }); setShowPick(false); }, style: { ...TD.chip(fg), background: cur?.code === s.id ? fg : "transparent", color: cur?.code === s.id ? bg : fg } }, seanceLabel(s.id))),
             maison.map(s => React.createElement("button", { key: s.code, onClick: () => { setPick({ prog: "maison", code: s.code }); setShowPick(false); }, style: { ...TD.chip(fg), background: cur?.code === s.code ? fg : "transparent", color: cur?.code === s.code ? bg : fg } }, "Maison " + s.code))));
     if (!cur) {
         let next = null;
@@ -4007,6 +4376,7 @@ function TodaySport({ fg, bg, goTab }) {
         return React.createElement("div", { style: TD.wrap },
             React.createElement("div", { style: TD.giant }, "Maison " + m.code),
             React.createElement("p", { style: TD.lead }, m.titre + ". " + m.format + ". Touche un numéro quand le tour est fait."),
+            recupStrip,
             swimStrip,
             pickers,
             React.createElement("div", { style: rule }, m.ex.map((x, i) => { const [nom, cible] = x.split("—").map(s => s.trim()); return React.createElement("div", { key: i, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
@@ -4048,11 +4418,12 @@ function TodaySport({ fg, bg, goTab }) {
     };
     const total = se.exercices.reduce((a, ex) => a + (parseDetail(ex.detail)?.sets || 3), 0), doneAll = se.exercices.reduce((a, ex) => a + Math.min(doneOf(ex), parseDetail(ex.detail)?.sets || 3), 0);
     return React.createElement("div", { style: TD.wrap },
-        React.createElement("div", { style: TD.giant }, se.id),
+        React.createElement("div", { style: seanceLabel(se.id).length > 7 ? { ...TD.giant, fontSize: "clamp(64px, 19vw, 92px)", whiteSpace: "normal" } : TD.giant }, seanceLabel(se.id)),
         React.createElement("p", { style: TD.lead }, se.focus + ". " + (se.custom ? "Programme « " + progInfo(ACTIVE_GYM).label + " »" : (phases[+phase || 0]?.ph || "") + " (" + (phases[+phase || 0]?.sem || "") + ")") + ". Touche un numéro de série quand elle est faite." + (sci.deload ? " Semaine de décharge : charges −40 %." : "")),
         React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10, marginBottom: 12 } },
             React.createElement("div", { style: { flex: 1, height: 14, border: `2.5px solid ${fg}`, position: "relative" } }, React.createElement("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: (total ? doneAll / total * 100 : 0) + "%", background: fg, transition: "width .5s cubic-bezier(.7,0,.2,1)" } })),
             React.createElement("b", { style: { fontFamily: AN, fontSize: 22, fontWeight: 400 } }, doneAll + "/" + total)),
+        recupStrip,
         swimStrip,
         pickers,
         React.createElement("div", { style: rule }, se.exercices.map((ex, i) => { const s = sugg[i], r = s.src === "phase" ? progRangeFor(cur.code, ex.nom) : rng(ex), sets = parseDetail(ex.detail)?.sets || 3; return React.createElement("div", { key: ex.nom, style: { padding: "12px 0 14px", borderBottom: `2px solid ${fg}` } },
@@ -4060,7 +4431,7 @@ function TodaySport({ fg, bg, goTab }) {
                 React.createElement("b", { style: { fontSize: 21, lineHeight: 1.1, fontWeight: 750 } }, ex.nom),
                 React.createElement("small", { style: { fontSize: 12.5, fontWeight: 800, whiteSpace: "nowrap" } }, (s.weight ? kgFr(s.weight) + " kg × " : "") + (r ? fmtRange(r) : ex.detail))),
             React.createElement(SetCircles, { count: Math.max(sets, doneOf(ex)), done: doneOf(ex), onTick: n => tick(i, n), fg, bg })); })),
-        React.createElement("button", { onClick: () => goTab("suivi"), style: { ...TD.chip(fg), marginTop: 14 } }, "Charges, reps et RPE détaillés → Suivi"));
+        tabOk("sport", "suivi") && React.createElement("button", { onClick: () => goTab("suivi"), style: { ...TD.chip(fg), marginTop: 14 } }, lx("Charges, reps et difficulté détaillées → Suivi", "Charges, reps et RPE détaillés → Suivi")));
 }
 function TodayNutrition({ fg, bg, goTab }) {
     const [nLogs, setNLogs] = useStored("nutri-logs", []);
@@ -4108,16 +4479,555 @@ function TodayBudget({ fg }) {
         React.createElement("p", { style: TD.lead }, "dépensés ces 7 derniers jours. Courses visées : ~" + TOTAL_SEM + " €/sem, ~" + TOTAL_SEM_B + " € avec les alternatives."),
         byCat.length > 0 && React.createElement("div", { style: TD.rule(fg) }, byCat.map(([k, v]) => React.createElement("div", { key: k, style: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `2px solid ${fg}`, fontSize: 16, fontWeight: 700 } }, React.createElement("span", null, (finCats.find(c => c.k === k)?.e || "") + " " + k), React.createElement("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 21 } }, Math.round(v) + " €")))));
 }
-function TodayScience({ fg }) {
+function TodayScience({ fg, bg, goTab }) {
     const [nLogs] = useStored("nutri-logs", []);
+    const D = useRecoveryData();
+    const [edit, setEdit] = useState(false);
+    const r = recoveryFor(isoToday(), D);
     const weigh = nLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
     const cw = avgRecent(weigh, 7), rate = weigh.length >= 3 ? weeklyRate(weigh) : null, pct = rate != null && cw ? Math.round(rate / cw * 1000) / 10 : null;
     const verdict = pct == null ? "Il faut au moins 3 pesées pour mesurer ta tendance." : pct < PACE_MIN ? "Perte un peu rapide : regarde le Bilan ci-dessous pour ajuster le déficit." : pct > PACE_SLOW ? "Perte trop lente : le Bilan propose d'ajuster le déficit." : pct > PACE_MAX ? "Rythme un peu lent mais acceptable en recomposition." : "Pile dans la zone −0,5 à −1 %. On garde le déficit.";
+    // Récupération du matin en tête ; sans saisie aujourd'hui, le formulaire est directement sur l'affiche
+    const recup = !r || edit
+        ? React.createElement(Fragment, null,
+            React.createElement("div", { style: TD.giant }, "Matin"),
+            React.createElement("p", { style: TD.lead }, r ? "Corrige ta saisie du matin." : "Ta saisie Polar du matin, en 20 secondes : le score de récupération s'affiche ici."),
+            React.createElement(RecupForm, { fg, bg, onDone: () => setEdit(false), onCancel: r ? () => setEdit(false) : null }),
+            React.createElement("div", { style: { height: 22 } }))
+        : React.createElement(Fragment, null,
+            React.createElement(RecupHead, { r, fg, bg, giant: { ...TD.giant, margin: "4px -3px 4px" } }),
+            React.createElement("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 22 } },
+                React.createElement("button", { onClick: () => goTab("recup"), style: TD.chip(fg) }, "Détail et graphiques →"),
+                React.createElement("button", { onClick: () => setEdit(true), style: TD.chip(fg) }, "Modifier ma saisie")));
     return React.createElement("div", { style: TD.wrap },
-        React.createElement("div", { style: TD.giant }, pct == null ? "—" : (pct > 0 ? "+" : "") + pct.toLocaleString("fr-FR") + "%"),
-        React.createElement("p", { style: TD.lead }, (pct == null ? "" : "par semaine. ") + verdict),
+        recup,
+        React.createElement("div", { style: { fontFamily: AN, fontSize: 30, lineHeight: 1, textTransform: "uppercase", margin: "0 0 6px" } }, "Poids " + (pct == null ? "" : (pct > 0 ? "+" : "") + pct.toLocaleString("fr-FR") + " %/sem")),
+        React.createElement("p", { style: { ...TD.lead, fontSize: 14 } }, verdict),
         cw && React.createElement("div", { style: TD.rule(fg) },
             [["Poids moyen 7 j", kgFr(cw) + " kg"], ["Tendance", rate != null ? (rate > 0 ? "+" : "") + kgFr(rate) + " kg/sem" : "—"], ["Départ", weigh.length ? kgFr(weigh[0].kg) + " kg" : "—"]].map(([a, b]) => React.createElement("div", { key: a, style: { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: `2px solid ${fg}`, fontSize: 16, fontWeight: 700 } }, React.createElement("span", null, a), React.createElement("em", { style: { fontStyle: "normal", fontFamily: AN, fontSize: 21 } }, b)))));
+}
+/* ═══ PARCOURS — trois écrans (Aujourd'hui, Progrès, Plan), niveaux, coach, démarrage en 6 questions ═══
+ * L'accueil devient « le Fil » : ta journée heure par heure. Chaque carte écrit dans les mêmes données que les affiches.
+ * Les 4 affiches de couleur restent : elles s'ouvrent depuis Plan ou depuis une carte du Fil, avec tous leurs onglets.
+ * Profil ("profil") : niveau 1-4, unlockAll, levelSince, onboarded, owner, montre, budgetSemaine, coursesJour, coachDismiss.
+ * Les jours validés se déduisent des logs existants : les niveaux ne créent aucune donnée nouvelle. */
+let LEVEL = 4; // niveau visible : filtre les cartes du Fil, les blocs de Progrès, les lignes de Plan et les onglets des affiches
+const LEVELS = [
+    { n: 1, name: "Les bases", items: ["Ta journée heure par heure", "Séance guidée, séries à cocher", "Repas à cocher", "Pesée et courbe de poids"] },
+    { n: 2, name: "Le rythme", items: ["Forme du matin", "Plats de remplacement", "Natation", "Courses et budget"], unlock: ["Ta journée s'enrichit", "Ta forme du matin, la natation et les courses arrivent dans ta journée. Tu peux aussi changer de plat : les portions restent calculées pour toi."] },
+    { n: 3, name: "La progression", items: ["Coach des charges", "Créer ou importer un programme", "Journal alimentaire", "Mensurations et photos"], unlock: ["Ton coach monte les charges", "Quand une série devient facile, il ajoute un peu de poids la fois suivante. Tu peux aussi créer ton programme et noter tout ce que tu manges."] },
+    { n: 4, name: "Expert", items: ["Récupération avec montre", "Max estimés, volume par muscle", "Bilans sanguins", "Réglages science et termes exacts"], unlock: ["Mode expert", "Tous les outils détaillés sont ouverts : récupération avec ta montre, max estimés, bilans sanguins, réglages science. Les termes techniques reviennent."] },
+];
+/* Lexique : mot simple jusqu'au niveau 3, terme exact au niveau expert */
+const lx = (plain, expert) => LEVEL >= 4 ? expert : plain;
+/* Niveau à partir duquel chaque onglet des affiches est visible (1 par défaut) */
+const TAB_LEVEL = {
+    sport: { natation: 2, programmes: 3, suivi: 3, coach: 3, progression: 4, rm: 4 },
+    nutrition: { aliments: 2, complements: 2, journal: 3, corps: 3 },
+    budget: { resume: 2, finances: 2, aliments: 2, suivi: 2, conseils: 2, alternatives: 3 },
+    review: { recup: 2, bilan: 2, surcharge: 3, config: 4 },
+};
+const tabOk = (sec, k) => ((TAB_LEVEL[sec] || {})[k] || 1) <= LEVEL;
+const POSTER_LEVEL = { sport: 1, nutrition: 1, budget: 2, review: 2 };
+const SEANCE_FR = { Push: "Poussée", Pull: "Tirage", Legs: "Jambes", Upper: "Haut du corps", Lower: "Bas du corps" };
+const seanceLabel = code => LEVEL >= 4 ? code : (SEANCE_FR[code] || code);
+const LEXIQUE = [["RPE 8", "Difficulté 8 sur 10 : il te restait 2 répétitions"], ["1RM", "Ton max estimé"], ["4×8-10", "4 séries de 8 à 10 répétitions"], ["Surcharge progressive", "Le coach ajoute du poids quand c'est facile"], ["Décharge", "Semaine plus légère pour récupérer"], ["Phase S1-4", "Mois 1 : reprise en douceur"], ["Push / Pull / Legs", "Poussée / Tirage / Jambes"], ["Upper / Lower", "Haut du corps / Bas du corps"], ["DC, DI, DM", "Développé couché, incliné, militaire (épaules)"], ["RDL", "Soulevé de terre jambes tendues"], ["Déficit −500 kcal", "Tu manges 500 kcal de moins que ce que tu dépenses"], ["TDEE", "Ce que ton corps dépense dans la journée"], ["Métabolisme de base", "Ce que ton corps dépense au repos"], ["Masse maigre", "Ton poids sans la graisse"], ["Macros", "Protéines, glucides, lipides"], ["Compliance 80 %", "8 repas sur 10 suivis"], ["VFC, statut SNA", "Ta recharge de la nuit (montre)"], ["Glycogène", "Ton stock d'énergie dans les muscles"], ["MEV / MAV", "Assez ou trop de séries pour ce muscle"], ["Charge aiguë / chronique", "Ta semaine comparée à ton mois"]];
+const REGLES_GEN = ["Échauffe-toi 5 minutes avant chaque séance.", "Une douleur qui pique : arrête l'exercice tout de suite.", "Le premier mois, garde 2 répétitions en réserve à chaque série.", "Bois 500 ml d'eau pendant la séance.", "Dors 7 à 8 h : c'est la nuit que le muscle se construit."];
+const hhmm = h => { const n = ((hToMin(h) % 1440) + 1440) % 1440; return String(Math.floor(n / 60)).padStart(2, "0") + ":" + String(n % 60).padStart(2, "0"); };
+/* Journée validée : bouger (ou repos prévu), au moins 3 repas cochés, pesée */
+function dayValidated(iso, d) {
+    const s = sessionForDate(iso, d.prog);
+    const moved = !s || d.sl.some(l => l.dateISO === iso) || d.ml.some(l => l.dateISO === iso) || d.swl.some(l => l.dateISO === iso);
+    const n = d.nl.find(l => l.dateISO === iso);
+    return !!(moved && n && n.weight > 0 && (n.mealsOk || 0) >= Math.min(3, n.mealsTotal || 3));
+}
+function levelProgress(pr, d) {
+    const since = pr.levelSince || isoToday();
+    let n = 0;
+    for (let i = 0; i <= 90; i++) {
+        const iso = shiftISO(isoToday(), -i);
+        if (iso < since)
+            break;
+        if (dayValidated(iso, d))
+            n++;
+    }
+    return Math.min(7, n);
+}
+/* Mise à jour d'une entrée du suivi nutrition (créée si besoin) */
+function nutriPatch(nLogs, iso, patch) {
+    const ex = nLogs.find(l => l.dateISO === iso);
+    const base = ex || { id: Date.now(), date: fmtDateShort(iso), dateISO: iso, weight: null, supps: {}, water: 0, sleep: null, stress: 5, meals: {}, mealsOk: 0, mealsTotal: 0, compliance: 0 };
+    return [...nLogs.filter(l => l.dateISO !== iso), { ...base, ...patch }];
+}
+/* ── Programmes générés au démarrage (charges à 0 : elles s'apprennent avec les premières séances) ── */
+const T_ = (nom, muscle, sets, lo, hi, rest) => ({ nom, muscle, sets, lo, hi, kg: 0, rest: rest || 90, note: "" });
+const TPL = {
+    fullA: ["Corps entier A", [T_("Presse à cuisses", "Quadriceps", 3, 10, 12, 120), T_("Développé couché haltères", "Pecs", 3, 8, 10, 120), T_("Tirage vertical", "Dos", 3, 10, 12), T_("Élévations latérales", "Épaules", 3, 12, 15, 60), T_("Leg curl", "Ischios", 3, 12, 15, 60), T_("Crunch", "Abdos", 3, 12, 15, 45)]],
+    fullB: ["Corps entier B", [T_("Goblet squat", "Quadriceps", 3, 10, 12, 120), T_("Tirage horizontal poulie", "Dos", 3, 10, 12), T_("Développé épaules haltères", "Épaules", 3, 10, 12), T_("Hip thrust", "Fessiers", 3, 10, 12), T_("Curl biceps", "Biceps", 2, 12, 15, 60), T_("Triceps poulie", "Triceps", 2, 12, 15, 60)]],
+    fullC: ["Corps entier C", [T_("Fentes", "Quadriceps", 3, 10, 12), T_("Développé incliné haltères", "Pecs", 3, 10, 12), T_("Rowing haltère", "Dos", 3, 10, 12), T_("Soulevé de terre jambes tendues", "Ischios", 3, 10, 12, 120), T_("Face pull", "Épaules", 3, 12, 15, 60), T_("Mollets debout", "Mollets", 3, 15, 20, 60)]],
+    hautA: ["Haut A", [T_("Développé couché haltères", "Pecs", 4, 8, 10, 120), T_("Tirage vertical", "Dos", 4, 8, 10, 120), T_("Développé épaules haltères", "Épaules", 3, 10, 12), T_("Rowing haltère", "Dos", 3, 10, 12), T_("Curl biceps", "Biceps", 3, 10, 12, 60), T_("Triceps poulie", "Triceps", 3, 10, 12, 60)]],
+    basA: ["Bas A", [T_("Presse à cuisses", "Quadriceps", 4, 10, 12, 120), T_("Soulevé de terre jambes tendues", "Ischios", 3, 8, 10, 120), T_("Leg extension", "Quadriceps", 3, 12, 15, 60), T_("Leg curl", "Ischios", 3, 12, 15, 60), T_("Mollets debout", "Mollets", 4, 15, 20, 60)]],
+    hautB: ["Haut B", [T_("Développé incliné haltères", "Pecs", 4, 8, 10, 120), T_("Tirage horizontal poulie", "Dos", 4, 10, 12), T_("Élévations latérales", "Épaules", 3, 12, 15, 60), T_("Face pull", "Épaules", 3, 12, 15, 60), T_("Curl marteau", "Biceps", 3, 10, 12, 60), T_("Extension triceps", "Triceps", 3, 10, 12, 60)]],
+    basB: ["Bas B", [T_("Goblet squat", "Quadriceps", 4, 8, 10, 120), T_("Hip thrust", "Fessiers", 4, 8, 10, 120), T_("Fentes", "Quadriceps", 3, 10, 12), T_("Leg curl assis", "Ischios", 3, 12, 15, 60), T_("Mollets assis", "Mollets", 4, 12, 15, 60)]],
+    pousse: ["Poussée", [T_("Développé couché haltères", "Pecs", 4, 8, 10, 120), T_("Développé incliné haltères", "Pecs", 3, 10, 12), T_("Développé épaules haltères", "Épaules", 3, 10, 12), T_("Élévations latérales", "Épaules", 3, 12, 15, 60), T_("Triceps poulie", "Triceps", 3, 12, 15, 60)]],
+    tirage: ["Tirage", [T_("Tirage vertical", "Dos", 4, 8, 10, 120), T_("Rowing haltère", "Dos", 3, 10, 12), T_("Tirage horizontal poulie", "Dos", 3, 10, 12), T_("Face pull", "Épaules", 3, 12, 15, 60), T_("Curl biceps", "Biceps", 3, 10, 12, 60)]],
+    jambes: ["Jambes", [T_("Presse à cuisses", "Quadriceps", 4, 10, 12, 120), T_("Soulevé de terre jambes tendues", "Ischios", 3, 8, 10, 120), T_("Leg extension", "Quadriceps", 3, 12, 15, 60), T_("Leg curl", "Ischios", 3, 12, 15, 60), T_("Mollets debout", "Mollets", 4, 15, 20, 60)]],
+};
+const PLAN_JOURS = { 2: [["fullA", 1], ["fullB", 4]], 3: [["fullA", 1], ["fullB", 3], ["fullC", 5]], 4: [["hautA", 1], ["basA", 2], ["hautB", 4], ["basB", 5]], 5: [["pousse", 1], ["tirage", 2], ["jambes", 3], ["hautA", 5], ["basB", 6]] };
+function buildProgram(jours, debutant) {
+    const plan = PLAN_JOURS[jours] || PLAN_JOURS[3];
+    return { id: newId("p"), name: plan.length <= 3 ? "Corps entier " + plan.length + " jours" : plan.length === 4 ? "Haut / Bas 4 jours" : "Poussée / Tirage / Jambes", auto: true,
+        seances: plan.map(([k, d]) => ({ nom: TPL[k][0], days: [d], ex: TPL[k][1].map(e => ({ ...e, sets: debutant ? Math.max(2, e.sets - 1) : e.sets })) })) };
+}
+/* Le démarrage écrit le profil, les calories, le poids du jour, le programme et la natation */
+async function applyOnboarding(a, unlockAll) {
+    const lieux = a.lieux.length ? a.lieux : ["salle"];
+    const debutant = a.niv === 0;
+    let programme = "maison", progs = await load("programmes", []);
+    if (lieux.includes("salle")) {
+        const p = buildProgram(a.jours, debutant);
+        progs = [...progs.filter(x => !x.auto), p];
+        programme = p.id;
+    }
+    else if (!lieux.includes("maison"))
+        programme = "aucun";
+    await save("programmes", progs);
+    if (lieux.includes("piscine")) {
+        const used = (PLAN_JOURS[a.jours] || []).map(x => x[1]);
+        const day = [6, 3, 0, 4].find(d => !used.includes(d));
+        const models = await load("natation-modeles", []);
+        if (!models.length)
+            await save("natation-modeles", [{ ...swimSample(), name: debutant ? "Découverte 1 000 m" : "Endurance 1 400 m", days: day != null ? [day] : [], blocks: debutant ? swimSample().blocks.filter(b => b.t !== "Série") : swimSample().blocks }]);
+    }
+    await save("nutri-cal-cfg", { ...(await load("nutri-cal-cfg", {}) || {}), sex: a.sexe === "Femme" ? "F" : "H", age: a.age, activity: a.jours >= 4 ? 1.55 : 1.375, deficit: [500, -250, 300, 0][a.obj], protMode: "lean" });
+    await save("taille-corps", a.taille);
+    await save("nutri-logs", nutriPatch(await load("nutri-logs", []), isoToday(), { weight: a.poids }));
+    const pr = normProfile(await load("profil", PROFILE_DEFAULT));
+    await save("profil", { ...pr, programme, onboarded: true, owner: false, niveau: unlockAll ? 4 : [1, 2, 3][a.niv], unlockAll: !!unlockAll, levelSince: isoToday(), objectif: a.obj, budgetSemaine: [40, 60, 80, 100][a.budget], coursesJour: pr.coursesJour ?? 6 });
+}
+/* ── Petits graphiques ── */
+function Spark({ vals, color, h }) {
+    if (!vals || vals.length < 2)
+        return null;
+    const H = h || 64, w = 300, lo = Math.min(...vals), hi = Math.max(...vals), pad = 6;
+    const x = i => pad + i * (w - 2 * pad) / (vals.length - 1), y = v => pad + (H - 2 * pad) * (1 - (v - lo) / ((hi - lo) || 1));
+    const pts = vals.map((v, i) => x(i).toFixed(1) + "," + y(v).toFixed(1)).join(" "), L = vals.length - 1;
+    return hx("svg", { viewBox: "0 0 " + w + " " + H, style: { width: "100%", height: "auto", display: "block", marginTop: 6 }, "aria-hidden": true },
+        hx("polygon", { points: x(0) + "," + H + " " + pts + " " + x(L) + "," + H, fill: color, fillOpacity: .14 }),
+        hx("polyline", { points: pts, fill: "none", stroke: color, strokeWidth: 2.5, strokeLinejoin: "round", strokeLinecap: "round" }),
+        hx("circle", { cx: x(L), cy: y(vals[L]), r: 5, fill: color, stroke: C.ink, strokeWidth: 2 }));
+}
+function Bars({ vals, labels, color }) {
+    const w = 300, h = 74, bw = w / vals.length;
+    return hx("svg", { viewBox: "0 0 " + w + " " + h, style: { width: "100%", height: "auto", display: "block", marginTop: 6 }, "aria-hidden": true }, vals.map((v, i) => hx(Fragment, { key: i },
+        hx("rect", { x: i * bw + 5, y: 58 - Math.min(100, v) / 100 * 50, width: bw - 10, height: Math.max(1, Math.min(100, v) / 100 * 50), fill: i === vals.length - 1 ? color : C.ink }),
+        hx("text", { x: i * bw + bw / 2, y: 71, textAnchor: "middle", fontSize: 10, fontWeight: 700, fill: C.textMut }, labels[i]))));
+}
+const scrH = { fontFamily: AN, fontSize: 56, lineHeight: .88, textTransform: "uppercase", margin: "6px 0 8px" };
+const capS = { fontSize: 11, fontWeight: 800, letterSpacing: ".1em", textTransform: "uppercase", color: C.textMut };
+/* Carte des niveaux (Fil et Plan) */
+function LevelMap({ pr, setProfile, progress }) {
+    const lvl = pr.unlockAll ? 4 : (pr.niveau || 4);
+    const setLvl = n => { setProfile({ ...pr, niveau: n, unlockAll: n === 4, levelSince: isoToday() }); toast(n === 4 ? "Tout est débloqué" : "Tu es au niveau " + n + " : " + LEVELS[n - 1].name); };
+    return hx("div", null,
+        hx("p", { style: { fontSize: 14, color: C.textMut, lineHeight: 1.45, margin: "0 0 12px" } }, lvl >= 4 ? "Tout est débloqué. Tu peux choisir un niveau plus simple pour découvrir l'app pas à pas." : "Valide 7 journées pour passer au niveau suivant : ta séance (ou ton repos prévu), au moins 3 repas cochés et ta pesée."),
+        LEVELS.map((l, i) => {
+            const locked = l.n > lvl, cur = l.n === lvl;
+            return hx("div", { key: l.n, style: { display: "grid", gridTemplateColumns: "44px 1fr", gap: 10, opacity: locked ? .45 : 1 } },
+                hx("div", { style: { display: "flex", flexDirection: "column", alignItems: "center" } },
+                    hx("b", { style: { width: 40, height: 40, flex: "none", borderRadius: "50%", border: `2.5px solid ${C.ink}`, display: "grid", placeItems: "center", fontFamily: AN, fontWeight: 400, fontSize: 20, background: cur ? C.ink : C.surface, color: cur ? C.sci : C.ink } }, locked ? "?" : l.n),
+                    i < 3 && hx("i", { style: { width: 3, flex: 1, minHeight: 16, background: C.ink } })),
+                hx("div", { style: { paddingBottom: 14 } },
+                    hx("div", { style: { fontFamily: AN, fontSize: 22, textTransform: "uppercase", lineHeight: 1.05 } }, l.name + (locked ? " · verrouillé" : cur && l.n < 4 ? " · " + progress + "/7 jours" : "")),
+                    hx("ul", { style: { margin: "4px 0 0", paddingLeft: 16, fontSize: 13.5, lineHeight: 1.45 } }, l.items.map(x => hx("li", { key: x }, x)))));
+        }),
+        hx("div", { style: { ...capS, margin: "4px 0 8px" } }, "Me placer au niveau"),
+        hx("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, [1, 2, 3, 4].map(n => hx("button", { key: n, onClick: () => setLvl(n), style: PM.mini(lvl === n) }, n === 4 ? "Tout débloquer" : "Niveau " + n))));
+}
+/* Le bouton + : les imprévus de la journée, en deux touches */
+function QuickSheet({ onClose, goTo, setScreen, initial }) {
+    const [view, setView] = useState(initial || null);
+    const [nLogs, setNLogs] = useStored("nutri-logs", []);
+    const [fin, setFin] = useStored("fin-expenses", []);
+    const [dl, setDl] = useStored("douleur-logs", []);
+    const [food, setFood] = useStored("food-log", {});
+    const [v, setV] = useState("");
+    const [cat, setCat] = useState("Courses");
+    const [zone, setZone] = useState(painZones[0]);
+    const today = isoToday();
+    const num = x => { const n = parseFloat(String(x).replace(",", ".")); return isFinite(n) && n > 0 ? n : null; };
+    const finish = msg => { toast(msg); onClose(); };
+    const field = (ph, mode) => hx("input", { value: v, inputMode: mode || "decimal", placeholder: ph, autoFocus: true, onChange: e => setV(e.target.value), style: { ...inputStyle, fontSize: 20, fontWeight: 700 } });
+    const ok = (label, run) => hx("button", { onClick: run, style: { ...PM.btn, marginTop: 10 } }, label);
+    const back = hx("button", { onClick: () => { setView(null); setV(""); }, style: { ...PM.mini(false), marginBottom: 10 } }, "‹ Retour");
+    const items = [["poids", "Je me pèse", "Ton poids du matin"], ["extra", "J'ai mangé autre chose", LEVEL >= 3 ? "Dans le journal alimentaire" : "Ajoute les calories en plus"], LEVEL >= 2 && ["depense", "J'ai dépensé de l'argent", "Montant et catégorie"], ["mal", "J'ai mal quelque part", "Les exercices concernés seront signalés"], ["progres", "Où j'en suis ?", "Ta progression en un coup d'œil"], ["seance", "Changer de séance", "Faire une autre séance aujourd'hui"]].filter(Boolean);
+    const go = k => { if (k === "progres") {
+        setScreen("progres");
+        onClose();
+    }
+    else if (k === "seance") {
+        goTo("sport");
+        onClose();
+    }
+    else if (k === "extra" && LEVEL >= 3) {
+        goTo("nutrition", "journal");
+        onClose();
+    }
+    else {
+        setView(k);
+        setV("");
+    } };
+    let body;
+    if (view === "poids")
+        body = hx("div", null, back, hx("div", { style: capS }, "Poids ce matin (kg)"), field("84,2"), ok("Enregistrer", async () => { const w = num(v); if (!w || w < 25 || w > 350)
+            return toast("Indique ton poids en kg", { tone: "danger" }); await setNLogs(nutriPatch(nLogs, today, { weight: Math.round(w * 10) / 10 })); finish("⚖️ " + String(w).replace(".", ",") + " kg enregistrés"); }));
+    else if (view === "extra")
+        body = hx("div", null, back, hx("div", { style: capS }, "Calories en plus (kcal)"), field("300", "numeric"), hx("p", { style: { fontSize: 12.5, color: C.textMut, margin: "6px 0 0" } }, "Une part de pizza ≈ 285 kcal, un sandwich ≈ 450 kcal, une bière ≈ 150 kcal."), ok("Ajouter", async () => { const k = num(v); if (!k)
+            return toast("Indique un nombre de calories", { tone: "danger" }); await setFood({ ...food, [today]: [...(food[today] || []), { id: Date.now(), nom: "En plus", grams: null, p: 0, gl: 0, l: 0, kcal: Math.round(k) }] }); finish("+" + Math.round(k) + " kcal notées"); }));
+    else if (view === "depense")
+        body = hx("div", null, back, hx("div", { style: capS }, "Montant (€)"), field("12,50"), hx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, marginTop: 10 } }, ["Courses", "Sorties", "Sport", "Transport", "Loisirs", "Autre"].map(c => hx("button", { key: c, onClick: () => setCat(c), style: PM.mini(cat === c) }, c))), ok("Enregistrer", async () => { const m = num(v); if (!m)
+            return toast("Indique un montant", { tone: "danger" }); await setFin([...fin, { id: Date.now(), dateISO: today, montant: m, cat, label: "" }]); finish("💸 " + String(m).replace(".", ",") + " € en " + cat.toLowerCase()); }));
+    else if (view === "mal")
+        body = hx("div", null, back, hx("div", { style: capS }, "Où ?"), hx("div", { style: { display: "flex", flexWrap: "wrap", gap: 6, margin: "6px 0 12px" } }, painZones.map(z => hx("button", { key: z, onClick: () => setZone(z), style: PM.mini(zone === z) }, z))), hx("div", { style: capS }, "À quel point ?"), hx("div", { style: { display: "flex", gap: 6, marginTop: 6 } }, [[2, "Gêne"], [4, "Douleur"], [6, "Forte"], [8, "Très forte"]].map(([n, l]) => hx("button", { key: n, onClick: async () => { await setDl([...dl, { id: Date.now(), dateISO: today, date: fmtDateShort(today), zone, intensite: n, note: "" }]); finish(n >= 4 ? "Noté : les exercices qui sollicitent cette zone sont signalés dans ta séance." : "Noté. Surveille cette zone pendant la séance."); }, style: { ...PM.mini(false), flex: 1, padding: "10px 4px" } }, l))));
+    else
+        body = hx("div", null, items.map(([k, t, d]) => hx("button", { key: k, className: "plan-row", onClick: () => go(k) }, hx("div", null, hx("b", null, t), hx("span", null, d)), hx("em", { style: { fontStyle: "normal", fontWeight: 800 } }, "›"))));
+    return hx(Sheet, { title: view ? items.find(x => x[0] === view)?.[1] || "Imprévu" : "Un imprévu ?", onClose }, body);
+}
+/* ═══ AUJOURD'HUI : le Fil ═══ */
+function FilScreen({ goTo, setScreen }) {
+    const D = useRecoveryData();
+    const [nLogs, setNLogs] = useStored("nutri-logs", []);
+    const [rl, setRl] = useStored("recup-logs", []);
+    const [alts, setAlts] = useStored("repas-alts", {});
+    const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
+    const [calRaw] = useStored("nutri-cal-cfg", null);
+    const [food] = useStored("food-log", {});
+    const [day, setDay] = useState(0);
+    const [open, setOpen] = useState(null);
+    const [sheet, setSheet] = useState(null);
+    const [wIn, setWIn] = useState("");
+    const [cheap, setCheap] = useState(false);
+    const pr = normProfile(profile), today = isoToday(), iso = shiftISO(today, day), isToday = day === 0, editable = day <= 0 && day >= -2;
+    const prog = resolveProgramme(profile, D.sl), sess = sessionForDate(iso, prog);
+    const nlog = nLogs.find(l => l.dateISO === iso);
+    const dayType = nlog?.dayType || (sess ? "training" : "rest");
+    const bt = bodyTargets(nLogs, D.mens, D.cm, D.cfg);
+    const menu = dayMenu(dayType, profile, alts, bt, swimKcalOn(D.swl, iso));
+    const rows = menu.meals.map((m, i) => { const mm = menu.mealMacros[i]; return { id: MEAL_ID[m.m], m, i, kcal: Math.round(mm.p * 4 + mm.g * 4 + mm.l * 9) }; }).filter(r => r.id);
+    const meals = nlog?.meals || {};
+    const extras = (food[iso] || []).filter(f => !f.plan).reduce((a, f) => a + (f.kcal || 0), 0);
+    const eaten = rows.filter(r => meals[r.id]).reduce((a, r) => a + r.kcal, 0) + extras;
+    const toggleMeal = id => { const nm = { ...Object.fromEntries(rows.map(r => [r.id, !!meals[r.id]])), [id]: !meals[id] }; const ok = rows.filter(r => nm[r.id]).length; setNLogs(nutriPatch(nLogs, iso, { dayType, meals: nm, mealsOk: ok, mealsTotal: rows.length, compliance: Math.round(ok / rows.length * 100) })); };
+    const weighs = nLogs.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    const lastW = [...weighs].filter(l => l.dateISO <= iso).pop()?.weight || bt.curW || null;
+    const weekAgo = [...weighs].filter(l => l.dateISO <= shiftISO(iso, -6)).pop()?.weight;
+    const reveil = hToMin(pr.reveil), creneau = CRENEAUX[pr.creneau] || CRENEAUX.midi;
+    const lvlData = { prog, sl: D.sl, ml: D.ml, swl: D.swl, nl: nLogs };
+    const progress = levelProgress(pr, lvlData);
+    const items = [];
+    const card = (k, t, node, done, extra) => items.push({ k, t, node, done, ...(extra || {}) });
+    // Forme du matin (niveau 2) : une question, ou les 4 chiffres de la montre
+    if (LEVEL >= 2) {
+        const e = rl.find(l => l.dateISO === iso), r = e ? (isToday ? RECUP_RES : recoveryFor(iso, D)) : null;
+        const useWatch = pr.montre || LEVEL >= 4;
+        const node = e ? hx("div", { className: "fil-card done", onClick: () => goTo("review", "recup") }, hx("b", null, r && r.score != null ? "Ta forme : " + r.score + "/100" : "Forme du matin notée"), hx("span", { className: "sub" }, r && r.score != null ? r.verdict.t + " · détail →" : "Le score arrive avec quelques matins de plus"))
+            : !isToday ? hx("div", { className: "fil-card" }, hx("b", null, "Forme du matin"), hx("span", { className: "sub" }, day > 0 ? "Demain matin, une question sur ta nuit" : "Pas de réponse ce jour-là"))
+                : hx("div", { className: "fil-card", style: { background: C.sci } },
+                    hx("div", { onClick: () => setOpen(open === "forme" ? null : "forme"), style: { display: "grid", gap: 2 } }, hx("b", null, "Comment tu as dormi ?"), hx("span", { className: "sub", style: { color: C.ink } }, useWatch ? "Les 4 chiffres de ta montre, en 20 secondes" : "Une touche suffit")),
+                    open === "forme" && (useWatch ? hx("div", { style: { marginTop: 8 } }, hx(RecupForm, { fg: C.ink, bg: C.sci, onDone: () => setOpen(null) }), LEVEL < 4 && hx("button", { className: "p-link", onClick: () => setProfile({ ...pr, montre: false }), style: { border: 0, background: "none", fontWeight: 800, textDecoration: "underline", marginTop: 6, padding: 0, cursor: "pointer" } }, "Je n'ai pas de montre"))
+                        : hx("div", { style: { display: "grid", gap: 8, marginTop: 6 } },
+                            hx("div", { style: { display: "flex", gap: 6, flexWrap: "wrap" } }, [["Mal", 0], ["Correct", 1], ["Très bien", 2]].map(([l, f]) => hx("button", { key: f, onClick: async () => { await setRl([...rl.filter(x => x.dateISO !== today), { id: Date.now(), dateISO: today, feel: f }]); setOpen(null); toast("Forme notée"); }, style: { ...PM.mini(false), background: C.surface, padding: "8px 14px" } }, l))),
+                            hx("button", { onClick: () => setProfile({ ...pr, montre: true }), style: { border: 0, background: "none", fontWeight: 800, textDecoration: "underline", padding: 0, cursor: "pointer", textAlign: "left", fontSize: 13 } }, "J'ai une montre Polar"))));
+        card("forme", reveil, node, !!e);
+    }
+    // Pesée
+    {
+        const w = nlog?.weight;
+        const diff = w && weekAgo ? Math.round((w - weekAgo) * 10) / 10 : null;
+        const node = w ? hx("div", { className: "fil-card done" }, hx("b", null, "Pesée : " + String(w).replace(".", ",") + " kg"), hx("span", { className: "sub" }, diff == null ? "Au réveil, à jeun" : sgn(diff) + " kg en 7 jours"))
+            : !editable ? hx("div", { className: "fil-card" }, hx("b", null, "Pesée"), hx("span", { className: "sub" }, "Au réveil, à jeun"))
+                : hx("div", { className: "fil-card" }, hx("div", { onClick: () => { setOpen(open === "pesee" ? null : "pesee"); setWIn(lastW ? String(lastW).replace(".", ",") : ""); }, style: { display: "grid", gap: 2 } }, hx("b", null, "Pesée"), hx("span", { className: "sub" }, "Au réveil, à jeun, après les toilettes")),
+                    open === "pesee" && hx("div", { style: { display: "flex", gap: 8, marginTop: 8 } }, hx("input", { value: wIn, inputMode: "decimal", autoFocus: true, "aria-label": "Poids en kg", onChange: e => setWIn(e.target.value), style: { ...inputStyle, fontSize: 20, fontWeight: 700, flex: 1 } }), hx("button", { onClick: async () => { const v = parseFloat(String(wIn).replace(",", ".")); if (!(v > 25 && v < 350))
+                            return toast("Indique ton poids en kg", { tone: "danger" }); await setNLogs(nutriPatch(nLogs, iso, { weight: Math.round(v * 10) / 10 })); setOpen(null); }, style: PM.btn }, "Valider")));
+        card("pesee", reveil + 10, node, !!w);
+    }
+    // Repas
+    rows.forEach(r => {
+        const on = !!meals[r.id], op = open === "m" + r.id, akey = dayType + ":" + r.m.m, cur = alts[akey] || 0, nAlt = (r.m.alts || []).length;
+        const its = r.m.items.map(it => it.t ? it.t : it.n + (it.fix ? (it.u ? " · " + it.u : "") : " · " + Math.round(it.cru * menu.itemF(it) / 5) * 5 + " g"));
+        const node = hx("div", { className: "fil-card" + (on ? " done" : ""), style: { gridTemplateColumns: "minmax(0,1fr) auto", alignItems: "center" } },
+            hx("div", { onClick: () => setOpen(op ? null : "m" + r.id), style: { minWidth: 0 } }, hx("b", { style: on ? { textDecoration: "line-through", textDecorationThickness: 2 } : null }, r.m.m), hx("span", { className: "sub", style: { display: "block" } }, (r.m.altLabel ? r.m.altLabel + " · " : "") + r.kcal + " kcal")),
+            editable ? hx("button", { className: "fil-check" + (on ? " on" : ""), "aria-label": r.m.m + (on ? " mangé" : " à cocher"), onClick: () => toggleMeal(r.id) }) : null,
+            op && hx("div", { style: { gridColumn: "1 / -1" } }, hx("ul", { style: { margin: "6px 0 0", paddingLeft: 18, fontSize: 13.5, lineHeight: 1.5 } }, its.map((x, j) => hx("li", { key: j }, x))),
+                LEVEL >= 2 && nAlt > 0 && hx("button", { onClick: () => setAlts({ ...alts, [akey]: (cur + 1) % (nAlt + 1) }), style: { border: 0, background: "none", fontWeight: 800, textDecoration: "underline", padding: "6px 0 0", cursor: "pointer" } }, cur < nAlt ? "Changer de plat" : "Revenir au plat prévu")));
+        card("m" + r.id, hToMin(r.m.h), node, on);
+    });
+    // Séance (ou repos)
+    {
+        const t = hToMin(creneau.seance);
+        if (sess) {
+            const isM = sess.prog === "maison", se = isM ? null : seanceById(sess.code);
+            const done = isM ? D.ml.some(l => l.dateISO === iso && l.seance === sess.code) : D.sl.some(l => l.dateISO === iso && l.seance === sess.code);
+            const nEx = isM ? (maison.find(x => x.code === sess.code)?.ex.length || 6) : (se?.exercices.length || 0);
+            const nSets = isM ? 0 : (se?.exercices || []).reduce((a, e) => a + (parseDetail(e.detail)?.sets || 3), 0);
+            const label = isM ? "Maison " + sess.code : seanceLabel(sess.code);
+            const logged = D.sl.filter(l => l.dateISO === iso).reduce((a, l) => a + (l.exercices || []).reduce((b, x) => b + exSets(x), 0), 0);
+            const node = hx("div", { className: "fil-card" + (done ? " done" : ""), style: done ? null : { background: C.amber } },
+                hx("b", { style: done ? { textDecoration: "line-through", textDecorationThickness: 2 } : null }, "Séance " + label),
+                hx("span", { className: "sub", style: done ? null : { color: C.ink } }, done ? "Faite" + (logged ? " : " + logged + " séries" : "") : (isM ? sess.titre : nEx + " exercices · ~" + Math.max(30, Math.round(nSets * 2.5 / 5) * 5) + " min") + (RECUP_RES && RECUP_RES.score != null && isToday ? " · forme " + RECUP_RES.score + "/100" : "")),
+                isToday && !done && hx("div", null, hx("button", { onClick: () => goTo("sport"), style: { ...PM.btn, display: "inline-block", width: "auto", padding: "9px 18px", marginTop: 4 } }, "Commencer")));
+            card("seance", t, node, done);
+        }
+        else
+            card("repos", t, hx("div", { className: "fil-card" }, hx("b", null, "Jour de repos"), hx("span", { className: "sub" }, "30 minutes de marche et quelques étirements : ça aide à récupérer.")), false, { passive: true });
+    }
+    // Natation (niveau 2)
+    if (LEVEL >= 2) {
+        const m = swimPlannedFor(D.models, iso), logs = D.swl.filter(l => l.dateISO === iso);
+        if (m || logs.length) {
+            const node = hx("div", { className: "fil-card" + (logs.length ? " done" : ""), onClick: () => goTo("sport", "natation"), style: logs.length ? null : { background: C.swim, color: "#fff", borderColor: C.swim } },
+                hx("b", null, logs.length ? "Nagé : " + logs.map(l => l.distance.toLocaleString("fr-FR") + " m").join(" + ") : "Natation " + swimDist(m).toLocaleString("fr-FR") + " m"),
+                hx("span", { className: "sub", style: logs.length ? null : { color: "#fff" } }, logs.length ? logs.map(l => fmtDur(l.duree)).join(" + ") + " · +" + swimKcalOn(D.swl, iso) + " kcal" : m.name + " · ~" + Math.round(swimDur(m) / 60) + " min · le détail →"));
+            card("nage", sess ? hToMin("18h30") : hToMin(creneau.seance), node, logs.length > 0);
+        }
+    }
+    // Courses (niveau 2), le jour choisi
+    if (LEVEL >= 2 && new Date(iso + "T12:00:00").getDay() === (pr.coursesJour ?? 6)) {
+        const scale = menu.dayTgt / macrosTarget.kcal, cats = {};
+        budgetAliments.forEach(a => { const v = cheap && a.budget ? a.budget.sem : a.sem; cats[a.cat] = (cats[a.cat] || 0) + v * scale; });
+        const total = Math.round(Object.values(cats).reduce((a, b) => a + b, 0));
+        const budget = pr.budgetSemaine;
+        const node = hx("div", { className: "fil-card", style: { background: C.budget, color: "#fff", borderColor: C.budget } },
+            hx("div", { onClick: () => setOpen(open === "courses" ? null : "courses") }, hx("b", null, "Courses de la semaine"), hx("span", { className: "sub", style: { color: "#fff", display: "block" } }, "≈ " + total + " €" + (cheap ? " · version moins chère" : "") + (budget ? " · budget " + budget + " €" : "") + " · " + budgetAliments.length + " articles")),
+            open === "courses" && hx("div", { style: { marginTop: 6, fontSize: 13.5, lineHeight: 1.5 } }, Object.entries(cats).map(([c, v]) => hx("div", { key: c, style: { display: "flex", justifyContent: "space-between", borderTop: "1px solid #ffffff55", padding: "4px 0" } }, hx("span", null, c), hx("b", null, Math.round(v) + " €"))),
+                hx("div", { style: { display: "flex", gap: 8, flexWrap: "wrap", marginTop: 8 } }, hx("button", { onClick: () => setCheap(!cheap), style: { ...PM.mini(false), borderColor: "#fff", color: "#fff" } }, cheap ? "Liste normale" : "Version moins chère"), hx("button", { onClick: () => goTo("budget", "aliments"), style: { ...PM.mini(false), borderColor: "#fff", color: "#fff" } }, "Liste détaillée →"))));
+        card("courses", hToMin("10h30"), node, false, { passive: true });
+    }
+    // Coucher
+    card("lit", reveil - 510, hx("div", { className: "fil-card" }, hx("b", null, "Au lit"), hx("span", { className: "sub" }, "Vise 7 h 30 de sommeil pour un réveil à " + hhmm(pr.reveil))), false, { passive: true, late: true });
+    items.forEach(it => { it.sort = it.late ? it.t + 1440 : it.t; });
+    items.sort((a, b) => a.sort - b.sort);
+    const nowK = isToday ? (items.find(it => !it.done && !it.passive) || {}).k : null;
+    const todo = items.filter(it => !it.passive), doneN = todo.filter(it => it.done).length;
+    // Le coach : 1 à 3 messages selon la journée
+    const msgs = [];
+    if (isToday) {
+        const hr = new Date().getHours(), hello = hr < 12 ? "Bonjour" : hr < 18 ? "Bon après-midi" : "Bonsoir";
+        msgs.push({ t: hello + " ! " + (sess ? "Aujourd'hui : séance " + (sess.prog === "maison" ? "Maison " + sess.code : seanceLabel(sess.code)) + " à " + hhmm(creneau.seance) + ", " : "Pas de séance aujourd'hui, ") + menu.dayTgt.toLocaleString("fr-FR") + " kcal à manger." });
+        if (RECUP_RES && RECUP_RES.score != null)
+            msgs.push({ t: RECUP_RES.advice });
+        else if (LEVEL >= 2 && !rl.some(l => l.dateISO === today))
+            msgs.push({ t: "Dis-moi d'abord comment tu as dormi : j'adapte ta séance à ta forme." });
+        const pain = D.dl.filter(l => l.dateISO <= today && daysBetween(l.dateISO, today) <= 2 && l.intensite >= 4).sort((a, b) => b.intensite - a.intensite)[0];
+        if (pain)
+            msgs.push({ t: "Ton " + pain.zone.toLowerCase() + " te gêne (" + pain.intensite + "/10) : les exercices concernés sont signalés dans ta séance. Si ça pique, on arrête." });
+        // Rythme de perte (niveau 3) : proposition d'ajuster le déficit
+        const wi = weighs.map(l => ({ dateISO: l.dateISO, kg: l.weight })), cw = avgRecent(wi, 7);
+        const span = wi.length >= 2 ? daysBetween(wi[0].dateISO, wi[wi.length - 1].dateISO) : 0;
+        const rate = wi.length >= 3 && span >= 10 ? weeklyRate(wi) : null, pct = rate != null && cw ? rate / cw * 100 : null;
+        const cal = normCalCfg(calRaw), cooling = calRaw?.lastAdjust && daysBetween(calRaw.lastAdjust, today) < ADJUST_COOLDOWN;
+        const newDef = pct == null || !cal ? null : pct < PACE_MIN ? Math.max(0, cal.deficit - 150) : pct > PACE_SLOW ? Math.min(1000, cal.deficit + 150) : null;
+        if (LEVEL >= 3 && newDef != null && !cooling && (pr.coachDismiss || {}).deficit !== today && pr.objectif !== 1)
+            msgs.push({ t: (pct < PACE_MIN ? "Tu perds un peu vite (" : "Ta perte est trop lente (") + frN(pct) + " % par semaine). Je passe ton déficit de " + cal.deficit + " à " + newDef + " kcal ?", acts: [["Oui, ajuste", async () => { await save("nutri-cal-cfg", { ...calRaw, deficit: newDef, lastAdjust: today }); toast("Déficit ajusté à " + newDef + " kcal : ton menu suit"); }], ["Pas maintenant", () => setProfile({ ...pr, coachDismiss: { ...(pr.coachDismiss || {}), deficit: today } })]] });
+        if (new Date().getDay() === 0) {
+            const tr = new Set([...D.sl, ...D.ml].filter(l => withinDays(l.dateISO, 7)).map(l => l.dateISO)).size + D.swl.filter(l => withinDays(l.dateISO, 7)).length;
+            const w7 = nLogs.filter(l => withinDays(l.dateISO, 7) && l.mealsTotal > 0), comp = w7.length ? Math.round(w7.reduce((a, l) => a + l.compliance, 0) / w7.length) : null;
+            msgs.push({ t: "Ta semaine : " + tr + " séance" + (tr > 1 ? "s" : "") + (comp != null ? ", " + comp + " % des repas suivis" : "") + (weekAgo && lastW ? ", " + sgn(Math.round((lastW - weekAgo) * 10) / 10) + " kg" : "") + ". Bonne nouvelle semaine !" });
+        }
+        if (!weighs.some(l => withinDays(l.dateISO, 3)))
+            msgs.push({ t: "Pense à te peser au réveil : c'est ce qui me permet d'ajuster ton plan." });
+    }
+    const title = day === 0 ? "Aujourd'hui" : day === -1 ? "Hier" : day === 1 ? "Demain" : fmtDateLong(iso).split(" ")[0];
+    const showLvl = LEVEL < 4 && !pr.unlockAll;
+    return hx("div", null,
+        hx("div", { style: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 } },
+            hx("button", { onClick: () => { setDay(Math.max(-6, day - 1)); setOpen(null); }, disabled: day <= -6, "aria-label": "Jour précédent", className: "fil-nav" }, "‹"),
+            hx("div", { style: { textAlign: "center", minWidth: 0 } }, hx("div", { style: { fontFamily: AN, fontSize: 40, lineHeight: .95, textTransform: "uppercase" } }, title), hx("div", { style: { fontSize: 12.5, fontWeight: 800, color: C.textMut } }, fmtDateLong(iso) + (isToday ? " · " + doneN + " sur " + todo.length + " faits" : ""))),
+            hx("button", { onClick: () => { setDay(Math.min(6, day + 1)); setOpen(null); }, disabled: day >= 6, "aria-label": "Jour suivant", className: "fil-nav" }, "›")),
+        showLvl && hx("button", { onClick: () => setSheet("niveau"), style: { display: "grid", gap: 4, width: "100%", textAlign: "left", border: `2px solid ${C.ink}`, borderRadius: 6, background: C.surface, padding: "8px 12px", marginTop: 12, cursor: "pointer", color: C.ink } },
+            hx("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 800 } }, hx("span", null, "Niveau " + LEVEL + " · " + LEVELS[LEVEL - 1].name), hx("span", null, progress + "/7 jours validés")),
+            hx("div", { style: { height: 8, border: `2px solid ${C.ink}`, position: "relative" } }, hx("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: progress / 7 * 100 + "%", background: C.sci } }))),
+        isToday && hx(BackupReminder, { hasData: D.sl.length + nLogs.length > 0 }),
+        msgs.length > 0 && hx("div", { className: "coach" },
+            hx("div", { className: "coach-h" }, hx("div", { className: "coach-ava", "aria-hidden": true }, "R"), hx("b", null, "Ton coach")),
+            msgs.slice(0, 3).map((m, i) => hx("div", { key: i, className: "coach-msg" }, m.t, m.acts && hx("div", { style: { display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 } }, m.acts.map(([l, run], j) => hx("button", { key: j, onClick: run, style: PM.mini(j === 0) }, l))))),
+            // Les imprévus, en suggestions de réponse
+            hx("div", { className: "coach-sugg" }, [["poids", "Je me pèse"], ["extra", "J'ai mangé autre chose"], LEVEL >= 2 && ["depense", "J'ai dépensé"], ["mal", "J'ai mal"], ["progres", "Où j'en suis ?"], ["seance", "Changer de séance"]].filter(Boolean).map(([k, l]) => hx("button", { key: k, onClick: () => { if (k === "progres")
+                    setScreen("progres");
+                else if (k === "seance")
+                    goTo("sport");
+                else if (k === "extra" && LEVEL >= 3)
+                    goTo("nutrition", "journal");
+                else
+                    setSheet("q:" + k); } }, l)))),
+        day <= 0 ? hx("div", { style: { margin: "14px 0 6px" } },
+            hx("div", { style: { display: "flex", justifyContent: "space-between", fontSize: 13, fontWeight: 800 } }, hx("span", null, eaten.toLocaleString("fr-FR") + " kcal mangées"), hx("span", null, "sur " + menu.dayTgt.toLocaleString("fr-FR") + (menu.swimExtra ? " (natation incluse)" : ""))),
+            hx("div", { style: { height: 12, border: `2px solid ${C.ink}`, position: "relative", marginTop: 4 } }, hx("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: Math.min(100, eaten / menu.dayTgt * 100) + "%", background: C.green, transition: "width .4s" } })),
+            hx("div", { style: { display: "flex", gap: 14, marginTop: 6, fontSize: 12, color: C.textMut } }, [[lx("Protéines", "Prot."), menu.dayMacros.p, C.prot], [lx("Glucides", "Gluc."), menu.dayMacros.g, C.gluc], [lx("Lipides", "Lip."), menu.dayMacros.l, C.lip]].map(([l, v, c]) => hx("span", { key: l, style: { display: "inline-flex", gap: 5, alignItems: "center" } }, hx("i", { style: { width: 9, height: 9, borderRadius: 2, background: c } }), hx("b", { style: { color: C.ink } }, v + " g"), l))))
+            : hx("p", { style: { fontSize: 13, color: C.textMut, margin: "14px 0 6px", fontWeight: 600 } }, "Prévu : " + menu.dayTgt.toLocaleString("fr-FR") + " kcal" + (sess ? ", séance " + (sess.prog === "maison" ? "Maison " + sess.code : seanceLabel(sess.code)) : ", jour de repos") + "."),
+        hx("div", { style: { marginTop: 8 } }, items.map(it => hx("div", { key: it.k, className: "fil-row" + (it.done ? " done" : it.k === nowK ? " now" : "") }, hx("time", null, String(Math.floor(((it.t % 1440) + 1440) % 1440 / 60)).padStart(2, "0") + ":" + String((((it.t % 1440) + 1440) % 1440) % 60).padStart(2, "0")), hx("div", { className: "fil-rail" }), hx("div", { style: { minWidth: 0 } }, it.node)))),
+        typeof sheet === "string" && sheet.startsWith("q:") && hx(QuickSheet, { onClose: () => setSheet(null), goTo, setScreen, initial: sheet.slice(2) }),
+        sheet === "niveau" && hx(Sheet, { title: "Mes niveaux", onClose: () => setSheet(null) }, hx(LevelMap, { pr, setProfile, progress })));
+}
+/* ═══ PROGRÈS : est-ce que ça marche ? ═══ */
+function ProgresScreen({ goTo }) {
+    const D = useRecoveryData();
+    const [fin] = useStored("fin-expenses", []);
+    const pr = normProfile(D.profile);
+    const wi = D.nl.filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, kg: l.weight }));
+    const latW = wi.length ? wi[wi.length - 1].kg : null, fstW = wi.length ? wi[0].kg : null;
+    const w28 = wi.filter(x => withinDays(x.dateISO, 28)), d28 = w28.length >= 2 ? Math.round((w28[w28.length - 1].kg - w28[0].kg) * 10) / 10 : null;
+    const cw = avgRecent(wi, 7), span = wi.length >= 2 ? daysBetween(wi[0].dateISO, wi[wi.length - 1].dateISO) : 0;
+    const rate = wi.length >= 3 && span >= 10 ? weeklyRate(wi) : null, pct = rate != null && cw ? rate / cw * 100 : null;
+    const prog = resolveProgramme(D.profile, D.sl), nDays = programmeDays(prog).length + swimDaysCount(D.models);
+    const train7 = new Set([...D.sl, ...D.ml].filter(l => withinDays(l.dateISO, 7)).map(l => l.dateISO)).size + D.swl.filter(l => withinDays(l.dateISO, 7)).length;
+    const days7 = Array.from({ length: 7 }, (_, i) => shiftISO(isoToday(), i - 6));
+    const comp = days7.map(d => { const n = D.nl.find(l => l.dateISO === d && l.mealsTotal > 0); return n ? n.compliance : 0; });
+    const compAvg = Math.round(avgOf(comp));
+    const nutriStreak = streakFromDates(D.nl.filter(l => l.compliance >= 80).map(l => l.dateISO));
+    const lvlStreak = streakFromDates(days7.concat(Array.from({ length: 53 }, (_, i) => shiftISO(isoToday(), -7 - i))).filter(d => dayValidated(d, { prog, sl: D.sl, ml: D.ml, swl: D.swl, nl: D.nl })));
+    // Force : max estimé de chaque exercice, en % de sa première valeur, moyenne par semaine
+    const first = {}, weeks = {};
+    D.sl.filter(l => !l.deload).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).forEach(l => (l.exercices || []).forEach(e => { if (!(e.weight > 0 && e.reps > 0))
+        return; const v = exBest1RM(e); if (!first[e.nom])
+        first[e.nom] = v; const wk = mondayOf(l.dateISO); weeks[wk] = weeks[wk] || {}; weeks[wk][e.nom] = Math.max(weeks[wk][e.nom] || 0, v / first[e.nom] * 100); }));
+    const force = Object.keys(weeks).sort().slice(-8).map(k => avgOf(Object.values(weeks[k])));
+    const forme = Array.from({ length: 14 }, (_, i) => shiftISO(isoToday(), i - 13)).map(d => recoveryFor(d, D)).filter(r => r && r.score != null).map(r => r.score);
+    const monday = mondayOf(isoToday());
+    const spent = fin.filter(e => e.dateISO >= monday).reduce((a, e) => a + (+e.montant || 0), 0), courses = fin.filter(e => e.dateISO >= monday && e.cat === "Courses").reduce((a, e) => a + (+e.montant || 0), 0);
+    const swimW = D.swl.filter(l => l.dateISO >= monday).reduce((a, l) => a + l.distance, 0);
+    const verdict = wi.length < 2 ? "Pèse-toi quelques matins : ta courbe et ton rythme s'afficheront ici." : (d28 != null && (pr.objectif === 1 ? d28 >= 0 : d28 <= 0) ? "Ça marche. " : "") + (d28 != null ? sgn(d28) + " kg en 4 semaines" : "") + (pct != null ? (pct < PACE_MIN ? ", un peu rapide" : pct > PACE_SLOW ? ", plutôt lent" : ", pile dans le bon rythme") : "") + ". " + train7 + " séance" + (train7 > 1 ? "s" : "") + " sur " + nDays + " cette semaine.";
+    const block = (lab, big, txt, chart, go, key) => hx("div", { key: key || lab, style: { borderTop: `2.5px solid ${C.ink}`, padding: "10px 0 12px", display: "grid", gap: 2 } },
+        hx("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "baseline" } }, hx("span", { style: capS }, lab), go && hx("button", { onClick: go, style: { border: 0, background: "none", fontWeight: 800, fontSize: 12.5, cursor: "pointer", color: C.ink, padding: 0 } }, "Détails →")),
+        hx("div", { style: { fontFamily: AN, fontSize: 34, lineHeight: 1 } }, big), hx("span", { style: { fontSize: 13.5, fontWeight: 600 } }, txt), chart);
+    return hx("div", null,
+        hx("div", { style: scrH }, "Progrès"),
+        hx("div", { className: "home-wrow", style: { marginTop: 0 } }, latW ? hx(Odometer, { value: latW.toLocaleString("fr-FR", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) }) : hx("div", { className: "odo" }, "—"),
+            hx("div", { className: "home-unit" }, hx("b", null, "KG"), latW && fstW && latW !== fstW && hx("em", { style: { background: (pr.objectif === 1 ? latW >= fstW : latW <= fstW) ? C.green : C.amber } }, sgn(Math.round((latW - fstW) * 10) / 10) + " kg depuis le début"))),
+        hx("p", { style: { fontSize: 16.5, fontWeight: 700, lineHeight: 1.35, margin: "12px 0 14px" } }, verdict),
+        hx("div", { className: "home-week" }, [[train7 + "/" + nDays, "séances"], [d28 == null ? "—" : sgn(d28), "kg en 4 sem."], [wi.length ? compAvg + " %" : "—", "repas suivis"], [lvlStreak.current + " j", "jours validés de suite"]].map(([v, l]) => hx("div", { key: l }, hx("b", null, v), hx("span", null, l)))),
+        hx("div", { style: { marginTop: 14 } },
+            block("Corps", latW ? String(latW).replace(".", ",") + " kg" : "—", pct != null ? sgn(pct) + " % par semaine" + (cw ? " · moyenne 7 j " + String(cw).replace(".", ",") + " kg" : "") : "Il faut 3 pesées sur 10 jours pour mesurer ton rythme.", hx(Spark, { vals: wi.slice(-30).map(x => x.kg), color: C.green }), () => goTo("nutrition", "suivi")),
+            force.length >= 2 && block("Force", sgn(Math.round(force[force.length - 1] - 100)) + " %", "Tes " + lx("max estimés", "1RM estimés") + " depuis tes premières séances.", hx(Spark, { vals: force, color: C.amber }), () => goTo("sport", tabOk("sport", "rm") ? "rm" : tabOk("sport", "suivi") ? "suivi" : null)),
+            LEVEL >= 2 && forme.length >= 2 && block("Forme", forme[forme.length - 1] + "/100", "Ta forme du matin sur 14 jours.", hx(Spark, { vals: forme, color: C.ink }), () => goTo("review", "recup")),
+            block("Assiette", compAvg + " %", "des repas suivis ces 7 derniers jours · série : " + nutriStreak.current + " j", hx(Bars, { vals: comp, labels: days7.map(d => DOW_SHORT[new Date(d + "T12:00:00").getDay()][0]), color: C.green }), () => goTo("nutrition", "suivi")),
+            LEVEL >= 2 && block("Argent", Math.round(spent) + " €", "dépensés cette semaine" + (courses ? ", dont " + Math.round(courses) + " € de courses" : "") + (pr.budgetSemaine ? " · budget courses " + pr.budgetSemaine + " €" : ""), pr.budgetSemaine ? hx("div", { style: { height: 12, border: `2px solid ${C.ink}`, position: "relative", marginTop: 6 } }, hx("i", { style: { position: "absolute", left: 0, top: 0, bottom: 0, width: Math.min(100, courses / pr.budgetSemaine * 100) + "%", background: courses > pr.budgetSemaine ? C.danger : C.budget } })) : null, () => goTo("budget", "suivi")),
+            LEVEL >= 2 && D.swl.length > 0 && block("Natation", swimW.toLocaleString("fr-FR") + " m", "nagés cette semaine · " + D.swl.length + " séance" + (D.swl.length > 1 ? "s" : "") + " au total", null, () => goTo("sport", "natation")),
+            LEVEL >= 3 && hx("div", { style: { marginTop: 8 } }, hx(ProjectionCard, { weighIns: wi }))));
+}
+/* ═══ PLAN : les 4 affiches et les réglages ═══ */
+function PlanScreen({ goTo, info, setGate }) {
+    const [profile, setProfile] = useStored("profil", PROFILE_DEFAULT);
+    const [sLogs] = useStored("sport-logs", []);
+    const [mLogs] = useStored("maison-logs", []);
+    const [swl] = useStored("natation-logs", []);
+    const [nl] = useStored("nutri-logs", []);
+    const [sheet, setSheet] = useState(null);
+    const pr = normProfile(profile), prog = resolveProgramme(profile, sLogs);
+    const progress = levelProgress(pr, { prog, sl: sLogs, ml: mLogs, swl, nl });
+    const rows = [
+        ["Mon entraînement", progInfo(prog).label + " · " + programmeDays(prog).length + " jours par semaine", () => goTo("sport", LEVEL >= 3 ? "programmes" : prog === "maison" ? "maison" : "salle"), 1],
+        ["Ma natation", "Séances types, historique, records", () => goTo("sport", "natation"), 2],
+        ["Mes repas", "Menu du jour, plats de remplacement", () => goTo("nutrition", "repas"), 1],
+        ["Mon objectif", "Calories, protéines, rythme visé", () => goTo("nutrition", "cal"), 1],
+        ["Mes courses et mon budget", pr.budgetSemaine ? "Budget courses " + pr.budgetSemaine + " € par semaine" : "Liste de courses, dépenses", () => goTo("budget"), 2],
+        ["Mes horaires et rappels", "Réveil " + hhmm(pr.reveil) + " · séance " + hhmm(CRENEAUX[pr.creneau].seance), () => setSheet("horaires"), 1],
+        ["Mes niveaux", pr.unlockAll || LEVEL >= 4 ? "Tout est débloqué" : "Niveau " + LEVEL + " · " + progress + "/7 jours", () => setSheet("niveau"), 1],
+        ["Lexique", "Les mots techniques en mots simples", () => setSheet("lexique"), 1],
+        ["Mes données", "Sauvegarde et restauration", () => setSheet("donnees"), 1],
+        ["Refaire le démarrage", "Les 6 questions : nouveau programme et nouvelles cibles", async () => { if (await askConfirm({ title: "Refaire le démarrage ?", message: "Ton programme généré, ta cible calorique et ton niveau seront recalculés. Ton historique est conservé.", confirmLabel: "Recommencer" }))
+                setGate("onboard"); }, 1],
+    ].filter(r => r[3] <= LEVEL);
+    return hx("div", null,
+        hx("div", { style: scrH }, "Plan"),
+        hx("p", { style: { fontSize: 14, color: C.textMut, margin: "0 0 10px", lineHeight: 1.45 } }, "Les 4 affiches ouvrent tous les écrans détaillés. Les réglages sont en dessous."),
+        POSTERS.map(p => { const lock = POSTER_LEVEL[p.id] > LEVEL; return hx("button", { key: p.id, className: "big-band", disabled: lock, onClick: () => goTo(p.id), style: { background: p.c, color: p.fg, opacity: lock ? .45 : 1 } }, hx("b", null, p.name), hx("span", null, lock ? "Niveau " + POSTER_LEVEL[p.id] : info[p.id])); }),
+        hx("div", { style: { borderTop: `2.5px solid ${C.ink}`, marginTop: 14 } }, rows.map(([t, d, run]) => hx("button", { key: t, className: "plan-row", onClick: run }, hx("div", null, hx("b", null, t), hx("span", null, d)), hx("em", { style: { fontStyle: "normal", fontWeight: 800 } }, "›")))),
+        sheet === "horaires" && hx(Sheet, { title: "Mes horaires", onClose: () => setSheet(null) },
+            hx(ProfileCard, { prog, defaultOpen: true }),
+            LEVEL >= 2 && hx("div", { style: { margin: "6px 0 12px" } }, hx("div", { style: capS }, "Jour des courses"), hx("div", { style: { display: "flex", gap: 5, marginTop: 6 } }, DOW_ORDER.map(d => hx("button", { key: d, onClick: () => setProfile({ ...pr, coursesJour: d }), style: { ...PM.mini((pr.coursesJour ?? 6) === d), flex: 1, padding: "7px 0" } }, DOW_SHORT[d][0])))),
+            hx("button", { onClick: async () => { const r = await shareOrDownload("recomp-routine.ics", buildProfileICS(profile, prog), "text/calendar"); if (r === "shared" || r === "downloaded")
+                    toast("📅 Ouvre le fichier pour l'ajouter à ton calendrier"); }, style: PM.btn }, "📅 Ajouter les rappels au calendrier")),
+        sheet === "niveau" && hx(Sheet, { title: "Mes niveaux", onClose: () => setSheet(null) }, hx(LevelMap, { pr, setProfile, progress })),
+        sheet === "lexique" && hx(Sheet, { title: "Lexique", onClose: () => setSheet(null) }, LEXIQUE.map(([a, b]) => hx("div", { key: a, style: { display: "grid", gridTemplateColumns: "38% 1fr", gap: 10, padding: "9px 0", borderBottom: `1.5px solid ${C.ink}22`, fontSize: 14 } }, hx("span", { style: { fontWeight: 800, color: C.textMut } }, a), hx("b", { style: { fontWeight: 700 } }, b)))),
+        sheet === "donnees" && hx(Sheet, { title: "Mes données", onClose: () => setSheet(null) }, hx(DataCard, null)));
+}
+/* ═══ DÉMARRAGE EN 6 QUESTIONS ═══ */
+const ONB_Q = [
+    { id: "obj", t: "Ton objectif ?", o: ["Perdre du poids", "Prendre du muscle", "Les deux à la fois", "Être en forme"] },
+    { id: "lieux", t: "Où tu t'entraînes ?", multi: true, o: [["salle", "À la salle"], ["maison", "À la maison"], ["piscine", "À la piscine"]] },
+    { id: "jours", t: "Combien de jours par semaine ?", o: ["2 jours", "3 jours", "4 jours", "5 jours"] },
+    { id: "niv", t: "Ton expérience ?", o: ["Je débute", "J'ai déjà pratiqué", "Je m'entraîne déjà"] },
+    { id: "moi", t: "Parle-moi de toi", form: true },
+    { id: "budget", t: "Ton budget courses par semaine ?", o: ["40 €", "60 €", "80 €", "100 €"] },
+];
+function Demarrage({ onDone }) {
+    const [q, setQ] = useState(-1);
+    const [a, setA] = useState({ obj: null, lieux: [], jours: 3, niv: null, sexe: "Homme", taille: 175, poids: 80, age: 35, budget: null });
+    const [busy, setBusy] = useState(false);
+    const [restore, setRestore] = useState(false);
+    const st = (k, lab, unit, step) => hx("div", { style: { display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", borderTop: `2px solid ${C.ink}`, padding: "8px 0", fontWeight: 700 } }, hx("span", null, lab),
+        hx("div", { style: { display: "flex", alignItems: "center", gap: 8 } }, hx("button", { onClick: () => setA(x => ({ ...x, [k]: Math.max(1, Math.round((x[k] - step) * 10) / 10) })), "aria-label": "Moins", className: "onb-step" }, "−"), hx("b", { style: { fontFamily: AN, fontWeight: 400, fontSize: 26, minWidth: 92, textAlign: "center" } }, String(a[k]).replace(".", ",") + unit), hx("button", { onClick: () => setA(x => ({ ...x, [k]: Math.round((x[k] + step) * 10) / 10 })), "aria-label": "Plus", className: "onb-step" }, "+")));
+    const opt = (label, on, run) => hx("button", { key: label, onClick: run, "aria-pressed": on, className: "onb-opt" }, label);
+    const finish = async unlockAll => { setBusy(true); try {
+        await applyOnboarding(a, unlockAll);
+        toast("Ton plan est prêt");
+        onDone();
+    }
+    catch (e) {
+        console.error(e);
+        toast("❌ Impossible d'enregistrer, réessaie", { tone: "danger" });
+        setBusy(false);
+    } };
+    let body;
+    if (q === -1)
+        body = hx(Fragment, null,
+            hx("div", { style: { fontFamily: AN, fontSize: "clamp(84px, 27vw, 120px)", lineHeight: .84, margin: "auto 0 10px" } }, "RECOMP"),
+            hx("p", { style: { fontSize: 19, fontWeight: 750, lineHeight: 1.3, margin: "0 0 18px" } }, "Ton sport, tes repas et ton budget, organisés heure par heure. Six questions et ton plan est prêt."),
+            hx("button", { onClick: () => setQ(0), className: "onb-cta" }, "Commencer"),
+            hx("button", { onClick: () => setRestore(!restore), style: { border: 0, background: "none", fontWeight: 800, textDecoration: "underline", marginTop: 14, cursor: "pointer", color: C.ink } }, "J'ai déjà une sauvegarde"),
+            restore && hx("div", { style: { marginTop: 10 } }, hx(DataCard, null)));
+    else if (q >= ONB_Q.length) {
+        const kcalBmr = bmrMifflin(a.poids, a.taille, a.age, a.sexe === "Femme" ? "F" : "H"), act = a.jours >= 4 ? 1.55 : 1.375;
+        const kcal = Math.max(kcalBmr, Math.round((kcalBmr * act - [500, -250, 300, 0][a.obj]) / 50) * 50);
+        const lieux = a.lieux.length ? a.lieux : ["salle"];
+        const progName = lieux.includes("salle") ? buildProgram(a.jours, a.niv === 0).name + " à la salle" : lieux.includes("maison") ? "Circuits à la maison, 4 jours" : "Natation";
+        const lines = [["Ton programme", progName + (lieux.includes("piscine") && lieux.length > 1 ? " + 1 séance de natation" : "") + (a.niv === 0 ? ". Premier mois en douceur." : ".")], ["Ta cible", kcal.toLocaleString("fr-FR") + " kcal les jours d'entraînement, un peu moins les jours de repos"], ["Tes courses", "Environ " + Math.min([40, 60, 80, 100][a.budget], Math.round(kcal / 36)) + " € par semaine"], ["Ta journée", "Heure par heure, à partir de demain matin"], ["Ton niveau", "Niveau " + [1, 2, 3][a.niv] + " : " + LEVELS[[1, 2, 3][a.niv] - 1].name + ". Les outils se débloquent au fil des jours."]];
+        body = hx(Fragment, null,
+            hx("div", { style: capS }, "Ton plan est prêt"),
+            hx("div", { style: { fontFamily: AN, fontSize: 64, lineHeight: .88, textTransform: "uppercase", margin: "6px 0 12px" } }, "C'est parti"),
+            lines.map(([k, v]) => hx("div", { key: k, style: { borderTop: `2px solid ${C.ink}`, padding: "9px 0" } }, hx("div", { style: capS }, k), hx("b", { style: { fontSize: 16 } }, v))),
+            hx("button", { disabled: busy, onClick: () => finish(false), className: "onb-cta", style: { marginTop: 16 } }, busy ? "Préparation…" : "Voir ma journée"),
+            hx("button", { disabled: busy, onClick: () => finish(true), style: { border: 0, background: "none", fontWeight: 800, textDecoration: "underline", marginTop: 14, cursor: "pointer", color: C.ink } }, "Je connais déjà tout ça : tout débloquer"),
+            hx("button", { onClick: () => setQ(ONB_Q.length - 1), style: { border: 0, background: "none", fontWeight: 700, marginTop: 10, cursor: "pointer", color: C.textMut } }, "‹ Modifier mes réponses"));
+    }
+    else {
+        const Q = ONB_Q[q];
+        let inner;
+        if (Q.form)
+            inner = hx(Fragment, null, hx("div", { style: { display: "flex", gap: 6, marginBottom: 10 } }, ["Homme", "Femme"].map(x => hx("button", { key: x, onClick: () => setA(y => ({ ...y, sexe: x })), style: { ...PM.mini(a.sexe === x), padding: "8px 16px" } }, x))), st("taille", "Taille", " cm", 1), st("poids", "Poids", " kg", .5), st("age", "Âge", " ans", 1), hx("button", { onClick: () => setQ(q + 1), className: "onb-cta", style: { marginTop: 14 } }, "Continuer"));
+        else if (Q.multi)
+            inner = hx(Fragment, null, Q.o.map(([k, l]) => opt(l, a.lieux.includes(k), () => setA(y => ({ ...y, lieux: y.lieux.includes(k) ? y.lieux.filter(x => x !== k) : [...y.lieux, k] })))), hx("button", { disabled: !a.lieux.length, onClick: () => setQ(q + 1), className: "onb-cta", style: { marginTop: 10, opacity: a.lieux.length ? 1 : .4 } }, "Continuer"));
+        else
+            inner = Q.o.map((l, i) => opt(l, Q.id === "jours" ? a.jours === i + 2 : a[Q.id] === i, () => { setA(y => ({ ...y, [Q.id]: Q.id === "jours" ? i + 2 : i })); setQ(q + 1); }));
+        body = hx(Fragment, null,
+            hx("div", { style: { display: "flex", gap: 5 } }, ONB_Q.map((_, i) => hx("i", { key: i, style: { flex: 1, height: 5, borderRadius: 3, background: C.ink, opacity: i <= q ? 1 : .18 } }))),
+            hx("div", { style: { ...capS, marginTop: 12 } }, "Question " + (q + 1) + " sur 6" + (Q.multi ? " · plusieurs réponses possibles" : "")),
+            hx("div", { style: { fontFamily: AN, fontSize: 46, lineHeight: .92, textTransform: "uppercase", margin: "8px 0 14px" } }, Q.t),
+            inner,
+            hx("button", { onClick: () => setQ(q - 1), style: { border: 0, background: "none", fontWeight: 700, marginTop: 14, cursor: "pointer", color: C.textMut } }, "‹ Retour"));
+    }
+    return hx("div", { className: "onb", role: "dialog", "aria-modal": true, "aria-label": "Démarrage" }, hx("div", { className: "onb-in" }, body));
+}
+/* ═══ BARRE DES 3 BOUTONS ═══ */
+const NAV_ICONS = {
+    today: () => hx("svg", { viewBox: "0 0 24 24", "aria-hidden": true }, hx("rect", { x: 3, y: 5, width: 18, height: 16, rx: 2, fill: "none", stroke: "currentColor", strokeWidth: 2.4 }), hx("path", { d: "M3 10h18M8 3v4M16 3v4", stroke: "currentColor", strokeWidth: 2.4 })),
+    progres: () => hx("svg", { viewBox: "0 0 24 24", "aria-hidden": true }, hx("path", { d: "M3 20l5-7 4 4 8-11", fill: "none", stroke: "currentColor", strokeWidth: 2.6, strokeLinejoin: "round", strokeLinecap: "round" })),
+    plan: () => hx("svg", { viewBox: "0 0 24 24", "aria-hidden": true }, hx("path", { d: "M4 7h16M4 12h16M4 17h10", stroke: "currentColor", strokeWidth: 2.6, strokeLinecap: "round" })),
+};
+function BottomNav({ screen, setScreen }) {
+    return hx("nav", { className: "bnav", "aria-label": "Navigation" }, [["today", "Aujourd'hui"], ["progres", "Progrès"], ["plan", "Plan"]].map(([k, l]) => hx("button", { key: k, onClick: () => { setScreen(k); const s = document.querySelector(".shell"); if (s)
+            s.scrollTop = 0; }, "aria-current": screen === k }, NAV_ICONS[k](), l)));
 }
 /* ═══ APP — l'accueil est une affiche, chaque section une affiche de couleur empilée en bas ═══
  * Pile repliée : 4 bandeaux superposés en bas de l'écran (ou une rangée de 4 quand on fait défiler l'accueil).
@@ -4151,30 +5061,43 @@ function usePosterInfo() {
         sport: today ? today.emoji + " " + today.label + " · " + CRENEAUX[normProfile(profile).creneau].seance + (swim ? " · 🏊" : "") : swim ? "🏊 Natation aujourd'hui" : "Repos aujourd'hui",
         nutrition: tgt.toLocaleString("fr-FR") + " kcal" + (today ? "" : " · repos"),
         budget: dep7 + " € · 7 jours",
-        review: rate == null ? "Tendance du poids" : (rate > 0 ? "+" : "") + rate.toLocaleString("fr-FR") + " kg/sem",
+        review: RECUP_RES && RECUP_RES.score != null ? "Récup " + RECUP_RES.score + "/100 · " + RECUP_RES.verdict.short : !RECUP_RES ? "Saisie du matin à faire" : rate == null ? "Tendance du poids" : (rate > 0 ? "+" : "") + rate.toLocaleString("fr-FR") + " kg/sem",
     };
 }
 function App() {
     const [open, setOpen] = useState(null);
     const [shown, setShown] = useState(null);
     const [tabHint, setTabHint] = useState(null);
-    const [compact, setCompact] = useState(false);
-    const [arrived, setArrived] = useState(false);
+    const [screen, setScreen] = useState("today");
+    const [gate, setGate] = useState("check"); // check → onboard (démarrage) ou ok
     const openRef = useRef(null);
     // Programme actif : appliqué avant tout le reste du rendu (les séances perso remplacent le PPL partout)
     const [progs, , progsReady] = useStored("programmes", []);
-    const [profileA, , profileReady] = useStored("profil", PROFILE_DEFAULT);
+    const [profileA, setProfileA, profileReady] = useStored("profil", PROFILE_DEFAULT);
     if (progsReady && profileReady)
         syncPrograms(progs, profileA);
+    const prA = normProfile(profileA);
+    LEVEL = prA.unlockAll ? 4 : Math.min(4, Math.max(1, prA.niveau || 4));
+    // Récupération du matin : lue par le Fil, le bandeau Science et le coach (mode récup automatique sous 50)
+    const recupData = useRecoveryData();
+    RECUP_RES = recoveryFor(isoToday(), recupData);
+    RECUP_TODAY = RECUP_RES ? RECUP_RES.score : null;
     const info = usePosterInfo();
-    useEffect(() => { const t = setTimeout(() => setArrived(true), 700); return () => clearTimeout(t); }, []);
+    // Premier lancement : démarrage en 6 questions, sauf si des données existent déjà (utilisateur d'origine : tout débloqué)
+    useEffect(() => { Promise.all([load("profil", null), load("sport-logs", []), load("nutri-logs", []), load("maison-logs", [])]).then(async ([p, s, n, m]) => { const pr = normProfile(p); if (pr.onboarded)
+        return setGate("ok"); if ((s || []).length + (n || []).length + (m || []).length > 0) {
+        await save("profil", { ...pr, onboarded: true, owner: true, niveau: 4, unlockAll: true, levelSince: isoToday() });
+        return setGate("ok");
+    } setGate("onboard"); }); }, []);
+    // Passage de niveau : 7 journées validées depuis le début du niveau en cours
+    const lvlUp = gate === "ok" && !prA.unlockAll && LEVEL < 4 && levelProgress(prA, { prog: resolveProgramme(profileA, recupData.sl), sl: recupData.sl, ml: recupData.ml, swl: recupData.swl, nl: recupData.nl }) >= 7 ? LEVELS[LEVEL] : null;
     // Le bouton « retour » du téléphone referme l'affiche ouverte
     useEffect(() => { const onPop = () => { if (openRef.current)
         shut(); }; window.addEventListener("popstate", onPop); return () => window.removeEventListener("popstate", onPop); }, []);
     const shut = () => { const closing = openRef.current; openRef.current = null; setOpen(null); setTimeout(() => { if (openRef.current !== closing)
         setShown(s => s === closing ? null : s); }, 650); };
     const [nonce, setNonce] = useState(0);
-    const goTo = (id, tab) => { setTabHint(tab || null); setShown(id); setOpen(id); openRef.current = id; if (tab)
+    const goTo = (id, tab) => { setTabHint(tab || null); setNonce(x => x + 1); setShown(id); setOpen(id); openRef.current = id; if (tab)
         setTimeout(() => { const sc = document.querySelector(".pst.open .pst-scroll"), sh = sc?.querySelector(".pst-body"); if (sc && sh)
             sc.scrollTo({ top: sh.offsetTop - 8, behavior: "smooth" }); }, 750); try {
         history.pushState({ poster: id }, "");
@@ -4189,23 +5112,12 @@ function App() {
     catch (e) { } shut(); };
     // Glisser vers le bas sur l'en-tête d'une affiche ouverte = la replier
     const drag = useRef(null);
-    const n = POSTERS.length;
-    const place = (i) => {
-        const p = POSTERS[i];
-        if (!arrived)
-            return { transform: "translateY(110%)", left: 0, width: "100%", transitionDelay: "0ms" };
-        if (open === p.id)
-            return { transform: "translateY(0)", left: 0, width: "100%" };
-        if (open)
-            return { transform: "translateY(110%)", left: 0, width: "100%" };
-        if (compact)
-            return { transform: `translateY(calc(100% - ${TAB}px - env(safe-area-inset-bottom, 0px)))`, left: i * 25 + "%", width: "25%" };
-        return { transform: `translateY(calc(100% - ${(n - i) * TAB}px - env(safe-area-inset-bottom, 0px)))`, left: 0, width: "100%" };
-    };
     return React.createElement("div", { className: "app" + (open ? " has-open" : "") },
-        React.createElement("div", { className: "home-scroll", "aria-hidden": !!open, onScroll: e => setCompact(e.currentTarget.scrollTop > 140) },
-            React.createElement(HomeScreen, { goTo })),
-        POSTERS.map((p, i) => React.createElement("section", { key: p.id, className: "pst" + (open === p.id ? " open" : "") + (compact && !open ? " compact" : ""), style: { background: p.c, color: p.fg, zIndex: open === p.id ? 60 : 20 + i, transitionDelay: !open && arrived ? (compact ? i * 40 : 0) + "ms" : "0ms", ...place(i) } },
+        React.createElement("div", { className: "shell", "aria-hidden": !!open },
+            React.createElement("div", { className: "shell-in" }, gate === "ok" && React.createElement(ErrorBoundary, null, screen === "today" ? React.createElement(FilScreen, { goTo, setScreen }) : screen === "progres" ? React.createElement(ProgresScreen, { goTo }) : React.createElement(PlanScreen, { goTo, info, setGate })))),
+        gate === "ok" && React.createElement(BottomNav, { screen, setScreen }),
+        // Les 4 affiches de couleur : cachées sous l'écran, elles montent quand on les ouvre (Plan, cartes du Fil)
+        POSTERS.map((p, i) => React.createElement("section", { key: p.id, className: "pst" + (open === p.id ? " open" : ""), "aria-hidden": open !== p.id, style: { background: p.c, color: p.fg, zIndex: open === p.id ? 60 : 20 + i, left: 0, width: "100%", transform: open === p.id ? "translateY(0)" : "translateY(110%)" } },
             React.createElement("button", { className: "pst-tab", "aria-expanded": open === p.id, onClick: () => open === p.id ? close() : goTo(p.id),
                 onPointerDown: e => { drag.current = open === p.id ? e.clientY : null; },
                 onPointerUp: e => { if (drag.current != null && e.clientY - drag.current > 50)
@@ -4213,12 +5125,19 @@ function App() {
                 React.createElement("b", { className: "pst-name" }, p.name),
                 React.createElement("span", { className: "pst-sub" }, info[p.id]),
                 open === p.id && React.createElement("span", { className: "pst-close", "aria-hidden": true }, "↓")),
-            // Ouverte : l'affiche du jour (cases à cocher), puis la feuille avec tous les onglets habituels
+            // Ouverte : l'affiche du jour (cases à cocher), puis la feuille avec tous les onglets du niveau
             shown === p.id && React.createElement("div", { className: "pst-scroll" },
                 React.createElement(ErrorBoundary, null, React.createElement(p.today(), { fg: p.fg, bg: p.c, goTab: t => { setTabHint(t); setNonce(x => x + 1); setTimeout(() => { const sc = document.querySelector(".pst.open .pst-scroll"), sh = sc?.querySelector(".pst-body"); if (sc && sh)
                             sc.scrollTo({ top: sh.offsetTop - 8, behavior: "smooth" }); }, 60); } })),
                 React.createElement("div", { className: "pst-body" }, React.createElement(ErrorBoundary, null, React.createElement(p.comp(), { key: nonce, initialTab: tabHint })))),
             open === p.id && p.id === "sport" && React.createElement(PosterRest, { color: p.c }))),
+        lvlUp && React.createElement("div", { className: "lvlup", role: "dialog", "aria-modal": true, "aria-label": "Nouveau niveau" },
+            React.createElement("div", { style: { fontSize: 12, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase" } }, "Niveau " + lvlUp.n + " débloqué · " + lvlUp.name),
+            React.createElement("div", { style: { fontFamily: AN, fontSize: "clamp(52px, 16vw, 76px)", lineHeight: .9, textTransform: "uppercase" } }, lvlUp.unlock[0]),
+            React.createElement("p", { style: { fontSize: 17, fontWeight: 700, lineHeight: 1.4, margin: 0 } }, lvlUp.unlock[1]),
+            React.createElement("ul", { style: { margin: 0, paddingLeft: 20, fontSize: 15, fontWeight: 600, lineHeight: 1.6 } }, lvlUp.items.map(x => React.createElement("li", { key: x }, x))),
+            React.createElement("button", { onClick: () => setProfileA({ ...prA, niveau: lvlUp.n, levelSince: isoToday() }), className: "onb-cta" }, "Compris")),
+        gate === "onboard" && React.createElement(Demarrage, { onDone: () => { setGate("ok"); setScreen("today"); } }),
         React.createElement(ConfirmHost, null),
         React.createElement(ToastHost, null));
 }
