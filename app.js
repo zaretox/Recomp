@@ -3667,13 +3667,17 @@ function recupAdvice(r, D) {
 function RecupForm({ fg, bg, onDone, onCancel }) {
     const [rl, setRl] = useStored("recup-logs", []);
     const today = isoToday(), ex = rl.find(l => l.dateISO === today);
-    const fromEntry = x => ({ ans: x?.ans != null ? String(x.ans).replace(".", ",") : "", rmssd: x?.rmssd ? String(x.rmssd) : "", fc: x?.fc ? String(x.fc) : "", sleep: x?.sleep ? fmtHM(x.sleep).replace(" h ", ":") : "" });
+    // Le clavier numérique du téléphone n'a ni « − » ni « : » : le signe du statut SNA se choisit avec deux boutons,
+    // le sommeil se saisit en heures + minutes
+    const fromEntry = x => { const h = x?.sleep ? Math.floor(x.sleep) : null, m = x?.sleep ? Math.round((x.sleep - h) * 60) : null;
+        return { ans: x?.ans != null ? String(Math.abs(x.ans)).replace(".", ",") : "", ansSign: x?.ans < 0 ? -1 : 1, rmssd: x?.rmssd ? String(x.rmssd) : "", fc: x?.fc ? String(x.fc) : "", sleepH: h != null ? String(m === 60 ? h + 1 : h) : "", sleepM: m != null ? String(m === 60 ? 0 : m) : "" }; };
     const [f, setF] = useState(() => fromEntry(ex));
     useEffect(() => { if (ex)
         setF(fromEntry(ex)); }, [ex?.id]);
     const num = (v, lo, hi) => { const x = parseFloat(String(v).replace(",", ".").replace(/[−–]/, "-")); return isFinite(x) ? Math.max(lo, Math.min(hi, x)) : null; };
     const submit = async () => {
-        const sl = parseSleepH(f.sleep), ans = num(f.ans, -10, 10), rm = num(f.rmssd, 5, 300), fc = num(f.fc, 25, 130);
+        const absA = num(f.ans, 0, 10), ans = absA == null ? null : f.ansSign * absA, rm = num(f.rmssd, 5, 300), fc = num(f.fc, 25, 130);
+        const sh = parseInt(f.sleepH), sm = parseInt(f.sleepM), sl = isFinite(sh) || isFinite(sm) ? (isFinite(sh) ? sh : 0) + Math.min(59, isFinite(sm) ? sm : 0) / 60 : null;
         const entry = { id: ex?.id || Date.now(), dateISO: today, ans: ans == null ? null : Math.round(ans * 10) / 10, rmssd: rm == null ? null : Math.round(rm), fc: fc == null ? null : Math.round(fc), sleep: sl && sl > 0 && sl < 16 ? Math.round(sl * 100) / 100 : null };
         if (entry.ans == null && entry.rmssd == null && entry.fc == null && entry.sleep == null)
             return toast("Remplis au moins un champ", { tone: "danger" });
@@ -3681,16 +3685,29 @@ function RecupForm({ fg, bg, onDone, onCancel }) {
         toast("🫀 Saisie du matin enregistrée");
         onDone && onDone();
     };
+    const labS = { fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" }, hintS = { fontSize: 11.5, fontWeight: 600, opacity: .8 };
+    const inS = { ...inputStyle, borderColor: fg, fontWeight: 700, fontSize: 18, minWidth: 0 };
+    const input = (k, mode, ph, label) => hx("input", { value: f[k], inputMode: mode, placeholder: ph, "aria-label": label, onChange: e => { const v = e.target.value; setF(x => ({ ...x, [k]: v })); }, style: inS });
     const field = (k, label, hint, mode, ph) => hx("label", { style: { display: "grid", gap: 3, minWidth: 0 } },
-        hx("span", { style: { fontSize: 10.5, fontWeight: 800, letterSpacing: ".08em", textTransform: "uppercase" } }, label),
-        hx("input", { value: f[k], inputMode: mode, placeholder: ph, onChange: e => { const v = e.target.value; setF(x => ({ ...x, [k]: v })); }, style: { ...inputStyle, borderColor: fg, fontWeight: 700, fontSize: 18 } }),
-        hx("small", { style: { fontSize: 11.5, fontWeight: 600, opacity: .8 } }, hint));
+        hx("span", { style: labS }, label), input(k, mode, ph), hx("small", { style: hintS }, hint));
+    // Statut SNA : signe choisi avec − / +, valeur tapée sans signe (un « - » tapé au clavier est aussi compris)
+    const ansField = hx("div", { style: { display: "grid", gap: 3, minWidth: 0 } },
+        hx("span", { style: labS }, "Statut SNA"),
+        hx("div", { style: { display: "flex", gap: 6, minWidth: 0 } },
+            hx("div", { role: "group", "aria-label": "Signe du statut SNA", style: { display: "flex", flex: "none", border: `2px solid ${fg}`, borderRadius: 6, overflow: "hidden" } }, [[-1, "−", "Valeur négative"], [1, "+", "Valeur positive"]].map(([s, l, a]) => hx("button", { key: s, type: "button", "aria-label": a, "aria-pressed": f.ansSign === s, onClick: () => setF(x => ({ ...x, ansSign: s })), style: { width: 34, border: 0, background: f.ansSign === s ? fg : "#fff", color: f.ansSign === s ? bg : fg, fontWeight: 800, fontSize: 20, cursor: "pointer", padding: 0 } }, l))),
+            hx("input", { value: f.ans, inputMode: "decimal", placeholder: "1,5", "aria-label": "Statut SNA, valeur", onChange: e => { const v = e.target.value; const neg = /^\s*[−–-]/.test(v), pos = /^\s*\+/.test(v); setF(x => ({ ...x, ans: v.replace(/^\s*[+−–-]\s*/, ""), ansSign: neg ? -1 : pos ? 1 : x.ansSign })); }, style: inS })),
+        hx("small", { style: hintS }, "de −10 à +10 : choisis le signe"));
+    // Sommeil : heures + minutes
+    const sleepField = hx("div", { style: { display: "grid", gap: 3, minWidth: 0 } },
+        hx("span", { style: labS }, "Sommeil"),
+        hx("div", { style: { display: "flex", alignItems: "center", gap: 5, minWidth: 0 } }, input("sleepH", "numeric", "7", "Heures de sommeil"), hx("b", { style: { fontSize: 15 } }, "h"), input("sleepM", "numeric", "45", "Minutes de sommeil"), hx("b", { style: { fontSize: 15 } }, "min")),
+        hx("small", { style: hintS }, "durée de la nuit"));
     return hx("div", { style: { display: "grid", gap: 10 } },
         hx("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 } },
-            field("ans", "Statut SNA", "de −10 à +10", "decimal", "+1,5"),
+            ansField,
             field("rmssd", "VFC (ms)", "moyenne de la nuit", "numeric", "45"),
             field("fc", "FC nocturne", "bpm, moyenne de la nuit", "numeric", "57"),
-            field("sleep", "Sommeil", "ex. 7:45", "decimal", "7:45")),
+            sleepField),
         hx("p", { style: { fontSize: 12.5, fontWeight: 600, opacity: .85, margin: 0, lineHeight: 1.4 } }, "Dans Polar Flow : Recharge nocturne pour les trois premiers chiffres, Sommeil pour la durée. Un champ vide est simplement ignoré."),
         hx("div", { style: { display: "flex", gap: 8 } },
             onCancel && hx("button", { onClick: onCancel, style: { flex: 1, padding: "12px 0", borderRadius: 4, border: `2px solid ${fg}`, background: "transparent", color: fg, fontWeight: 800, fontSize: 14, cursor: "pointer" } }, "Annuler"),
