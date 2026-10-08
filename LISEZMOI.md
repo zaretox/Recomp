@@ -12,16 +12,15 @@
 ## Après une modification
 
 L'app installée sur le téléphone affiche l'ancienne version une fois, puis la nouvelle à l'ouverture suivante.
-Pour forcer la mise à jour, incrémente `VERSION` dans `sw.js` (`recomp-v12` → `recomp-v13`).
+Pour forcer la mise à jour, incrémente `VERSION` dans `sw.js` (`recomp-v13` → `recomp-v14`).
 
-## Parcours (3 écrans)
+## Accueil-sommaire
 
-- **Aujourd'hui** (`FilScreen`) : la journée heure par heure, construite à partir du profil (réveil, créneau), du menu du jour (`dayMenu`), de la séance (`sessionForDate`), de la natation et du jour des courses. Le coach (messages + suggestions « Je me pèse », « J'ai mal »…) est en tête ; `QuickSheet` gère les imprévus.
-- **Progrès** (`ProgresScreen`) : poids en grand, verdict en une phrase, puis corps, force, forme, assiette, argent, natation.
-- **Plan** (`PlanScreen`) : les 4 affiches de couleur (tous les écrans détaillés) puis les réglages (horaires, niveaux, lexique, données, refaire le démarrage).
-- **Niveaux** : `LEVEL` (1 à 4, ou tout débloqué) filtre les cartes, les blocs et les onglets (`TAB_LEVEL`, `tabOk`). Une journée est validée avec la séance ou le repos prévu, 3 repas cochés et la pesée (`dayValidated`) ; 7 journées font passer au niveau suivant.
-- **Lexique** : `lx(simple, expert)` et `seanceLabel()` donnent les mots simples jusqu'au niveau 3, les termes exacts au niveau expert.
-- **Démarrage** (`Demarrage`, `applyOnboarding`) : 6 questions pour un nouvel utilisateur sans données ; génère le programme (`buildProgram`), la cible calorique, la natation et le niveau. Un appareil qui a déjà des données démarre directement en « tout débloqué ».
+- `HomeSommaire` : une seule page. En haut, la recherche « Que veux-tu faire ? » (filtre les tuiles par nom et mots-clés), « Aujourd'hui » (à faire, chaque ligne ouvre le bon écran) et le coach (`CoachCard`).
+- Puis le sommaire `SECS` : une section par affiche (Sport, Nutrition, Budget, Science) avec la grille de toutes ses fonctionnalités, plus « Réglages » (profil, planning et rappels, projection, sauvegarde, lexique). Chaque tuile appelle `goTo(affiche, onglet)` ou ouvre une feuille.
+- En bas : « Ma semaine » (poids, séances, repas suivis, dépenses, séries).
+- `CoachCard` : message du jour, conseil selon la récupération, douleur récente, proposition d'ajuster le déficit, bilan du dimanche, rappel de pesée. Ses suggestions ouvrent `QuickSheet` (pesée, calories en plus, dépense, douleur).
+- Pour ajouter une fonctionnalité au sommaire : une ligne `{ t, d, tab, kw }` dans la section voulue de `SECS`.
 
 ## Repères dans app.js
 
@@ -44,12 +43,12 @@ Pour forcer la mise à jour, incrémente `VERSION` dans `sw.js` (`recomp-v12` �
 `sport-logs`, `maison-logs`, `nutri-logs`, `food-log`, `foods-custom`, `mensurations`,
 `photos-index` + `photo:<id>`, `douleur-logs`, `budget-logs`, `fin-*`, `nutri-cal-cfg`,
 `science-config` (décharge, récup, charges + fourchettes de reps ajustées), `sport-phase`, `profil`, `repas-alts`,
-`taille-corps`, `last-export`, `programmes` (programmes perso), `exos-perso` (exercices ajoutés à la bibliothèque), `natation-modeles` (séances types), `natation-logs` (séances nagées), `recup-logs` (saisie Polar du matin), `bilans` (prises de sang). Le `profil` contient aussi : `niveau`, `unlockAll`, `levelSince`, `onboarded`, `owner`, `montre`, `budgetSemaine`, `coursesJour`, `objectif`, `coachDismiss`.
+`taille-corps`, `last-export`, `programmes` (programmes perso), `exos-perso` (exercices ajoutés à la bibliothèque), `natation-modeles` (séances types), `natation-logs` (séances nagées), `recup-logs` (saisie Polar du matin), `bilans` (prises de sang). Le `profil` contient aussi `coachDismiss` (propositions du coach écartées pour la journée).
 
 ## Design « Affiche »
 
 - Couleurs : objet `C` en haut de `app.js` (papier, encre, une couleur par section) + variables CSS dans `index.html`.
-- Structure : `App` = 3 écrans + barre de 3 boutons (`BottomNav`), et les 4 affiches `POSTERS` (Sport, Nutrition, Budget, Science) cachées sous l'écran. Une affiche ouverte monte en plein écran ; `goTo(section, onglet)` ouvre une section sur un onglet précis.
+- Structure : `App` = accueil-sommaire défilant, et les 4 affiches `POSTERS` (Sport, Nutrition, Budget, Science) cachées sous l'écran. Une affiche ouverte monte en plein écran ; `goTo(section, onglet)` ouvre une section sur un onglet précis.
 - Polices : Anton (grands chiffres, titres) et Bricolage Grotesque (texte), mises en cache par `sw.js` pour le hors ligne.
 - Les grands chiffres des écrans (≥ 20 px, gras) passent automatiquement en Anton (règle CSS dans `index.html`).
 - Affiches « aujourd'hui » : `TodaySport`, `TodayNutrition`, `TodayBudget`, `TodayScience` (en tête de chaque affiche ouverte). Les ronds de séries et les repas barrés écrivent dans `sport-logs` / `maison-logs` / `nutri-logs`, les mêmes données que les onglets Suivi (synchro dans les deux sens).
