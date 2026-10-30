@@ -2,26 +2,48 @@
  * L'app s'ouvre toujours depuis le cache : instantané, même sans réseau.
  * À chaque ouverture, tous les fichiers sont retéléchargés en arrière-plan. Ils ne remplacent les anciens
  * que s'ils sont TOUS arrivés : on ne se retrouve jamais avec un mélange d'ancienne et de nouvelle version. */
-const VERSION = "recomp-v15";
+const VERSION = "recomp-v16";
 const POLICES = "recomp-fonts"; // polices Google, gardées d'une version à l'autre
 const FICHIERS = [
-  "./", "./index.html", "./css/app.css",
-  "./vendor/react.production.min.js", "./vendor/react-dom.production.min.js",
-  "./js/core/stockage.js", "./js/core/base.js",
-  "./js/data/programmes.js", "./js/data/repas.js", "./js/data/libelles.js", "./js/data/courses.js",
-  "./js/engine/programme.js", "./js/engine/entrainement.js", "./js/engine/nutrition.js", "./js/engine/recuperation.js", "./js/engine/argent.js", "./js/engine/coach.js",
-  "./js/ui/kit.js", "./js/ui/pave.js", "./js/ui/graphiques.js", "./js/ui/repos.js",
-  "./js/screens/jour.js", "./js/screens/seance.js", "./js/screens/sport.js", "./js/screens/programmes.js", "./js/screens/repas.js", "./js/screens/argent.js", "./js/screens/corps.js", "./js/screens/reglages.js",
-  "./js/app.js",
+  "./", "./index.html", "./app.css",
+  "./vendor/react.production.min.js",
+  "./vendor/react-dom.production.min.js",
+  "./stockage.js",
+  "./base.js",
+  "./programmes.js",
+  "./repas.js",
+  "./libelles.js",
+  "./courses.js",
+  "./programme.js",
+  "./entrainement.js",
+  "./nutrition.js",
+  "./recuperation.js",
+  "./argent.js",
+  "./coach.js",
+  "./kit.js",
+  "./pave.js",
+  "./graphiques.js",
+  "./repos.js",
+  "./jour.js",
+  "./seance.js",
+  "./sport.js",
+  "./ecran-programmes.js",
+  "./ecran-repas.js",
+  "./ecran-argent.js",
+  "./corps.js",
+  "./reglages.js",
+  "./app.js",
 ];
 const FACULTATIFS = ["./manifest.json"]; // ton fichier : son absence ne bloque rien
 
 self.addEventListener("install", e => {
-  e.waitUntil(
-    caches.open(VERSION)
-      .then(c => Promise.all([...FICHIERS, ...FACULTATIFS].map(u => c.add(new Request(u, { cache: "reload" })).catch(() => {}))))
-      .then(() => self.skipWaiting())
-  );
+  e.waitUntil((async () => {
+    const c = await caches.open(VERSION);
+    // Tout ou rien : si un fichier manque en ligne, la mise à jour s'arrête et la version en place continue de marcher
+    await Promise.all(FICHIERS.map(u => c.add(new Request(u, { cache: "reload" }))));
+    await Promise.all(FACULTATIFS.map(u => c.add(new Request(u, { cache: "reload" })).catch(() => {})));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener("activate", e => {

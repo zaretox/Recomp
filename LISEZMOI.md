@@ -6,50 +6,54 @@ Cinq onglets, cinq questions :
 
 | Onglet | Question | Fichier |
 | --- | --- | --- |
-| Jour | Qu'est-ce que je fais maintenant ? | `js/screens/jour.js` |
-| Sport | Qu'est-ce que je soulève ? | `js/screens/sport.js`, `seance.js`, `programmes.js` |
-| Repas | Qu'est-ce que je mange ? | `js/screens/repas.js` |
-| Argent | Combien il me reste ? | `js/screens/argent.js` |
-| Corps | Est-ce que ça marche ? | `js/screens/corps.js` |
+| Jour | Qu'est-ce que je fais maintenant ? | `jour.js` |
+| Sport | Qu'est-ce que je soulève ? | `sport.js`, `seance.js`, `ecran-programmes.js` |
+| Repas | Qu'est-ce que je mange ? | `ecran-repas.js` |
+| Argent | Combien il me reste ? | `ecran-argent.js` |
+| Corps | Est-ce que ça marche ? | `corps.js` |
 
-Le bouton + (« Que veux-tu faire ? ») et les réglages sont dans `js/screens/reglages.js`.
+Le bouton + (« Que veux-tu faire ? ») et les réglages sont dans `reglages.js`.
 
 ## Carte des fichiers
 
-| Dossier | Rôle |
+Tout est à la racine, sauf `vendor/`. Pas de sous-dossier : l'envoi par la page web de GitHub les perd. Les fichiers sont nommés par rôle :
+
+| Fichiers | Rôle |
 | --- | --- |
-| `js/core/` | `stockage.js` : IndexedDB. `base.js` : `h()`, le magasin `DB`, les dates et les formats. |
-| `js/data/` | Données pures : programmes, menus, listes, prix. Aucune logique. |
-| `js/engine/` | Tous les calculs, sans interface. |
-| `js/ui/` | Briques d'écran : `kit.js`, `pave.js` (pavé numérique), `graphiques.js`, `repos.js` (minuteur). |
-| `js/screens/` | Les écrans. |
-| `js/app.js` | Onglets, pile de feuilles, démarrage. |
-| `css/app.css` | Tout le style, avec un sommaire en tête. |
+| `stockage.js`, `base.js` | IndexedDB ; `h()`, le magasin `DB`, les dates et les formats. |
+| `programmes.js`, `repas.js`, `libelles.js`, `courses.js` | Données pures : programmes, menus, listes, prix. Aucune logique. |
+| `programme.js`, `entrainement.js`, `nutrition.js`, `recuperation.js`, `argent.js`, `coach.js` | Tous les calculs, sans interface. |
+| `kit.js`, `pave.js`, `graphiques.js`, `repos.js` | Briques d'écran : pavé numérique, courbes, minuteur. |
+| `jour.js`, `seance.js`, `sport.js`, `corps.js`, `reglages.js`, `ecran-*.js` | Les écrans. |
+| `app.js` | Onglets, pile de feuilles, démarrage. |
+| `app.css` | Tout le style, avec un sommaire en tête. |
 | `sw.js` | Hors ligne et mises à jour. |
 | `vendor/` | React 18 (ne pas toucher). |
-| `manifest.json` | Ton fichier, à garder dans le dépôt : il n'est pas dans ce dossier. |
+| `manifest.json` | Ton fichier, à garder dans le dépôt. |
+
+Deux noms ne doivent jamais se répéter : un fichier à la racine en écrase un autre du même nom.
 
 Les scripts sont chargés dans l'ordre par `index.html` et partagent la même portée : une fonction d'un fichier est visible des suivants. Si tu ajoutes un fichier, ajoute-le aussi à `index.html` et à `FICHIERS` dans `sw.js`.
 
 ## Les moteurs
 
-- `engine/programme.js` : programme actif, séance d'un jour, import de texte (`lireProgramme`).
-- `engine/entrainement.js` : `progression()` décide de la prochaine charge, `proposition()` ajoute les réglages et la semaine légère. Natation à la fin du fichier.
-- `engine/nutrition.js` : `objectifs()` (poids → masse maigre → cible → macros), `menuDuJour()`, `jourNutrition()`, `tendancePoids()`, `depenseReelle()`.
-- `engine/recuperation.js` : `recuperation(iso)` calcule le score, `sommeil()` la dette, `influences()` ce qui joue sur la forme.
-- `engine/argent.js` : `bilanMois()` (reste à vivre), `listeCourses()`.
-- `engine/coach.js` : `messagesCoach()`, `repondre()`, `bilanSemaine()`, `regularite()`.
+- `programme.js` : programme actif, séance d'un jour, import de texte (`lireProgramme`).
+- `entrainement.js` : `progression()` décide de la prochaine charge, `proposition()` ajoute les réglages et la semaine légère. Natation à la fin du fichier.
+- `nutrition.js` : `objectifs()` (poids → masse maigre → cible → macros), `menuDuJour()`, `jourNutrition()`, `tendancePoids()`, `depenseReelle()`.
+- `recuperation.js` : `recuperation(iso)` calcule le score, `sommeil()` la dette, `influences()` ce qui joue sur la forme.
+- `argent.js` : `bilanMois()` (reste à vivre), `listeCourses()`.
+- `coach.js` : `messagesCoach()`, `repondre()`, `bilanSemaine()`, `regularite()`.
 
 ## Comment ça marche
 
 - `DB.get(clé)` lit en mémoire, tout de suite. `DB.set(clé, valeur)` écrit sur le disque et redessine les écrans.
 - Un écran appelle `useDB()` pour se mettre à jour tout seul.
-- Ouvrir un écran par-dessus : `Nav.sheet("nom", props)`. Les noms sont dans `FEUILLES`, dans `js/app.js`.
+- Ouvrir un écran par-dessus : `Nav.sheet("nom", props)`. Les noms sont dans `FEUILLES`, dans `app.js`.
 - Demander un chiffre : `await saisir({ titre, valeur, mode, unite, pas })`. Les modes sont `ent`, `dec`, `signe`, `hm` et `ms`. Jamais de champ `<input>` pour un nombre.
 
 ## Mise en ligne
 
-Pousse les fichiers sur GitHub, Netlify publie. À l'ouverture suivante, l'app télécharge tous les fichiers en arrière-plan. Ils remplacent les anciens d'un seul bloc, uniquement s'ils sont tous arrivés. La nouvelle version apparaît donc à l'ouverture d'après, et incrémenter `VERSION` dans `sw.js` n'est plus nécessaire pour une mise à jour courante.
+Pousse les fichiers sur GitHub, Netlify publie. À l'ouverture suivante, l'app télécharge tous les fichiers en arrière-plan. Ils remplacent les anciens d'un seul bloc, uniquement s'ils sont tous arrivés. La nouvelle version apparaît donc à l'ouverture d'après, et incrémenter `VERSION` dans `sw.js` n'est plus nécessaire pour une mise à jour courante. Si un fichier manque en ligne, la mise à jour s'arrête et la version en place continue de marcher.
 
 ## Clés de stockage
 
@@ -63,6 +67,6 @@ La sauvegarde garde le même format de fichier : une sauvegarde de l'ancienne ve
 
 ## Design
 
-L'affiche de nuit : fond noir teinté par la section, aplats de couleur pleine, grands chiffres. Couleurs et tailles sont des variables en haut de `css/app.css`. Polices : Anton pour les chiffres et les titres, Archivo pour le texte.
+L'affiche de nuit : fond noir teinté par la section, aplats de couleur pleine, grands chiffres. Couleurs et tailles sont des variables en haut de `app.css`. Polices : Anton pour les chiffres et les titres, Archivo pour le texte.
 
 Le détail des choix (gardé, fondu, retiré, nouveau) est dans `ARBITRAGES.md`.

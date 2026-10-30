@@ -15,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Archivo:wdth,wght@62..125,400..800&display=swap">
-<link rel="stylesheet" href="css/app.css">
+<link rel="stylesheet" href="app.css">
 <script>
 /* Thème appliqué avant le premier affichage, pour éviter un flash */
 var t = "nuit"; try { t = localStorage.getItem("recomp_theme") || "nuit"; } catch (e) {} if (t !== "auto") document.documentElement.dataset.theme = t;
@@ -31,39 +31,49 @@ var t = "nuit"; try { t = localStorage.getItem("recomp_theme") || "nuit"; } catc
 </head>
 <body>
 <div id="root"><div id="boot"><b>RECOMP</b><span>Chargement…</span></div></div>
-<div id="fatal"><b>Oups.</b><div style="font-size:16px;font-weight:700;line-height:1.4">Impossible de démarrer l'app.<br>Vérifie ta connexion puis réessaie.</div><div id="fatalmsg" style="font-size:12px;opacity:.75"></div><button onclick="location.reload(true)">Réessayer</button></div>
+<div id="fatal"><b>Oups.</b><div style="font-size:16px;font-weight:700;line-height:1.4">Impossible de démarrer l'app.<br>Vérifie ta connexion puis réessaie.</div><div id="fatalmsg" style="font-size:12px;opacity:.75"></div><button onclick="recompReparer()">Réessayer</button></div>
 <script>
 /* Écran « impossible de démarrer » si un fichier ne charge pas ou plante avant le premier affichage */
 function recompFatal(msg) { var b = document.getElementById("boot"); if (!b || !document.body.contains(b)) return; var f = document.getElementById("fatal"); if (f) f.style.display = "flex"; var m = document.getElementById("fatalmsg"); if (m && msg) m.textContent = msg; }
 window.addEventListener("error", function (e) { recompFatal(e && e.message); });
+/* Réessayer vide le cache de l'app (jamais tes données, qui sont ailleurs) puis recharge depuis le réseau */
+function recompReparer() {
+  var fin = function () { location.reload(); };
+  try {
+    Promise.all([
+      navigator.serviceWorker ? navigator.serviceWorker.getRegistrations().then(function (l) { return Promise.all(l.map(function (r) { return r.unregister(); })); }) : null,
+      window.caches ? caches.keys().then(function (k) { return Promise.all(k.map(function (c) { return caches.delete(c); })); }) : null,
+    ]).then(fin, fin);
+  } catch (e) { fin(); }
+}
 </script>
 <script src="vendor/react.production.min.js" onerror="recompFatal('react.production.min.js introuvable')"></script>
 <script src="vendor/react-dom.production.min.js" onerror="recompFatal('react-dom.production.min.js introuvable')"></script>
-<script src="js/core/stockage.js" onerror="recompFatal('stockage.js introuvable')"></script>
-<script src="js/core/base.js" onerror="recompFatal('base.js introuvable')"></script>
-<script src="js/data/programmes.js" onerror="recompFatal('programmes.js introuvable')"></script>
-<script src="js/data/repas.js" onerror="recompFatal('repas.js introuvable')"></script>
-<script src="js/data/libelles.js" onerror="recompFatal('libelles.js introuvable')"></script>
-<script src="js/data/courses.js" onerror="recompFatal('courses.js introuvable')"></script>
-<script src="js/engine/programme.js" onerror="recompFatal('programme.js introuvable')"></script>
-<script src="js/engine/entrainement.js" onerror="recompFatal('entrainement.js introuvable')"></script>
-<script src="js/engine/nutrition.js" onerror="recompFatal('nutrition.js introuvable')"></script>
-<script src="js/engine/recuperation.js" onerror="recompFatal('recuperation.js introuvable')"></script>
-<script src="js/engine/argent.js" onerror="recompFatal('argent.js introuvable')"></script>
-<script src="js/engine/coach.js" onerror="recompFatal('coach.js introuvable')"></script>
-<script src="js/ui/kit.js" onerror="recompFatal('kit.js introuvable')"></script>
-<script src="js/ui/pave.js" onerror="recompFatal('pave.js introuvable')"></script>
-<script src="js/ui/graphiques.js" onerror="recompFatal('graphiques.js introuvable')"></script>
-<script src="js/ui/repos.js" onerror="recompFatal('repos.js introuvable')"></script>
-<script src="js/screens/jour.js" onerror="recompFatal('jour.js introuvable')"></script>
-<script src="js/screens/seance.js" onerror="recompFatal('seance.js introuvable')"></script>
-<script src="js/screens/sport.js" onerror="recompFatal('sport.js introuvable')"></script>
-<script src="js/screens/programmes.js" onerror="recompFatal('programmes.js introuvable')"></script>
-<script src="js/screens/repas.js" onerror="recompFatal('repas.js introuvable')"></script>
-<script src="js/screens/argent.js" onerror="recompFatal('argent.js introuvable')"></script>
-<script src="js/screens/corps.js" onerror="recompFatal('corps.js introuvable')"></script>
-<script src="js/screens/reglages.js" onerror="recompFatal('reglages.js introuvable')"></script>
-<script src="js/app.js" onerror="recompFatal('app.js introuvable')"></script>
+<script src="stockage.js" onerror="recompFatal('stockage.js introuvable')"></script>
+<script src="base.js" onerror="recompFatal('base.js introuvable')"></script>
+<script src="programmes.js" onerror="recompFatal('programmes.js introuvable')"></script>
+<script src="repas.js" onerror="recompFatal('repas.js introuvable')"></script>
+<script src="libelles.js" onerror="recompFatal('libelles.js introuvable')"></script>
+<script src="courses.js" onerror="recompFatal('courses.js introuvable')"></script>
+<script src="programme.js" onerror="recompFatal('programme.js introuvable')"></script>
+<script src="entrainement.js" onerror="recompFatal('entrainement.js introuvable')"></script>
+<script src="nutrition.js" onerror="recompFatal('nutrition.js introuvable')"></script>
+<script src="recuperation.js" onerror="recompFatal('recuperation.js introuvable')"></script>
+<script src="argent.js" onerror="recompFatal('argent.js introuvable')"></script>
+<script src="coach.js" onerror="recompFatal('coach.js introuvable')"></script>
+<script src="kit.js" onerror="recompFatal('kit.js introuvable')"></script>
+<script src="pave.js" onerror="recompFatal('pave.js introuvable')"></script>
+<script src="graphiques.js" onerror="recompFatal('graphiques.js introuvable')"></script>
+<script src="repos.js" onerror="recompFatal('repos.js introuvable')"></script>
+<script src="jour.js" onerror="recompFatal('jour.js introuvable')"></script>
+<script src="seance.js" onerror="recompFatal('seance.js introuvable')"></script>
+<script src="sport.js" onerror="recompFatal('sport.js introuvable')"></script>
+<script src="ecran-programmes.js" onerror="recompFatal('ecran-programmes.js introuvable')"></script>
+<script src="ecran-repas.js" onerror="recompFatal('ecran-repas.js introuvable')"></script>
+<script src="ecran-argent.js" onerror="recompFatal('ecran-argent.js introuvable')"></script>
+<script src="corps.js" onerror="recompFatal('corps.js introuvable')"></script>
+<script src="reglages.js" onerror="recompFatal('reglages.js introuvable')"></script>
+<script src="app.js" onerror="recompFatal('app.js introuvable')"></script>
 <script>
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(function (e) { console.warn("SW", e); });
 setTimeout(function () { recompFatal(""); }, 12000);
