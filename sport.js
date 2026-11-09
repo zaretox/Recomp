@@ -80,6 +80,7 @@ function EcranSport() {
       h(Section, { titre: "Ta semaine" }, h(SemaineSport)),
       h(Section, { titre: "Organisation" },
         h(Rangee, { ico: "nage", titre: "Natation", sous: "Séances types, records", onClick: () => Nav.sheet("natation") }),
+        h(Rangee, { ico: "bulle", titre: "Bibliothèque", sous: EXO_LIB.length + " exercices expliqués, " + TECHNIQUES.length + " techniques", onClick: () => Nav.sheet("bibliotheque") }),
         h(Rangee, { ico: "liste", titre: "Mes programmes", sous: infoProgramme(programmeEnCours()).label + " en cours", onClick: () => Nav.sheet("programmes") }),
         h(Rangee, { ico: "mal", titre: "Douleurs", sous: "Noter, suivre, remplacer", onClick: () => Nav.sheet("douleurs") })),
       h("div.tuiles",

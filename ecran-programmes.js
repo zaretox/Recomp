@@ -71,18 +71,66 @@ function FeuilleEditeur({ id, neuf }) {
     h(Bouton, { cl: "plein grand", onClick: enregistrer }, "Enregistrer le programme"));
 }
 
-function FeuilleBibliotheque({ choisir }) {
+/* Bibliothèque : tous les exercices expliqués, et les techniques d'intensification.
+ * Avec `choisir` (éditeur de programme), toucher un exercice le choisit ; sinon, ça ouvre sa fiche. */
+function FeuilleBibliotheque({ choisir, onglet }) {
   useDB();
+  const [vue, setVue] = useState(onglet || "exos");
   const [q, setQ] = useState(""), [mu, setMu] = useState("Tous"), [creer, setCreer] = useState(null);
   const perso = DB.get("exos-perso");
   const tous = [...perso.map(x => [x.nom, x.muscle]), ...EXO_LIB.filter(([n]) => !perso.some(x => x.nom === n))].sort((a, b) => a[0].localeCompare(b[0], "fr"));
   const ql = sansAccent(q.trim()), liste = tous.filter(([n, m]) => (mu === "Tous" || m === mu) && (!ql || sansAccent(n).includes(ql)));
   const pris = (n, m) => { choisir(n, m); Nav.fermer(); };
-  return h(Feuille, { titre: creer ? "Muscle principal" : "Bibliothèque", ton: "sport" },
-    creer ? h(Puces, null, MUSCLES.map(m => h(Puce, { key: m, onClick: async () => { await DB.set("exos-perso", [{ nom: creer, muscle: m }, ...perso]); pris(creer, m); } }, m)))
-    : h(Fragment, null,
-      h("input.recherche", { value: q, onChange: e => setQ(e.target.value), placeholder: "Chercher ou créer un exercice", "aria-label": "Chercher un exercice" }),
-      h(Puces, { defile: true }, ["Tous", ...MUSCLES].map(m => h(Puce, { key: m, actif: mu === m, onClick: () => setMu(m) }, m))),
-      q.trim() && !tous.some(([n]) => sansAccent(n) === ql) && h(Bouton, { cl: "contour", onClick: () => setCreer(q.trim()) }, "Créer « " + q.trim() + " »"),
-      h("div.liste", liste.slice(0, 60).map(([n, m]) => h("button.ligne", { key: n, onClick: () => pris(n, m) }, h("span", n), h("small", m))))));
+  if (creer) return h(Feuille, { titre: "Muscle principal", ton: "sport" },
+    h(Puces, null, MUSCLES.map(m => h(Puce, { key: m, onClick: async () => { await DB.set("exos-perso", [{ nom: creer, muscle: m }, ...perso]); pris(creer, m); } }, m))));
+  const exos = h(Fragment, null,
+    h("input.recherche", { value: q, onChange: e => setQ(e.target.value), placeholder: choisir ? "Chercher ou créer un exercice" : "Chercher un exercice", "aria-label": "Chercher un exercice" }),
+    h(Puces, { defile: true }, ["Tous", ...MUSCLES].map(m => h(Puce, { key: m, actif: mu === m, onClick: () => setMu(m) }, m))),
+    choisir && q.trim() && !tous.some(([n]) => sansAccent(n) === ql) && h(Bouton, { cl: "contour", onClick: () => setCreer(q.trim()) }, "Créer « " + q.trim() + " »"),
+    h("p.note", pluriel(liste.length, "exercice")),
+    h("div.liste", liste.map(([n, m]) => {
+      const fiche = ficheDe(n);
+      return h("div.ligne-biblio", { key: n },
+        h("button.ligne", { onClick: () => choisir ? pris(n, m) : fiche ? Nav.sheet("fiche", { nom: n }) : null },
+          h("span", n, h("small", m + (fiche?.mat ? " · " + fiche.mat : ""))), !choisir && fiche && h(Icone, { n: "fleche", t: 16 })),
+        choisir && fiche && h("button.rond.petit", { onClick: () => Nav.sheet("fiche", { nom: n }), "aria-label": "Comment faire " + n }, h(Icone, { n: "liste", t: 16 })));
+    })));
+  const techs = h(Fragment, null,
+    h("p.texte-p", "Des façons de rendre une série plus difficile sans forcément ajouter de charge. ", h("b", "Une ou deux par séance suffisent"), ", sur les derniers exercices."),
+    CATEGORIES_TECH.map(c => h(Section, { key: c, titre: c },
+      h("div.liste", TECHNIQUES.filter(t => t.cat === c).map(t => h("button.ligne", { key: t.nom, onClick: () => Nav.sheet("technique", { nom: t.nom }) },
+        h("span", t.nom, h("small", t.bref)), h(Icone, { n: "fleche", t: 16 })))))));
+  return h(Feuille, { titre: "Bibliothèque", ton: "sport" },
+    !choisir && h("div.onglets-b", { role: "tablist" },
+      [["exos", "Exercices"], ["techs", "Techniques"]].map(([k, l]) => h("button", { key: k, role: "tab", "aria-selected": vue === k, className: vue === k ? "actif" : "", onClick: () => { vibre(); setVue(k); } }, l))),
+    vue === "techs" && !choisir ? techs : exos);
+}
+
+/* La fiche d'un exercice : comment le faire, la clé, l'erreur à éviter */
+function FeuilleFiche({ nom }) {
+  useDB();
+  const vrai = nomDeFiche(nom) || nom, f = ficheDe(nom), muscle = muscleDe(nom) || muscleDe(vrai);
+  const fait = DB.get("sport-logs").some(l => (l.exercices || []).some(e => e.nom === nom));
+  if (!f) return h(Feuille, { titre: nom, ton: "sport" }, h(Vide, null, "Pas encore de fiche pour cet exercice."));
+  return h(Feuille, { titre: nom, ton: "sport" },
+    vrai !== nom && h("p.sous-t", "Fiche de : " + vrai),
+    h("div.fiche-tags", muscle && h("span.fiche-tag.fort", muscle), f.s && f.s !== "—" && h("span.fiche-tag", "Aide : " + f.s), f.mat && h("span.fiche-tag", f.mat)),
+    h(Section, { titre: "Comment faire" }, h("ol.etapes", f.f.map((t, i) => h("li", { key: i }, t)))),
+    h("div.fiche-cle", h("b", "La clé"), h("p", f.c)),
+    h("div.fiche-cle.evite", h("b", "À éviter"), h("p", f.e)),
+    (SUBSTITUTIONS[nom] || []).length > 0 && h(Section, { titre: "Si ça fait mal, remplace par" }, h(Puces, null, SUBSTITUTIONS[nom].map(a => h(Puce, { key: a, onClick: () => ficheDe(a) && Nav.sheet("fiche", { nom: a }) }, a)))),
+    fait && h(Bouton, { cl: "contour", ico: "chrono", onClick: () => Nav.sheet("exercice", { nom }) }, "Ma progression"));
+}
+
+/* Une technique d'intensification */
+function FeuilleTechnique({ nom }) {
+  const t = TECHNIQUES.find(x => x.nom === nom);
+  if (!t) return h(Feuille, { titre: nom, ton: "sport" }, h(Vide, null, "Technique introuvable."));
+  return h(Feuille, { titre: t.nom, ton: "sport" },
+    h("p.sous-t", t.cat),
+    h("p.texte-p", h("b", t.bref)),
+    h(Section, { titre: "Comment faire" }, h("ol.etapes", t.comment.map((x, i) => h("li", { key: i }, x)))),
+    h("div.fiche-cle", h("b", "Exemple"), h("p", t.exemple)),
+    h("div.fiche-cle", h("b", "Quand l'utiliser"), h("p", t.quand)),
+    h("div.fiche-cle.evite", h("b", "Attention"), h("p", t.attention)));
 }

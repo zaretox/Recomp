@@ -523,3 +523,21 @@ h1, h2, h3, p { margin: 0; }
   #tourne span { font-size: 15px; font-weight: 700; color: var(--mou); }
   #tourne svg { width: 48px; height: 48px; }
 }
+
+/* ═══ 12. BIBLIOTHÈQUE ═══ */
+.onglets-b { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border-radius: var(--r); background: var(--fond2); }
+.onglets-b button { padding: 10px; border-radius: 4px; font-weight: 800; font-size: 15px; color: var(--mou); }
+.onglets-b .actif { background: var(--sport); color: var(--sur); }
+.ligne-biblio { display: flex; align-items: center; gap: 8px; }
+.ligne-biblio .ligne { flex: 1; min-width: 0; text-align: left; }
+.rond.petit { width: 36px; height: 36px; flex: none; }
+.fiche-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.fiche-tag { padding: 5px 10px; border-radius: 99px; background: var(--fond2); font-size: 13px; font-weight: 700; color: var(--mou); }
+.fiche-tag.fort { background: var(--sport); color: var(--sur); }
+.etapes { margin: 0; padding-left: 22px; display: grid; gap: 8px; font-size: 15px; line-height: 1.45; }
+.etapes li::marker { font-family: var(--an); color: var(--sport); }
+.fiche-cle { padding: 12px 14px; border-radius: var(--r); background: var(--fond2); border-left: 3px solid var(--sport); }
+.fiche-cle b { display: block; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--sport); }
+.fiche-cle p { margin: 4px 0 0; font-size: 15px; line-height: 1.4; }
+.fiche-cle.evite { border-left-color: var(--pale); }
+.fiche-cle.evite b { color: var(--mou); }

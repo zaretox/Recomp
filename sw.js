@@ -11,6 +11,7 @@ const FICHIERS = [
   "./stockage.js",
   "./base.js",
   "./programmes.js",
+  "./fiches.js",
   "./repas.js",
   "./libelles.js",
   "./courses.js",

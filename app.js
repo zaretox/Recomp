@@ -15,7 +15,7 @@ const ONGLETS = [
 const FEUILLES = {
   matin: FeuilleMatin, pesee: FeuillePesee, forme: FeuilleForme, bilan: FeuilleBilan, seance: FeuilleSeance, exercice: FeuilleExercice,
   choisir: FeuilleChoisir, seanceDetail: FeuilleSeanceDetail, natation: FeuilleNatation, nageModele: FeuilleNageModele, douleur: FeuilleDouleur, douleurs: FeuilleDouleurs,
-  programmes: FeuilleProgrammes, import: FeuilleImport, editeur: FeuilleEditeur, bibliotheque: FeuilleBibliotheque,
+  programmes: FeuilleProgrammes, import: FeuilleImport, editeur: FeuilleEditeur, bibliotheque: FeuilleBibliotheque, fiche: FeuilleFiche, technique: FeuilleTechnique,
   repas: FeuilleRepas, equivalents: FeuilleEquivalents, aliment: FeuilleAliment, calories: FeuilleCalories, courses: FeuilleCourses,
   operation: FeuilleOperation, fixes: FeuilleFixes, mensurations: FeuilleMensurations, photos: FeuillePhotos, bilans: FeuilleBilans,
   capture: FeuilleCapture, reglages: FeuilleReglages,

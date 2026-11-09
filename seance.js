@@ -197,6 +197,7 @@ function FeuilleExercice({ nom, orig, iso, code, kg }) {
     toast("Remplacé pour aujourd'hui : " + a);
   };
   return h(Feuille, { titre: nom, ton: "sport" },
+    ficheDe(nom) && h(Rangee, { ico: "bulle", titre: "Comment bien le faire", sous: ficheDe(nom).c, onClick: () => Nav.sheet("fiche", { nom }) }),
     h("div.tuiles",
       h(Tuile, { v: mx ? mx.rm + " kg" : "—", l: "max estimé" }),
       h(Tuile, { v: pts.length, l: "séances" }),
