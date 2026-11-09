@@ -6,7 +6,8 @@ const DIFFICULTES = [[7, "Facile"], [8, "Bien"], [9, "Dur"], [10, "Limite"]];
 const ouvrirSeance = (iso, s) => Nav.sheet("seance", { iso, prog: s.prog === "maison" ? "maison" : "salle", code: s.code });
 
 function versLog(iso, code, cfg, log) {
-  return log || { id: Date.now(), date: dateCourte(iso), dateISO: iso, seance: code, deload: !!cfg.deload, startedAt: Date.now(), exercices: [] };
+  // Une séance notée après coup n'a pas d'heure de début : sa durée n'aurait pas de sens
+  return log || { id: Date.now(), date: dateCourte(iso), dateISO: iso, seance: code, deload: !!cfg.deload, ...(iso === aujourdhui() ? { startedAt: Date.now() } : {}), exercices: [] };
 }
 function majSeance(iso, code, fn) {
   const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), cfg = reglages();
@@ -40,7 +41,7 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
     await ecrire(lignes);
     const n = lignes.length;
     if (lignes[n - 1].w > Math.max(record, ...faites.map(s => s.w))) toast("Record : " + ex.nom + " à " + nb(lignes[n - 1].w) + " kg");
-    Repos.demarrer(parseRepos(reposDe(code, ex.orig || ex.nom)), ex.nom + ", série " + n + "/" + total, { iso, prog: "salle", code });
+    if (iso === aujourdhui()) Repos.demarrer(parseRepos(reposDe(code, ex.orig || ex.nom)), ex.nom + ", série " + n + "/" + total, { iso, prog: "salle", code });
     if (n >= total) suivant(i);
   };
   const edite = async (k, champ) => {
@@ -146,6 +147,7 @@ function FeuilleSeance({ iso, prog, code }) {
   return h(Feuille, { plein: true, sansTete: true, ton: "sport" },
     h(TeteSeance, { titre: code, faites, total, repos, fermer: Nav.fermer, terminer }),
     h("div.seance-c",
+      iso !== aujourdhui() && h("p.bandeau", h("b", "Séance du " + dateLongue(iso).toLowerCase() + ". "), "Coche ce que tu as fait ce jour-là."),
       cfg.deload && h("p.bandeau", "Semaine légère : charges −40 %, les records ne comptent pas."),
       r?.score != null && iso === aujourdhui() && h("button.bandeau", { onClick: () => Nav.sheet("forme") }, h("b", "Forme " + r.score + ". "), r.conseil),
       exos.map((ex, i) => h(CarteExo, { key: ex.nom + i, ex, i, ouvert: courant === i, setOuvert, iso, code, log, prop: props[i], avant, douleurs, record: cfg.deload ? Infinity : meilleureCharge(avant, ex.nom) || Infinity, suivant: k => setOuvert(k + 1 < exos.length ? k + 1 : null) })),

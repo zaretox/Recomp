@@ -100,13 +100,14 @@ function EcranSport() {
 const Interrupteur = ({ actif, titre, sous, onClick }) => h("button.inter", { className: actif ? "actif" : "", role: "switch", "aria-checked": !!actif, onClick: () => { vibre(); onClick(); } },
   h("span", h("b", titre), sous && h("small", sous)), h("i"));
 
-function FeuilleChoisir() {
+function FeuilleChoisir({ iso }) {
   useDB();
-  const auj = aujourdhui(), lance = s => { Nav.fermer(); ouvrirSeance(auj, s); };
+  const jour = iso || aujourdhui(), lance = s => { Nav.fermer(); ouvrirSeance(jour, s); };
   return h(Feuille, { titre: "Quelle séance ?", ton: "sport" },
+    jour !== aujourdhui() && h("p.sous-t", "Pour le " + dateLongue(jour).toLowerCase()),
     h("div.choix", seancesActives().map(s => h("button", { key: s.id, onClick: () => lance({ prog: "salle", code: s.id }) }, h("b", s.id), h("small", s.focus)))),
     h(Section, { titre: "À la maison" }, h("div.choix", MAISON.map(s => h("button", { key: s.code, onClick: () => lance({ prog: "maison", code: s.code }) }, h("b", "Maison " + s.code), h("small", s.titre))))),
-    h(Bouton, { cl: "contour", ico: "nage", onClick: () => { Nav.fermer(); Nav.sheet("natation"); } }, "Natation"));
+    h(Bouton, { cl: "contour", ico: "nage", onClick: () => { Nav.fermer(); Nav.sheet("natation", { iso: jour }); } }, "Natation"));
 }
 
 function FeuilleSeanceDetail({ id }) {
@@ -124,9 +125,10 @@ function FeuilleSeanceDetail({ id }) {
 }
 
 /* NATATION */
-function FeuilleNatation() {
+function FeuilleNatation({ iso }) {
   useDB();
-  const modeles = DB.get("natation-modeles"), logs = DB.get("natation-logs"), auj = aujourdhui(), [voir, setVoir] = useState(null);
+  // Le jour où la nage est notée : aujourd'hui, ou le jour choisi sur l'écran Jour
+  const modeles = DB.get("natation-modeles"), logs = DB.get("natation-logs"), auj = aujourdhui(), jour = iso || auj, [voir, setVoir] = useState(null);
   const lundi = lundiDe(auj), sem = logs.filter(l => l.dateISO >= lundi).reduce((a, l) => a + l.distance, 0);
   const meilleur = min => { const c = logs.filter(l => l.distance >= min && l.duree); return c.length ? c.reduce((a, l) => allure(l.distance, l.duree) < allure(a.distance, a.duree) ? l : a) : null; };
   const noter = async m => {
@@ -137,11 +139,12 @@ function FeuilleNatation() {
     ]);
     if (!r || !r[0] || !r[1]) return;
     const kg = moyenneRecente(pesees(), 7) || 100;
-    await DB.set("natation-logs", [...logs, { id: Date.now(), dateISO: auj, date: dateCourte(auj), modele: m ? m.name : "Séance libre", distance: r[0], duree: r[1], rpe: r[2] || 6, nage: "Crawl", pool: m?.pool || 25, note: "", kcal: nageKcal(r[0], r[1], r[2] || 6, kg) }]);
-    toast("Séance de " + entier(r[0]) + " m enregistrée, ta cible du jour suit");
+    await DB.set("natation-logs", [...logs, { id: Date.now(), dateISO: jour, date: dateCourte(jour), modele: m ? m.name : "Séance libre", distance: r[0], duree: r[1], rpe: r[2] || 6, nage: "Crawl", pool: m?.pool || 25, note: "", kcal: nageKcal(r[0], r[1], r[2] || 6, kg) }]);
+    toast("Séance de " + entier(r[0]) + " m enregistrée" + (jour === auj ? ", ta cible du jour suit" : " le " + dateMini(jour)));
   };
   const faire = m => setVoir(m);
   return h(Feuille, { titre: "Natation", ton: "sport" },
+    jour !== auj && h("p.sous-t", "Pour le " + dateLongue(jour).toLowerCase()),
     h("div.tuiles", h(Tuile, { v: entier(sem), l: "mètres cette semaine" }), h(Tuile, { v: logs.length, l: "séances en tout" })),
     voir ? h(Fragment, null,
       h("h2.t2", voir.name),

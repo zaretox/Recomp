@@ -82,7 +82,11 @@ function itemsDuJour(iso) {
     const faite = DB.get(sess.prog === "maison" ? "maison-logs" : "sport-logs").some(l => l.dateISO === iso && l.seance === sess.code);
     items.push({ cle: "seance", h: seanceCreneau(), t: sess.label, s: faite ? "faite" : sess.titre, fait: faite, ouvre: () => ouvrirSeance(iso, sess), ton: "sport", fort: !faite });
   }
-  if (nage || nages.length) items.push({ cle: "nage", h: "17h30", t: "Natation", s: nages.length ? entier(nages.reduce((a, l) => a + l.distance, 0)) + " m" : entier(nageDistance(nage)) + " m prévus", fait: nages.length > 0, ouvre: () => Nav.sheet("natation"), ton: "sport" });
+  // Les séances faites ce jour-là en plus de celle prévue
+  const autres = [...DB.get("sport-logs").map(l => ({ ...l, prog: "salle" })), ...DB.get("maison-logs").map(l => ({ ...l, prog: "maison" }))]
+    .filter(l => l.dateISO === iso && !(sess && l.seance === sess.code && (l.prog === "maison") === (sess.prog === "maison")));
+  autres.forEach(l => items.push({ cle: "en-plus-" + l.prog + l.id, h: seanceCreneau(), t: l.prog === "maison" ? "Maison " + l.seance : l.seance, s: "faite", fait: true, ouvre: () => ouvrirSeance(iso, { prog: l.prog, code: l.seance }), ton: "sport" }));
+  if (nage || nages.length) items.push({ cle: "nage", h: "17h30", t: "Natation", s: nages.length ? entier(nages.reduce((a, l) => a + l.distance, 0)) + " m" : entier(nageDistance(nage)) + " m prévus", fait: nages.length > 0, ouvre: () => Nav.sheet("natation", { iso }), ton: "sport" });
   return items.sort((a, b) => hEnMin(a.h) - hEnMin(b.h));
 }
 function LigneJour({ it, futur }) {
@@ -103,7 +107,8 @@ function Journee({ iso }) {
     lignes.push(h(LigneJour, { key: it.cle, it, futur }));
   });
   const faits = items.filter(x => x.fait).length;
-  return h(Section, { titre: iso === auj ? "Ta journée" : dateLongue(iso), droite: h("span.compte", faits + "/" + items.length) }, h("div.journee", lignes));
+  return h(Section, { titre: iso === auj ? "Ta journée" : dateLongue(iso), droite: h("span.compte", faits + "/" + items.length) }, h("div.journee", lignes),
+    !futur && h("div.ajout-seance", h(Bouton, { cl: "contour", ico: "plus", onClick: () => { vibre(); Nav.sheet("choisir", { iso }); } }, "Ajouter une séance")));
 }
 /* Compléments et eau : deux lignes à cocher */
 function Petits({ iso }) {
