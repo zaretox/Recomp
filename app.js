@@ -28,8 +28,24 @@ function PastilleRepos({ cache }) {
   return h("button.pastille", { onClick: () => r.ctx ? Nav.sheet("seance", r.ctx) : Repos.arreter(), "aria-label": "Revenir à la séance" }, h(Icone, { n: "chrono", t: 16 }), h("b", mmss(r.reste)));
 }
 
+/* Le jour qu'il est. Si la date change (app restée ouverte en arrière-plan pendant la nuit,
+ * ou minuit passé app ouverte), on renvoie la nouvelle date pour réafficher l'écran sur aujourd'hui. */
+function useAujourdhui() {
+  const [jour, setJour] = useState(aujourdhui());
+  useEffect(() => {
+    const verifie = () => { if (document.visibilityState !== "hidden") setJour(aujourdhui()); };
+    const id = setInterval(verifie, 30000);
+    document.addEventListener("visibilitychange", verifie);
+    window.addEventListener("focus", verifie);
+    window.addEventListener("pageshow", verifie);
+    return () => { clearInterval(id); document.removeEventListener("visibilitychange", verifie); window.removeEventListener("focus", verifie); window.removeEventListener("pageshow", verifie); };
+  }, []);
+  return jour;
+}
+
 function App() {
   const nav = useNav();
+  const jour = useAujourdhui();
   useDB();
   const page = useRef(null);
   useEffect(() => { page.current?.scrollTo?.(0, 0); }, [nav.tab]);
@@ -49,7 +65,7 @@ function App() {
   const O = ONGLETS.find(o => o.id === nav.tab);
   const enSeance = nav.pile.some(f => f.nom === "seance");
   return h("div.app", { "data-t": nav.tab },
-    h("main.scene", { ref: page, key: nav.tab, "aria-hidden": nav.pile.length > 0 }, h(Filet, null, h(O.E))),
+    h("main.scene", { ref: page, key: nav.tab + jour, "aria-hidden": nav.pile.length > 0 }, h(Filet, null, h(O.E))),
     h("button.plus", { onClick: () => { vibre(); Nav.sheet("capture"); }, "aria-label": "Que veux-tu faire ?" }, h(Icone, { n: "plus", t: 30 })),
     h("nav.barre", { "aria-label": "Sections" }, ONGLETS.map(o => h("button", { key: o.id, className: nav.tab === o.id ? "actif" : "", "data-ton": o.id, "aria-current": nav.tab === o.id ? "page" : undefined, "aria-label": o.nom, onClick: () => { vibre(); Nav.tab(o.id); } },
       h(Icone, { n: o.ico, t: 22 }), h("b", o.nom)))),
