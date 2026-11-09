@@ -544,7 +544,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* ═══ 13. SCHÉMAS D'EXERCICE ═══ */
 .schema { margin: 0; display: grid; gap: 6px; padding: 10px; border-radius: var(--r); background: var(--fond2); }
-.schema svg { display: block; width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; }
+.schema > svg { display: block; width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; }
 .schema figcaption { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 800; color: var(--pale); text-transform: uppercase; letter-spacing: .05em; }
 .schema figcaption i { width: 26px; height: 2px; background: var(--pale); }
 .schema figcaption .actif { color: var(--sport); }
@@ -568,3 +568,25 @@ h1, h2, h3, p { margin: 0; }
 .sq-sol { stroke: var(--trait); stroke-width: 2; }
 .sq-fleche { fill: none; stroke: var(--sport); stroke-width: 2.5; stroke-dasharray: 5 4; }
 .sq-pointe { fill: var(--sport); }
+.sq-var { margin-bottom: 4px; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
+.sq-var button { padding: 9px 4px; font-size: 13.5px; }
+.courbe-effort { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--trait); }
+.ce-tete { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.ce-tete b { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--sport); }
+.ce-tete span { display: flex; gap: 10px; flex-wrap: wrap; }
+.ce-tete em { font-style: normal; font-size: 12px; font-weight: 700; color: var(--mou); }
+.ce-tete em::before { content: ""; display: inline-block; width: 14px; height: 3px; margin-right: 5px; vertical-align: middle; background: var(--sport); border-radius: 2px; }
+.ce-tete em.second::before { background: repeating-linear-gradient(90deg, var(--encre) 0 4px, transparent 4px 7px); }
+.courbe-effort svg { display: block; width: 100%; }
+.ce-axe { stroke: var(--trait); stroke-width: 1.5; }
+.ce-aire { fill: var(--sport); opacity: .14; }
+.ce-ligne { fill: none; stroke: var(--sport); stroke-width: 3; stroke-linejoin: round; }
+.ce-ligne.second { stroke: var(--encre); stroke-width: 2; stroke-dasharray: 5 4; }
+.ce-curseur { stroke: var(--pale); stroke-width: 1.5; stroke-dasharray: 2 3; }
+.ce-point { fill: var(--sport); stroke: var(--fond2); stroke-width: 2; }
+.ce-point.second { fill: var(--encre); }
+.ce-txt { font-size: 10px; font-weight: 800; fill: var(--mou); text-transform: uppercase; letter-spacing: .04em; }
+.ce-muscle { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 800; color: var(--mou); text-transform: uppercase; letter-spacing: .03em; }
+.ce-barre { position: relative; height: 8px; margin: 0 8px; border-radius: 4px; background: linear-gradient(90deg, var(--fond3), var(--sport)); }
+.ce-barre i { position: absolute; top: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--encre); transform: translateY(-50%); }
+.ce-phrase { margin: 0; font-size: 14px; line-height: 1.4; }

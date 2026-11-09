@@ -96,6 +96,7 @@ function Decor({ decor }) {
     if (d.t === "sol") return h("line", { key: i, x1: 10, y1: d.y || 184, x2: 190, y2: d.y || 184, className: "sq-sol" });
     if (d.t === "banc" || d.t === "appui") return h("rect", { key: i, x: d.x, y: d.y, width: d.l, height: d.h || 8, rx: 3, className: d.t === "appui" ? "sq-appui" : "sq-banc" });
     if (d.t === "pied") return h("line", { key: i, x1: d.x, y1: d.y, x2: d.x, y2: d.y2, className: "sq-banc-p" });
+    if (d.t === "poulieb") return h("g", { key: i }, h("line", { x1: d.x, y1: d.y, x2: d.x, y2: d.sol || 181, className: "sq-banc-p" }), h("circle", { cx: d.x, cy: d.y, r: 6, className: "sq-poulie" }));
     if (d.t === "poulie") return h("g", { key: i }, h("line", { x1: d.x, y1: 0, x2: d.x, y2: d.y, className: "sq-banc-p" }), h("circle", { cx: d.x, cy: d.y, r: 6, className: "sq-poulie" }));
     return null;
   });
@@ -108,12 +109,68 @@ function Fleche({ s, id }) {
   return h("path", { d: "M" + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L"), className: "sq-fleche", markerStart: `url(#${id}d)`, markerEnd: `url(#${id}a)` });
 }
 
+/* ── LA COURBE D'EFFORT ──
+ * Effort que la charge demande à une articulation = force × distance perpendiculaire entre l'articulation et la ligne de la force.
+ * Haltère ou barre : la force tombe à la verticale. Poulie : elle suit le câble. Calculé sur la pose même du schéma.
+ * C'est la résistance extérieure seulement, pas la force que ton muscle peut produire à chaque angle. */
+const variante = (s, v) => ({ ...s, ...((s.variantes || [])[v] || {}) });
+function couple(j, art, point, charge, s) {
+  const c = j.cotes[0];
+  const J = art === "coude" ? c.coude : art === "epaule" ? c.ep : art === "hanche" ? j.hanche : c.genou;
+  const P = point === "dos" ? plus(c.ep, (s.objets || []).find(o => o.sur === "dos")?.decale || [-7, -2]) : c.main;
+  let F = [0, 1];
+  if (charge?.t === "cable") { const d = [charge.de[0] - P[0], charge.de[1] - P[1]], n = Math.hypot(...d) || 1; F = [d[0] / n, d[1] / n]; }
+  if (charge?.t === "haut") F = [0, -1];
+  return (P[0] - J[0]) * F[1] - (P[1] - J[1]) * F[0];  // signé : le sens compte
+}
+const N_COURBE = 40;
+function courbes(sv) {
+  return (sv.effort || []).map(e => {
+    const base = e.plan ? { ...e.plan, objets: [] } : sv;
+    const v = Array.from({ length: N_COURBE + 1 }, (_, i) => couple(articulations(poseA(base, i / N_COURBE)), e.art, e.point || sv.point || "main", sv.charge, sv));
+    // Quand la charge pousse dans le sens du mouvement, elle ne résiste plus : on compte zéro
+    const fort = v.reduce((a, x) => Math.abs(x) > Math.abs(a) ? x : a, 0), sens = Math.sign(fort) || 1;
+    const r = v.map(x => Math.max(0, x * sens)), max = Math.max(...r) || 1;
+    return { ...e, v: r.map(x => x / max) };
+  });
+}
+const longueurA = (sv, k) => sv.etire === 1 ? k : 1 - k;  // 1 = muscle étiré, 0 = contracté
+const ouDans = p => p < 1 / 3 ? "au départ" : p > 2 / 3 ? "à l'arrivée" : "au milieu";
+const etatMuscle = l => l > 2 / 3 ? "étiré" : l < 1 / 3 ? "contracté" : "à mi-longueur";
+function phraseCourbe(sv, c) {
+  const v = c.v, iMax = v.indexOf(Math.max(...v)), iMin = v.indexOf(Math.min(...v)), pM = iMax / N_COURBE, pm = iMin / N_COURBE;
+  return "La charge pèse le plus " + ouDans(pM) + " du mouvement, quand le muscle est " + etatMuscle(longueurA(sv, pM)) + ". Elle est la plus légère " + ouDans(pm) + ", muscle " + etatMuscle(longueurA(sv, pm)) + ".";
+}
+
+/* Le graphique sous le schéma, avec un curseur qui suit le bonhomme */
+function Courbes({ sv, k }) {
+  const cs = courbes(sv);
+  if (!cs.length) return null;
+  const X = p => 12 + p * 276, Y = v => 92 - v * 74;
+  const chemin = v => v.map((y, i) => (i ? "L" : "M") + X(i / N_COURBE).toFixed(1) + " " + Y(y).toFixed(1)).join(" ");
+  const iK = Math.round(k * N_COURBE), c0 = cs[0], iMax = c0.v.indexOf(1);
+  return h("div.courbe-effort",
+    h("div.ce-tete", h("b", "Courbe d'effort"), h("span", cs.map((c, i) => h("em", { key: i, className: i ? "second" : "" }, c.nom)))),
+    h("svg", { viewBox: "0 0 300 104", role: "img", "aria-label": "Courbe d'effort : " + phraseCourbe(sv, c0) },
+      h("line", { x1: 12, y1: 92, x2: 288, y2: 92, className: "ce-axe" }),
+      h("path", { d: chemin(c0.v) + ` L${X(1)} 92 L${X(0)} 92 Z`, className: "ce-aire" }),
+      cs.map((c, i) => h("path", { key: i, d: chemin(c.v), className: "ce-ligne" + (i ? " second" : "") })),
+      h("text", { x: Math.min(Math.max(X(iMax / N_COURBE), 40), 260), y: Y(1) - 6, className: "ce-txt", textAnchor: "middle" }, "le plus dur"),
+      h("line", { x1: X(k), y1: 10, x2: X(k), y2: 92, className: "ce-curseur" }),
+      cs.map((c, i) => h("circle", { key: i, cx: X(k), cy: Y(c.v[iK]), r: 5, className: "ce-point" + (i ? " second" : "") }))),
+    h("div.ce-muscle", { "aria-hidden": true },
+      h("span", sv.etire === 1 ? "contracté" : "étiré"),
+      h("div.ce-barre", h("i", { style: { left: (k * 100) + "%" } })),
+      h("span", sv.etire === 1 ? "étiré" : "contracté")),
+    h("p.ce-phrase", phraseCourbe(sv, c0)));
+}
+
 const ease = x => .5 - Math.cos(Math.PI * x) / 2;
 /* Le schéma complet, animé en boucle : départ → arrivée → départ */
-function Schema({ s, fixe }) {
+function Schema({ s, fixe, sansCourbe }) {
   const id = "sq" + React.useId().replace(/:/g, "");
   const calme = useMemo(() => { try { return matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }, []);
-  const [pause, setPause] = useState(calme), [kAnim, setK] = useState(calme ? 1 : 0);
+  const [pause, setPause] = useState(calme), [kAnim, setK] = useState(calme ? 1 : 0), [v, setV] = useState(0);
   const k = fixe ?? kAnim;  // fixe : une image arrêtée (0 = départ, 1 = arrivée)
   useEffect(() => {
     if (pause || fixe != null) return;
@@ -126,31 +183,39 @@ function Schema({ s, fixe }) {
     raf = requestAnimationFrame(boucle);
     return () => cancelAnimationFrame(raf);
   }, [pause]);
-  const j = articulations(poseA(s, k));
+  const sv = variante(s, v), j = articulations(poseA(sv, k));
   return h("figure.schema", null,
-    h("svg", { viewBox: "0 0 200 200", role: "img", "aria-label": s.legende || "Schéma du mouvement" },
+    s.variantes && fixe == null && h("div.onglets-b.sq-var", { role: "tablist" }, s.variantes.map((x, i) => h("button", { key: i, role: "tab", "aria-selected": v === i, className: v === i ? "actif" : "", onClick: () => { vibre(); setV(i); } }, x.nom))),
+    h("svg", { viewBox: "0 0 200 200", role: "img", "aria-label": sv.legende || "Schéma du mouvement" },
       h("defs", null,
         h("marker", { id: id + "a", viewBox: "0 0 10 10", refX: 5, refY: 5, markerWidth: 4, markerHeight: 4, orient: "auto" }, h("path", { d: "M0 0 L10 5 L0 10 z", className: "sq-pointe" })),
         h("marker", { id: id + "d", viewBox: "0 0 10 10", refX: 5, refY: 5, markerWidth: 4, markerHeight: 4, orient: "auto-start-reverse" }, h("path", { d: "M0 0 L10 5 L0 10 z", className: "sq-pointe" }))),
-      h(Decor, { decor: s.decor }),
-      pause && h(Bonhomme, { j: articulations(poseA(s, k > .5 ? 0 : 1)), fantome: true }),
-      h(Fleche, { s, id }),
-      h(Objets, { j, objets: s.objets }),
-      h(Bonhomme, { j, muscle: s.muscle }),
-      s.objetsDevant && h(Objets, { j, objets: s.objetsDevant })),
+      h(Decor, { decor: [...(sv.decor || []), ...(sv.decorEnPlus || [])] }),
+      pause && h(Bonhomme, { j: articulations(poseA(sv, k > .5 ? 0 : 1)), fantome: true }),
+      h(Fleche, { s: sv, id }),
+      h(Objets, { j, objets: sv.objets }),
+      h(Bonhomme, { j, muscle: sv.muscle })),
     fixe == null && h("figcaption",
       h("span", { className: k < .5 ? "actif" : "" }, "Départ"), h("i", { "aria-hidden": true }), h("span", { className: k >= .5 ? "actif" : "" }, "Arrivée"),
-      h("button.rond.petit", { onClick: () => { vibre(); setPause(!pause); }, "aria-label": pause ? "Lancer l'animation" : "Mettre en pause" }, h(Icone, { n: pause ? "fleche" : "chrono", t: 16 }))));
+      h("button.rond.petit", { onClick: () => { vibre(); setPause(!pause); }, "aria-label": pause ? "Lancer l'animation" : "Mettre en pause" }, h(Icone, { n: pause ? "fleche" : "chrono", t: 16 }))),
+    !sansCourbe && h(Courbes, { sv, k }));
 }
 
-/* ── Les schémas. Prototype : 4 exercices ── */
+/* ── Les schémas. Prototype : 4 exercices ──
+ * effort : les articulations dont on trace la courbe. etire : 0 si le muscle est étiré au départ, 1 à l'arrivée.
+ * variantes : même mouvement avec un autre matériel (haltère, poulie…). analyse : pourquoi ce mouvement, quels faisceaux. */
 const SCHEMAS = {
   "Squat": {
     legende: "Squat vu de profil : la barre sur le haut du dos, on descend cuisses parallèles puis on remonte.",
-    depart: { ancre: "pieds", cheville: [96, 178], cuisse: 0, tibia: 0, torse: 180, bras: -16, avbras: 172 },
+    depart: { ancre: "pieds", cheville: [90, 178], cuisse: 0, tibia: 0, torse: 176, bras: -16, avbras: 172 },
     arrivee: { cuisse: 82, tibia: -32, torse: 145 },
-    objets: [{ t: "barre", sur: "dos" }], muscle: ["cuisse"], fleche: { suit: "epaule", decale: [-34, 0] },
+    objets: [{ t: "barre", sur: "dos", decale: [-3, -3] }], muscle: ["cuisse"], fleche: { suit: "epaule", decale: [-34, 0] },
     decor: [{ t: "sol", y: 181 }],
+    effort: [{ art: "genou", nom: "Genou · quadriceps" }, { art: "hanche", nom: "Hanche · fessiers" }], point: "dos", charge: { t: "poids" }, etire: 1,
+    analyse: {
+      pourquoi: "Le squat tend le genou et la hanche en même temps : les quadriceps redressent le genou, les fessiers redressent la hanche. C'est l'exercice de base du bas du corps.",
+      faisceaux: "Les trois vastes du quadriceps font l'essentiel. Le droit fémoral, qui passe aussi par la hanche, travaille moins. Plus tu descends, plus les fessiers et les adducteurs participent.",
+    },
   },
   "Curl biceps": {
     legende: "Curl haltère vu de profil : le coude reste collé au corps, seul l'avant-bras monte.",
@@ -158,6 +223,17 @@ const SCHEMAS = {
     arrivee: { avbras: [148, 140] },
     objets: [{ t: "halteres" }], muscle: ["bras"], fleche: { suit: "main", decale: [18, 0] },
     decor: [{ t: "sol", y: 181 }],
+    effort: [{ art: "coude", nom: "Coude · biceps" }], etire: 0,
+    variantes: [
+      { nom: "Haltère", objets: [{ t: "halteres" }], charge: { t: "poids" } },
+      { nom: "Poulie devant", objets: [{ t: "cable", de: [128, 174] }], charge: { t: "cable", de: [128, 174] }, decorEnPlus: [{ t: "poulieb", x: 128, y: 174 }] },
+      { nom: "Poulie derrière", objets: [{ t: "cable", de: [44, 150] }], charge: { t: "cable", de: [44, 150] }, decorEnPlus: [{ t: "poulieb", x: 44, y: 150 }],
+        depart: { ancre: "pieds", cheville: [94, 178], torse: 180, bras: [-14, -18], avbras: [-10, -14] }, arrivee: { avbras: [130, 124] } },
+    ],
+    analyse: {
+      pourquoi: "Le biceps plie le coude et tourne la main paume vers le haut. Le curl isole ce travail, sans que le dos ou les épaules aident.",
+      faisceaux: "Les deux portions du biceps et le brachial, situé dessous, travaillent ensemble. Bras le long du corps, les deux portions travaillent à peu près autant. Bras derrière le corps (curl incliné), la longue portion est plus étirée.",
+    },
   },
   "Élévations lat.": {
     vue: "face",
@@ -166,6 +242,15 @@ const SCHEMAS = {
     arrivee: { bras: 86, avbras: 80 },
     objets: [{ t: "halteres" }], muscle: ["epaules"], fleche: { suit: "main", decale: [10, 16] },
     decor: [{ t: "sol", y: 181 }],
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde moyen" }], etire: 0,
+    variantes: [
+      { nom: "Haltère", objets: [{ t: "halteres" }], charge: { t: "poids" } },
+      { nom: "Poulie basse", objets: [{ t: "cable", de: [62, 176] }], charge: { t: "cable", de: [62, 176] }, decorEnPlus: [{ t: "poulieb", x: 62, y: 176 }] },
+    ],
+    analyse: {
+      pourquoi: "Le faisceau moyen du deltoïde écarte le bras du corps : c'est lui qui donne la largeur des épaules. Aucun exercice de développé ne le cible aussi bien.",
+      faisceaux: "Surtout le faisceau moyen. Au-dessus de l'horizontale, le trapèze prend le relais : c'est pourquoi on s'arrête à l'horizontale. Une étude de 2025 n'a pas trouvé de différence de croissance entre la version haltère et la version poulie : choisis celle que tu sens le mieux.",
+    },
   },
   "Tirage vertical": {
     legende: "Tirage vertical vu de profil : assis, cuisses calées, on tire la barre vers le haut de la poitrine.",
@@ -173,6 +258,13 @@ const SCHEMAS = {
     arrivee: { bras: -25, avbras: 138 },
     objets: [{ t: "cable", de: [84, 6] }], muscle: ["torse"], fleche: { suit: "main", decale: [22, 0] },
     decor: [{ t: "banc", x: 70, y: 134, l: 46 }, { t: "pied", x: 93, y: 142, y2: 181 }, { t: "appui", x: 118, y: 116, l: 26, h: 8 }, { t: "poulie", x: 84, y: 6 }, { t: "sol", y: 181 }],
+    // L'effort de l'épaule se lit de face : avec une prise large, c'est l'écart latéral entre la main et l'épaule qui compte.
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal", plan: { vue: "face", depart: { hanche: [100, 100], bras: 160, avbras: 165 }, arrivee: { bras: 35, avbras: 170 } } }],
+    charge: { t: "haut" }, etire: 0,
+    analyse: {
+      pourquoi: "Le grand dorsal ramène le bras le long du corps. Le tirage le fait travailler de l'étirement complet, bras en haut, jusqu'à la contraction, barre à la poitrine.",
+      faisceaux: "Grand dorsal et grand rond surtout, avec le bas des trapèzes et les rhomboïdes ; le biceps aide. Prise large : plus de haut du dos. Prise serrée : plus d'amplitude pour le grand dorsal.",
+    },
   },
 };
 const schemaDe = nom => SCHEMAS[nom] || SCHEMAS[nomDeFiche(nom)] || null;

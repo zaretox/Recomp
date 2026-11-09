@@ -119,6 +119,10 @@ function FeuilleFiche({ nom }) {
     h(Section, { titre: "Comment faire" }, h("ol.etapes", f.f.map((t, i) => h("li", { key: i }, t)))),
     h("div.fiche-cle", h("b", "La clé"), h("p", f.c)),
     h("div.fiche-cle.evite", h("b", "À éviter"), h("p", f.e)),
+    schemaDe(nom)?.analyse && h(Section, { titre: "Comprendre le mouvement" },
+      h("div.fiche-cle", h("b", "Pourquoi ce mouvement"), h("p", schemaDe(nom).analyse.pourquoi)),
+      h("div.fiche-cle", h("b", "Quelles parties du muscle"), h("p", schemaDe(nom).analyse.faisceaux)),
+      h("div.fiche-cle.evite", h("b", "Et les fibres ?"), h("p", "Fibres lentes ou rapides : ce n'est pas le matériel qui décide. Ton corps active d'abord les petites fibres, puis les grosses à mesure que la série devient dure. Ce qui compte, c'est de finir tes séries proche de l'échec. Haltère, poulie ou machine changent surtout l'endroit du mouvement où la charge pèse le plus : c'est ce que montre la courbe d'effort."))),
     (SUBSTITUTIONS[nom] || []).length > 0 && h(Section, { titre: "Si ça fait mal, remplace par" }, h(Puces, null, SUBSTITUTIONS[nom].map(a => h(Puce, { key: a, onClick: () => ficheDe(a) && Nav.sheet("fiche", { nom: a }) }, a)))),
     fait && h(Bouton, { cl: "contour", ico: "chrono", onClick: () => Nav.sheet("exercice", { nom }) }, "Ma progression"));
 }
