@@ -24,6 +24,7 @@ const FICHIERS = [
   "./kit.js",
   "./pave.js",
   "./graphiques.js",
+  "./schemas.js",
   "./repos.js",
   "./jour.js",
   "./seance.js",

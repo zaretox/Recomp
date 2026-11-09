@@ -541,3 +541,30 @@ h1, h2, h3, p { margin: 0; }
 .fiche-cle p { margin: 4px 0 0; font-size: 15px; line-height: 1.4; }
 .fiche-cle.evite { border-left-color: var(--pale); }
 .fiche-cle.evite b { color: var(--mou); }
+
+/* ═══ 13. SCHÉMAS D'EXERCICE ═══ */
+.schema { margin: 0; display: grid; gap: 6px; padding: 10px; border-radius: var(--r); background: var(--fond2); }
+.schema svg { display: block; width: 100%; max-width: 300px; margin: 0 auto; aspect-ratio: 1; }
+.schema figcaption { display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 800; color: var(--pale); text-transform: uppercase; letter-spacing: .05em; }
+.schema figcaption i { width: 26px; height: 2px; background: var(--pale); }
+.schema figcaption .actif { color: var(--sport); }
+.schema figcaption .rond { margin-left: 8px; }
+.sq-m { stroke: var(--encre); stroke-width: 9; stroke-linecap: round; }
+.sq-m.tronc { stroke-width: 12; }
+.sq-m.loin, .loin .sq-disque { opacity: .38; }
+.sq-m.actif { stroke: var(--sport); }
+.sq-epaule { fill: var(--sport); }
+.sq-tete { fill: var(--encre); }
+.sq-fantome { opacity: .18; }
+.sq-fantome .sq-m.actif { stroke: var(--encre); }
+.sq-disque { fill: var(--fond3); stroke: var(--mou); stroke-width: 3; }
+.sq-axe { fill: var(--mou); }
+.sq-cable, .sq-banc-p { stroke: var(--pale); stroke-width: 2; }
+.sq-banc-p { stroke-width: 5; stroke-linecap: round; }
+.sq-poignee { fill: var(--mou); }
+.sq-poulie { fill: var(--fond3); stroke: var(--pale); stroke-width: 2.5; }
+.sq-banc { fill: var(--pale); }
+.sq-appui { fill: var(--mou); }
+.sq-sol { stroke: var(--trait); stroke-width: 2; }
+.sq-fleche { fill: none; stroke: var(--sport); stroke-width: 2.5; stroke-dasharray: 5 4; }
+.sq-pointe { fill: var(--sport); }

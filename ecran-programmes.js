@@ -114,6 +114,7 @@ function FeuilleFiche({ nom }) {
   if (!f) return h(Feuille, { titre: nom, ton: "sport" }, h(Vide, null, "Pas encore de fiche pour cet exercice."));
   return h(Feuille, { titre: nom, ton: "sport" },
     vrai !== nom && h("p.sous-t", "Fiche de : " + vrai),
+    schemaDe(nom) && h(Schema, { s: schemaDe(nom) }),
     h("div.fiche-tags", muscle && h("span.fiche-tag.fort", muscle), f.s && f.s !== "—" && h("span.fiche-tag", "Aide : " + f.s), f.mat && h("span.fiche-tag", f.mat)),
     h(Section, { titre: "Comment faire" }, h("ol.etapes", f.f.map((t, i) => h("li", { key: i }, t)))),
     h("div.fiche-cle", h("b", "La clé"), h("p", f.c)),
