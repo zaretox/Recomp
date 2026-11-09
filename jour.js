@@ -5,12 +5,25 @@
 function BandeSemaine({ iso, setIso }) {
   const auj = aujourdhui(), lundi = lundiDe(iso), prog = programmeEnCours();
   const faitLe = d => seanceFaite(d) || DB.get("natation-logs").some(l => l.dateISO === d);
-  return h("div.semaine", ORDRE_JOURS.map((_, i) => {
-    const d = decale(lundi, i), prevu = seanceDuJour(d, prog) || nagePrevue(d), n = DB.get("nutri-logs").find(l => l.dateISO === d);
-    const etat = faitLe(d) ? "fait" : prevu ? "prevu" : "";
-    return h("button", { key: d, className: (d === iso ? "actif " : "") + (d === auj ? "auj " : ""), onClick: () => { vibre(); setIso(d); }, "aria-label": dateLongue(d) },
-      h("small", JOURS_L[i]), h("b", +d.slice(8)), h("i", { "data-etat": etat, "data-repas": n?.compliance >= 80 ? "1" : "0" }));
-  }));
+  // Semaine précédente ou suivante, au même jour de la semaine
+  const change = n => { vibre(); setIso(decale(iso, 7 * n)); };
+  const glisse = useRef(null);
+  const debut = e => { glisse.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; };
+  const fin = e => {
+    const g = glisse.current; glisse.current = null;
+    if (!g) return;
+    const dx = e.changedTouches[0].clientX - g.x, dy = e.changedTouches[0].clientY - g.y;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) change(dx < 0 ? 1 : -1);
+  };
+  return h("div.semaine-nav",
+    h("button.semaine-f", { onClick: () => change(-1), "aria-label": "Semaine précédente" }, h(Icone, { n: "retour", t: 18 })),
+    h("div.semaine", { onTouchStart: debut, onTouchEnd: fin }, ORDRE_JOURS.map((_, i) => {
+      const d = decale(lundi, i), prevu = seanceDuJour(d, prog) || nagePrevue(d), n = DB.get("nutri-logs").find(l => l.dateISO === d);
+      const etat = faitLe(d) ? "fait" : prevu ? "prevu" : "";
+      return h("button", { key: d, className: (d === iso ? "actif " : "") + (d === auj ? "auj " : ""), onClick: () => { vibre(); setIso(d); }, "aria-label": dateLongue(d) },
+        h("small", JOURS_L[i]), h("b", +d.slice(8)), h("i", { "data-etat": etat, "data-repas": n?.compliance >= 80 ? "1" : "0" }));
+    })),
+    h("button.semaine-f", { onClick: () => change(1), "aria-label": "Semaine suivante" }, h(Icone, { n: "fleche", t: 18 })));
 }
 
 /* Une affiche : un grand chiffre sur un aplat de couleur */
