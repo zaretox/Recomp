@@ -590,3 +590,8 @@ h1, h2, h3, p { margin: 0; }
 .ce-barre { position: relative; height: 8px; margin: 0 8px; border-radius: 4px; background: linear-gradient(90deg, var(--fond3), var(--sport)); }
 .ce-barre i { position: absolute; top: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--encre); transform: translateY(-50%); }
 .ce-phrase { margin: 0; font-size: 14px; line-height: 1.4; }
+.etudes { display: grid; gap: 8px; }
+.etudes-t { display: flex; justify-content: space-between; align-items: center; width: 100%; padding: 12px 14px; border-radius: var(--r); background: var(--fond2); font-weight: 800; font-size: 14.5px; color: var(--encre); }
+.etude { padding: 10px 14px; border-left: 3px solid var(--trait); }
+.etude p { margin: 0 0 4px; font-size: 14px; line-height: 1.4; }
+.etude a { font-size: 12.5px; font-weight: 700; color: var(--sport); text-decoration: underline; text-underline-offset: 2px; }

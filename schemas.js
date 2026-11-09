@@ -214,7 +214,11 @@ const SCHEMAS = {
     effort: [{ art: "genou", nom: "Genou · quadriceps" }, { art: "hanche", nom: "Hanche · fessiers" }], point: "dos", charge: { t: "poids" }, etire: 1,
     analyse: {
       pourquoi: "Le squat tend le genou et la hanche en même temps : les quadriceps redressent le genou, les fessiers redressent la hanche. C'est l'exercice de base du bas du corps.",
-      faisceaux: "Les trois vastes du quadriceps font l'essentiel. Le droit fémoral, qui passe aussi par la hanche, travaille moins. Plus tu descends, plus les fessiers et les adducteurs participent.",
+      faisceaux: "Les trois vastes du quadriceps font l'essentiel. Le droit fémoral, qui passe aussi par la hanche, grossit peu avec le squat. Plus tu descends, plus les fessiers et les adducteurs travaillent.",
+      etudes: [
+        { ref: "Bryanton et coll., 2012 · Journal of Strength and Conditioning Research", doi: "10.1519/JSC.0b013e31826791a7", dit: "10 femmes entraînées, de 50 à 90 % de leur max. L'effort relatif des extenseurs du genou augmente avec la profondeur ; celui des extenseurs de la hanche augmente avec la profondeur et avec la charge." },
+        { ref: "Kubo et coll., 2019 · European Journal of Applied Physiology", doi: "10.1007/s00421-019-04181-y", dit: "17 hommes, 10 semaines, squat complet contre demi-squat. Quadriceps : +4,9 % contre +4,6 % (pareil). Fessiers : +6,7 % contre +2,2 %. Adducteurs : +6,2 % contre +2,7 %. Le droit fémoral et les ischios n'ont pas grossi." },
+      ],
     },
   },
   "Curl biceps": {
@@ -232,7 +236,12 @@ const SCHEMAS = {
     ],
     analyse: {
       pourquoi: "Le biceps plie le coude et tourne la main paume vers le haut. Le curl isole ce travail, sans que le dos ou les épaules aident.",
-      faisceaux: "Les deux portions du biceps et le brachial, situé dessous, travaillent ensemble. Bras le long du corps, les deux portions travaillent à peu près autant. Bras derrière le corps (curl incliné), la longue portion est plus étirée.",
+      faisceaux: "Les deux portions du biceps et le brachial, situé dessous, travaillent ensemble. Bras derrière le corps (poulie derrière, curl incliné), la longue portion est plus étirée et la charge pèse plus tôt dans le mouvement. Mais deux études récentes n'ont trouvé aucun gain de croissance à placer le bras ainsi : choisis la version que tu préfères.",
+      etudes: [
+        { ref: "Larsen et coll., 2026 · Frontiers in Physiology", doi: "10.3389/fphys.2026.1750722", dit: "30 hommes débutants, 10 semaines, curl à la poulie : un bras placé en arrière au maximum, l'autre le long du corps. Pas de différence de croissance des fléchisseurs du coude." },
+        { ref: "Attarieh et coll., 2025 · European Journal of Sport Science", doi: "10.1002/ejsc.12279", dit: "Curl au pupitre contre curl bras derrière le corps, 10 semaines. Biceps : +6 à 7 % contre +9 %, différence non significative, et pas de croissance plus forte d'une zone du muscle." },
+        { ref: "Tsunoda et coll., 1993 · European Journal of Applied Physiology", doi: "10.1007/BF00235099", dit: "Force du biceps selon l'angle : chez les hommes, maximale avec le coude à 120° (180° = bras tendu), soit environ 60° de flexion ; chez les femmes, à 90°. Elle baisse quand le muscle est très raccourci." },
+      ],
     },
   },
   "Élévations lat.": {
@@ -245,11 +254,14 @@ const SCHEMAS = {
     effort: [{ art: "epaule", nom: "Épaule · deltoïde moyen" }], etire: 0,
     variantes: [
       { nom: "Haltère", objets: [{ t: "halteres" }], charge: { t: "poids" } },
-      { nom: "Poulie basse", objets: [{ t: "cable", de: [62, 176] }], charge: { t: "cable", de: [62, 176] }, decorEnPlus: [{ t: "poulieb", x: 62, y: 176 }] },
+      { nom: "Poulie", objets: [{ t: "cable", de: [44, 152] }], charge: { t: "cable", de: [44, 152] }, decorEnPlus: [{ t: "poulieb", x: 44, y: 152 }] },
     ],
     analyse: {
       pourquoi: "Le faisceau moyen du deltoïde écarte le bras du corps : c'est lui qui donne la largeur des épaules. Aucun exercice de développé ne le cible aussi bien.",
-      faisceaux: "Surtout le faisceau moyen. Au-dessus de l'horizontale, le trapèze prend le relais : c'est pourquoi on s'arrête à l'horizontale. Une étude de 2025 n'a pas trouvé de différence de croissance entre la version haltère et la version poulie : choisis celle que tu sens le mieux.",
+      faisceaux: "Surtout le faisceau moyen. À l'haltère, la charge pèse le plus en haut ; à la poulie réglée à hauteur de la main, elle pèse davantage bras le long du corps, quand le muscle est étiré. Malgré cette différence, la croissance a été la même dans l'étude qui les a comparées : choisis celle que tu sens le mieux.",
+      etudes: [
+        { ref: "Larsen et coll., 2025 · Frontiers in Physiology", doi: "10.3389/fphys.2025.1611468", dit: "24 pratiquants entraînés, 8 semaines, un bras à l'haltère et l'autre à la poulie (réglée à hauteur de la main), 5 séries jusqu'à l'échec 2 fois par semaine, jusqu'à 90° d'écartement. Deltoïde moyen : +3,3 à 4,6 %, sans différence entre les deux bras." },
+      ],
     },
   },
   "Tirage vertical": {
@@ -263,8 +275,19 @@ const SCHEMAS = {
     charge: { t: "haut" }, etire: 0,
     analyse: {
       pourquoi: "Le grand dorsal ramène le bras le long du corps. Le tirage le fait travailler de l'étirement complet, bras en haut, jusqu'à la contraction, barre à la poitrine.",
-      faisceaux: "Grand dorsal et grand rond surtout, avec le bas des trapèzes et les rhomboïdes ; le biceps aide. Prise large : plus de haut du dos. Prise serrée : plus d'amplitude pour le grand dorsal.",
+      faisceaux: "Grand dorsal et grand rond surtout, avec le bas des trapèzes et les rhomboïdes ; le biceps aide. La largeur et le type de prise changent peu l'activité du grand dorsal : prends la prise où tu sens le mieux ton dos.",
+      etudes: [
+        { ref: "Buonsenso et coll., 2025 · Journal of Functional Morphology and Kinesiology", doi: "10.3390/jfmk10030345", dit: "40 hommes entraînés depuis au moins 5 ans, 7 variantes de prise (large, serrée, neutre, buste incliné). Aucune différence d'activité du grand dorsal entre les prises ; seul l'arrière d'épaule travaillait plus en prise large buste incliné." },
+        { ref: "Wolf et coll., 2025 · PeerJ", doi: "10.7717/peerj.18904", dit: "30 pratiquants entraînés, tirage vertical unilatéral : répétitions partielles en position étirée contre amplitude complète. Croissance et progression de force semblables." },
+      ],
     },
   },
 };
 const schemaDe = nom => SCHEMAS[nom] || SCHEMAS[nomDeFiche(nom)] || null;
+
+/* Ce que disent les études sur les fibres et l'effort : affiché sur chaque fiche qui a un schéma */
+const ETUDES_FIBRES = [
+  { ref: "Robinson et coll., 2024 · Sports Medicine", doi: "10.1007/s40279-024-02069-2", dit: "Méta-régression : le muscle grossit davantage quand les séries finissent plus près de l'échec. La force, elle, progresse autant sur une large plage." },
+  { ref: "Currier et coll., 2026 · Position de l'ACSM, Medicine & Science in Sports & Exercise", doi: "10.1249/mss.0000000000003897", dit: "Synthèse des revues : la croissance du muscle ne dépend pas de la charge utilisée, ni du fait d'aller jusqu'à l'échec total ; elle augmente avec le volume (nombre de séries)." },
+  { ref: "Varovic et coll., 2026 · Frontiers in Physiology", doi: "10.3389/fphys.2026.1953601", dit: "8 études avec biopsie : les charges légères pourraient faire un peu plus grossir les fibres lentes, et les lourdes les fibres rapides. Résultat préliminaire, aucune différence n'est certaine." },
+];
