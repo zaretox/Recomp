@@ -30,6 +30,7 @@ var t = "nuit"; try { t = localStorage.getItem("recomp_theme") || "nuit"; } catc
 </style>
 </head>
 <body>
+<div id="tourne" aria-live="polite"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2"/></svg><b>Remets ton téléphone à la verticale</b><span>RECOMP s'utilise en format portrait.</span></div>
 <div id="root"><div id="boot"><b>RECOMP</b><span>Chargement…</span></div></div>
 <div id="fatal"><b>Oups.</b><div style="font-size:16px;font-weight:700;line-height:1.4">Impossible de démarrer l'app.<br>Vérifie ta connexion puis réessaie.</div><div id="fatalmsg" style="font-size:12px;opacity:.75"></div><button onclick="recompReparer()">Réessayer</button></div>
 <script>

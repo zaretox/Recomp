@@ -51,7 +51,7 @@
 
 /* ═══ 2. BASE ═══ */
 *, *::before, *::after { box-sizing: border-box; }
-html, body { margin: 0; height: 100%; background: var(--fond); color: var(--encre); font-family: var(--ui); font-size: 16px; line-height: 1.35; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+html, body { margin: 0; height: 100%; width: 100%; overflow: hidden; background: var(--fond); color: var(--encre); font-family: var(--ui); font-size: 16px; line-height: 1.35; -webkit-font-smoothing: antialiased; -webkit-tap-highlight-color: transparent; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
 #root { height: 100%; }
 button, input, textarea { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; text-align: left; touch-action: manipulation; -webkit-user-select: none; user-select: none; }
@@ -70,7 +70,7 @@ h1, h2, h3, p { margin: 0; }
 
 /* ═══ 3. STRUCTURE ═══ */
 .app { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--fond); overflow: hidden; }
-.scene { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; animation: apparait .28s ease-out; }
+.scene { flex: 1; min-height: 0; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; animation: apparait .28s ease-out; }
 .page { min-height: 100%; padding-bottom: 104px; background: var(--fond); background: color-mix(in oklab, var(--ton) 5%, var(--fond)); }
 .corps-p { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; padding: 18px var(--gout) 0; }
 .entete { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding: calc(14px + var(--haut)) var(--gout) 10px; }
@@ -504,10 +504,22 @@ h1, h2, h3, p { margin: 0; }
 .story-c .affiche-g { margin: 0; }
 .story-s { position: absolute; bottom: calc(10px + var(--bas)); left: 0; right: 0; text-align: center; font-size: 12px; font-weight: 700; opacity: .6; }
 
-/* ═══ 10. GRAND ÉCRAN — sur ordinateur, l'app reste au format téléphone ═══ */
-@media (min-width: 600px) {
+/* ═══ 10. GRAND ÉCRAN — sur ordinateur, l'app reste au format téléphone ═══
+ * Seulement avec une souris : un téléphone tourné à l'horizontale ne doit jamais prendre cette mise en page. */
+@media (min-width: 600px) and (hover: hover) and (pointer: fine) {
   html, body { background: #000; }
   #root { display: grid; place-items: center; }
   .app { position: relative; inset: auto; width: 402px; height: min(874px, 100%); transform: translateZ(0); border-radius: 22px; }
   .resultat, .story { min-height: 100%; }
+}
+
+/* ═══ 11. TÉLÉPHONE À L'HORIZONTALE ═══
+ * L'iPhone ne laisse pas une app bloquer la rotation : à l'horizontale, on cache l'app et on demande de redresser. */
+#tourne { display: none; }
+@media (orientation: landscape) and (max-height: 520px) and (pointer: coarse) {
+  #root { visibility: hidden; }
+  #tourne { position: fixed; inset: 0; z-index: 1000; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; background: var(--fond); color: var(--encre); text-align: center; }
+  #tourne b { font-family: var(--an); font-weight: 400; font-size: 44px; line-height: 1; text-transform: uppercase; }
+  #tourne span { font-size: 15px; font-weight: 700; color: var(--mou); }
+  #tourne svg { width: 48px; height: 48px; }
 }

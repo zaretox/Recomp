@@ -39,6 +39,13 @@ function App() {
     window.addEventListener("popstate", retour);
     return () => window.removeEventListener("popstate", retour);
   }, []);
+  // Après une rotation, l'iPhone peut laisser la page décalée sur le côté : on la remet en place
+  useEffect(() => {
+    const recale = () => setTimeout(() => { window.scrollTo(0, 0); if (page.current) page.current.scrollLeft = 0; }, 300);
+    window.addEventListener("orientationchange", recale);
+    window.addEventListener("resize", recale);
+    return () => { window.removeEventListener("orientationchange", recale); window.removeEventListener("resize", recale); };
+  }, []);
   const O = ONGLETS.find(o => o.id === nav.tab);
   const enSeance = nav.pile.some(f => f.nom === "seance");
   return h("div.app", { "data-t": nav.tab },
