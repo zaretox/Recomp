@@ -45,13 +45,15 @@
     <ol>
       <li>Dans l'app <b>Polar Flow</b> : profils sportifs, ouvre le profil que tu utilises en musculation, et active l'option qui rend la <b>fréquence cardiaque visible pour d'autres appareils</b> (dans ses réglages de fréquence cardiaque). Synchronise la montre.</li>
       <li>Sur la montre, <b>lance une séance</b> avec ce profil (appuie sur Démarrer : l'écran de choix du sport ne suffit pas). Ferme l'app Polar Flow sur ton iPhone pendant le test.</li>
-      <li>Ouvre cette page dans <b>Bluefy</b>, puis touche « Connecter ma montre » et choisis ta Polar dans la liste.</li>
+      <li>Ouvre cette page dans <b>Bluefy</b>. Avec ta Vantage M, utilise le bouton <b>« écouter les signaux de la montre »</b> et choisis ta Polar dans la liste.</li>
     </ol>
   </div>
 
   <p class="etat" id="etat">Prêt.</p>
   <button class="plein" id="connecter">Connecter ma montre</button>
   <button class="contour" id="tous">Ma montre n'apparaît pas : voir tous les appareils</button>
+  <button class="plein" id="signaux">Polar Vantage : écouter les signaux de la montre</button>
+  <p>La Vantage M ne se connecte pas comme une ceinture cardio : elle glisse sa fréquence cardiaque dans les signaux Bluetooth qu'elle émet en continu. Ce bouton les écoute sans se connecter. Il suffit d'avoir choisi le sport sur la montre.</p>
 
   <div class="cardio" id="cardio">
     <div class="bpm"><span class="coeur">♥</span> <span id="bpm">--</span><small>bpm</small></div>
@@ -164,6 +166,54 @@
   };
   $("connecter").onclick = () => brancher(false);
   $("tous").onclick = () => brancher(true);
+
+  // Polar (identifiant constructeur 0x006B) : la fréquence cardiaque est le dernier octet des données constructeur des annonces
+  const POLAR = 0x006B;
+  const hex = dv => Array.from(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)).map(b => b.toString(16).padStart(2, "0")).join(" ");
+  let dernierHex = "";
+  const recevoir = ev => {
+    const d = ev.manufacturerData && ev.manufacturerData.get(POLAR);
+    if (!d || !d.byteLength) return;
+    const h = hex(d), bpm = d.getUint8(d.byteLength - 1);
+    if (h !== dernierHex && n < 5) journal("Signal Polar : " + h + " → " + bpm + " bpm");
+    dernierHex = h;
+    if (bpm < 25 || bpm > 240) return;
+    n++;
+    $("bpm").textContent = bpm; $("nb").textContent = n;
+    if (n === 1) { etat("Ça marche : ta montre envoie ta fréquence cardiaque.", "bon"); journal("Première fréquence lue dans les signaux : " + bpm + " bpm"); }
+  };
+  $("signaux").onclick = async () => {
+    try {
+      etape = ""; n = 0; dernierHex = "";
+      if (navigator.bluetooth.requestLEScan) {
+        journal("Écoute de tous les signaux Polar (requestLEScan).");
+        const scan = await navigator.bluetooth.requestLEScan({ filters: [{ namePrefix: "Polar" }], keepRepeatedDevices: true });
+        navigator.bluetooth.addEventListener("advertisementreceived", recevoir);
+        journal("Écoute active : " + (scan && scan.active ? "oui" : "?"));
+      } else {
+        journal("requestLEScan absent : choix de la montre puis écoute de ses signaux (watchAdvertisements).");
+        etat("Choisis ta montre dans la liste…");
+        appareil = await navigator.bluetooth.requestDevice({ filters: [{ namePrefix: "Polar" }], optionalManufacturerData: [POLAR] });
+        journal("Appareil choisi : " + (appareil.name || "(sans nom)"));
+        $("appareil").textContent = appareil.name || "—";
+        if (!appareil.watchAdvertisements) { etat("Ce navigateur ne sait pas écouter les signaux Bluetooth sans connexion.", "mauvais"); journal("watchAdvertisements absent : ce navigateur ne permet pas l'écoute sans connexion."); return; }
+        etape = "écoute des signaux";
+        appareil.addEventListener("advertisementreceived", recevoir);
+        await appareil.watchAdvertisements();
+        journal("Écoute des signaux de la montre lancée.");
+      }
+      $("cardio").classList.add("ok");
+      debut = Date.now(); clearInterval(minuteur);
+      minuteur = setInterval(() => {
+        $("duree").textContent = Math.round((Date.now() - debut) / 1000) + " s";
+        if (n === 0 && Date.now() - debut > 15000) etat("Aucune fréquence reçue depuis 15 s : le sport choisi sur la montre a-t-il la fréquence cardiaque visible ?", "mauvais");
+      }, 1000);
+      etat("À l'écoute de la montre…");
+    } catch (err) {
+      journal("Erreur pendant : " + (etape || "le choix de l'appareil") + " → " + decrire(err));
+      etat(etape ? "Ce navigateur n'arrive pas à écouter les signaux de la montre." : "Aucune montre Polar trouvée ou choix annulé.", "mauvais");
+    }
+  };
 })();
 </script>
 </body>
