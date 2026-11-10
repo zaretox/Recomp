@@ -21,6 +21,7 @@ const FICHIERS = [
   "./recuperation.js",
   "./argent.js",
   "./coach.js",
+  "./polar.js",
   "./kit.js",
   "./pave.js",
   "./graphiques.js",
@@ -91,6 +92,8 @@ self.addEventListener("fetch", e => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  // Les fonctions Netlify (liaison Polar) ne passent jamais par le cache
+  if (url.pathname.startsWith("/.netlify/")) return;
   // Seule la page de l'app passe par le cache ; les autres pages du site (page de test…) vont au réseau
   const page = url.pathname.split("/").pop();
   if (req.mode === "navigate" && page !== "" && page !== "index.html") return;

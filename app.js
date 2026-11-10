@@ -77,6 +77,7 @@ function App() {
 (async () => {
   await DB.init();
   if (window.RECOMP_DEMO) await window.RECOMP_DEMO();
+  codePolarDansAdresse();
   appliquerTheme(profil().theme || "nuit");
   ReactDOM.createRoot(document.getElementById("root")).render(h(App));
 })().catch(e => { console.error(e); window.recompFatal?.(String(e.message || e)); });

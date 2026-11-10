@@ -428,6 +428,7 @@ h1, h2, h3, p { margin: 0; }
 .pave-etapes b { display: block; font-family: var(--an); font-weight: 400; font-size: 17px; line-height: 1.25; white-space: nowrap; overflow: hidden; }
 .pave-etapes .actif { background: var(--encre); color: var(--fond); }
 .pave-etapes .actif small { color: var(--fond); }
+.polar-matin { width: 100%; min-height: 44px; margin-bottom: 10px; }
 .clavier { display: grid; grid-template-columns: repeat(3, 1fr) 1.15fr; gap: 5px; }
 .tch { height: 56px; display: grid; place-items: center; border-radius: var(--r); background: var(--fond3); color: var(--encre); font-family: var(--an); font-size: 28px; text-align: center; transition: transform .08s, background .08s; }
 .tch:active { transform: scale(.95); background: var(--trait); }

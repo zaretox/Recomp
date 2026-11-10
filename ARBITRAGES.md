@@ -74,13 +74,14 @@
 | Comparateur de photos | Applis de suivi | Un trait à faire glisser entre deux dates. |
 | Écran toujours allumé | Strong | Pendant la séance, le téléphone ne se verrouille plus. Non vérifié sur iPhone. |
 | Thèmes Nuit et Papier | — | Nuit par défaut, Papier pour retrouver le clair. |
+| Saisie du matin depuis Polar | Polar Flow | Un bouton lit la Recharge nocturne (SNA, VFC, FC) et le sommeil. Validé par Aurélien : les données passent par une fonction Netlify à lui, qui ne garde rien ; le jeton reste sur le téléphone. |
 
 ## Écarté
 
 | Idée | Pourquoi |
 | --- | --- |
 | Scan de code-barres | Il faut une bibliothèque de lecture et des essais sur un vrai iPhone. Je préfère ne pas livrer ce que je ne peux pas tester. |
-| Lecture automatique de Polar ou de la banque | Il faudrait un serveur : vos données quitteraient le téléphone. |
+| Lecture automatique de la banque | Il faudrait un serveur : vos données quitteraient le téléphone. |
 | Notifications | Sur iPhone, elles exigent aussi un serveur. Le calendrier .ics reste la solution fiable. |
 | Réseau social, défis, niveaux | Vous ne vouliez ni niveaux ni démarrage en questions, et rien de tel n'a été ajouté. |
 

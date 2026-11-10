@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Liaison Polar</title>
+<style>
+  /* Page de retour après l'autorisation chez Polar. Si elle s'ouvre dans l'app, elle renvoie le code à l'app ;
+     sinon (navigateur séparé), elle affiche le code à copier dans RECOMP. */
+  :root { --fond: #0E0E0C; --fond2: #191916; --encre: #F5F3EB; --mou: #B4B2A6; --sport: #FF5A2B; --rouge: #FF4D4D; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fond); color: var(--encre); font-family: system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; }
+  main { max-width: 480px; margin: 0 auto; padding: calc(28px + env(safe-area-inset-top)) 16px 32px; display: grid; gap: 16px; }
+  h1 { margin: 0; font: 900 38px/1 Impact, "Arial Narrow Bold", sans-serif; text-transform: uppercase; }
+  p { margin: 0; line-height: 1.45; color: var(--mou); }
+  p b { color: var(--encre); }
+  .code { padding: 16px; border-radius: 10px; background: var(--fond2); font: 700 18px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; text-align: center; }
+  button { font: inherit; font-weight: 800; border: 0; border-radius: 10px; padding: 15px 18px; background: var(--sport); color: var(--fond); font-size: 17px; }
+  .erreur { color: var(--rouge); font-weight: 800; }
+</style>
+</head>
+<body>
+<main id="m"><h1>Liaison Polar</h1><p>Un instant…</p></main>
+<script>
+(() => {
+  const p = new URLSearchParams(location.search), code = p.get("code"), etat = p.get("state"), erreur = p.get("error");
+  const m = document.getElementById("m");
+  if (erreur || !code) {
+    m.innerHTML = '<h1>Liaison Polar</h1><p class="erreur">Polar n\'a pas donné son accord' + (erreur ? " (" + erreur.replace(/[<>&"]/g, "") + ")" : "") + '.</p><p>Retourne dans RECOMP, Réglages, et relance « Relier ma montre Polar ».</p>';
+    return;
+  }
+  let attendu = null;
+  try { attendu = localStorage.getItem("recomp_polar_etat"); } catch (e) { /* rien */ }
+  // Même contexte que l'app : on lui rend la main directement
+  if (attendu && attendu === etat) { location.replace("./?polar_code=" + encodeURIComponent(code)); return; }
+  // Navigateur séparé : le code est à recopier dans l'app (valable 10 minutes)
+  m.innerHTML = '<h1>Presque fini</h1><p>Polar a donné son accord. Ce navigateur est séparé de ton app : copie ce <b>code de liaison</b>, puis retourne dans <b>RECOMP → Réglages → Montre Polar → « J\'ai un code »</b> et colle-le. Il est valable 10 minutes.</p><div class="code" id="c"></div><button id="b">Copier le code</button>';
+  document.getElementById("c").textContent = code;
+  document.getElementById("b").onclick = async () => {
+    try { await navigator.clipboard.writeText(code); document.getElementById("b").textContent = "Code copié"; }
+    catch (e) { const s = getSelection(), r = document.createRange(); r.selectNodeContents(document.getElementById("c")); s.removeAllRanges(); s.addRange(r); document.getElementById("b").textContent = "Sélectionne et copie le code"; }
+  };
+})();
+</script>
+</body>
+</html>

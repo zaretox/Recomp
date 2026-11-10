@@ -94,6 +94,23 @@ function FeuilleMatin({ iso }) {
     await DB.set("recup-logs", [...DB.get("recup-logs").filter(l => l.dateISO !== jour), e].sort((a, b) => a.dateISO.localeCompare(b.dateISO)));
     setFini(true);
   };
+  // Remplit les quatre chiffres depuis la Recharge nocturne de la montre Polar
+  const [charge, setCharge] = useState(false), polar = lienPolar();
+  const depuisPolar = async () => {
+    setCharge(true);
+    try {
+      const m = await matinPolar(jour), n = { ...garde() };
+      let k = 0;
+      CHAMPS_MATIN.forEach(x => { if (m[x.k] != null) { n[x.k] = borne(m[x.k], x.min, x.max); k++; } });
+      if (!k) return toast("Polar n'a pas encore de nuit pour ce jour. Synchronise ta montre avec Polar Flow, puis réessaie.", { danger: true });
+      // Tout est là : on passe aux étiquettes ; sinon on s'arrête sur le premier chiffre manquant
+      const manque = CHAMPS_MATIN.findIndex(x => n[x.k] == null);
+      setVals(n); setNeuf(true); setEtape(manque < 0 ? 4 : manque);
+      if (manque >= 0) setTxt("");
+      toast(k + " chiffre" + (k > 1 ? "s" : "") + " récupéré" + (k > 1 ? "s" : "") + " depuis ta montre" + (manque >= 0 ? ". Complète le reste à la main." : ""));
+    } catch (e) { toast("Polar : " + e.message, { danger: true }); }
+    finally { setCharge(false); }
+  };
   const r = fini ? recuperation(jour) : null;
   if (fini) return h(Feuille, { plein: true, sansTete: true, ton: "corps" },
     h("div.resultat", { "data-ton": r?.verdict?.ton || "papier" },
@@ -102,6 +119,7 @@ function FeuilleMatin({ iso }) {
       h("div.hero-b", h(Bouton, { cl: "noir", onClick: Nav.fermer }, "Compris"), r?.score != null && h(Bouton, { cl: "contour-n", onClick: () => { Nav.fermer(); Nav.sheet("forme"); } }, "Le détail"))));
   const fmtVal = (k, v) => v == null ? "—" : k.mode === "hm" ? dureeHM(v) : k.mode === "signe" ? signe(v) : nb(v);
   return h(Feuille, { titre: "Forme du matin", ton: "corps" },
+    polar?.jeton && h(Bouton, { cl: "contour polar-matin" + (charge ? " occupe" : ""), ico: "coeur", disabled: charge, onClick: depuisPolar }, charge ? "Lecture de ta nuit…" : "Récupérer depuis ma montre Polar"),
     h("div.pave-etapes.matin", CHAMPS_MATIN.map((x, k) => h("button", { key: x.k, className: k === etape ? "actif" : "", onClick: () => aller(k) }, h("small", x.court), h("b", k === etape ? (neuf && !txt ? "…" : affichage(txt, x.mode)) : fmtVal(x, vals[x.k]))))),
     c ? h(Fragment, null,
       h("div.pave-v", { className: neuf ? "neuf" : "" }, h("b", txt || !veille?.[c.k] ? affichage(txt, c.mode) : fmtVal(c, veille[c.k])), c.u && h("em", c.u)),

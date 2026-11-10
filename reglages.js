@@ -34,14 +34,16 @@ function FeuilleCapture() {
 }
 
 /* Sauvegarde complète, photos comprises. Même format que les versions précédentes. */
-const CLES_SAUVEGARDE = Object.keys(DEFAUTS).filter(k => k !== "last-export");
+// Le jeton Polar reste sur ce téléphone : il ne part jamais dans une sauvegarde
+const HORS_SAUVEGARDE = ["last-export", "polar-lien"];
+const CLES_SAUVEGARDE = Object.keys(DEFAUTS).filter(k => !HORS_SAUVEGARDE.includes(k));
 async function exporter() {
   let cles = [];
   try { cles = (await window.storage.list()).keys || []; } catch (e) { /* liste de secours */ }
   if (!cles.length) cles = CLES_SAUVEGARDE;
   const data = {};
   for (const k of cles) {
-    if (k === "last-export") continue;
+    if (HORS_SAUVEGARDE.includes(k)) continue;
     try { const r = await window.storage.get(k); if (r && r.value != null) data[k] = r.value; } catch (e) { /* clé ignorée */ }
   }
   const sortie = JSON.stringify({ app: "RECOMP", version: 3, exportedAt: new Date().toISOString(), data }, null, 2);
@@ -92,6 +94,21 @@ function appliquerTheme(t) {
   else document.documentElement.dataset.theme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "papier" ? "#F0F1EC" : "#0E0E0C");
 }
+/* Montre Polar : liaison par le service AccessLink, pour remplir la saisie du matin */
+function SectionPolar() {
+  const l = lienPolar();
+  return h(Section, { titre: "Montre Polar" },
+    l?.jeton ? h(Fragment, null,
+      h("p.texte-p", h("b", "Montre reliée"), " depuis le " + dateJour(l.depuis) + ". Dans « Forme du matin », un bouton remplit SNA, VFC, FC et sommeil depuis ta Recharge nocturne."),
+      h("p.note", "Ta montre doit d'abord avoir synchronisé la nuit avec l'app Polar Flow."),
+      h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier la montre Polar ?", message: "RECOMP ne pourra plus lire tes nuits. Tes saisies déjà faites restent.", oui: "Délier" })) delierPolar(); } }, "Délier la montre"))
+    : h(Fragment, null,
+      h("p.texte-p", "Relie ton compte Polar pour remplir la saisie du matin d'un geste. Polar te demandera ton accord ; tes données ne sont stockées que sur ce téléphone."),
+      h("div.deux-b",
+        h(Bouton, { cl: "plein", onClick: relierPolar }, "Relier ma montre"),
+        h(Bouton, { cl: "contour", onClick: collerCodePolar }, "J'ai un code"))));
+}
+
 function FeuilleReglages() {
   useDB();
   const pr = profil(), der = DB.get("last-export"), age = der ? ecart(der, aujourdhui()) : null;
@@ -109,6 +126,7 @@ function FeuilleReglages() {
       h("p.sous-t", "Charges de départ, pour un exercice jamais fait"),
       h(Puces, null, PHASES.map((p, i) => h(Puce, { key: i, actif: (+DB.get("sport-phase") || 0) === i, onClick: () => DB.set("sport-phase", i) }, p.ph + " · " + p.sem)))),
     h(Section, { titre: "Apparence" }, h(Puces, null, [["auto", "Comme le téléphone"], ["nuit", "Nuit"], ["papier", "Papier"]].map(([k, l]) => h(Puce, { key: k, actif: theme === k, onClick: () => { setProfil({ theme: k }); appliquerTheme(k); } }, l)))),
+    h(SectionPolar),
     h(Section, { titre: "Rappels" },
       h(Rangee, { ico: "calendrier", titre: "Ajouter au calendrier", sous: "Réveil, repas et séances aux bonnes heures", onClick: async () => { const r = await partagerFichier("recomp-routine.ics", calendrierIcs(), "text/calendar"); if (r === "partage" || r === "telecharge") toast("Ouvre le fichier pour l'ajouter à ton calendrier"); } })),
     h(Section, { titre: "Tes données" },
