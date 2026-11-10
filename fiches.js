@@ -114,7 +114,7 @@ F("Soulevé de terre", "Fessiers, ischios, quadriceps, trapèzes", "Barre",
   "La barre frotte les jambes tout du long : plus elle s'éloigne, plus le dos souffre.", "Arrondir le bas du dos.");
 F("Pull-over poulie", "Triceps (longue portion)", "Poulie haute, corde ou barre",
   ["Debout face à la poulie, bras presque tendus.", "Ramène la corde vers les cuisses en arc de cercle.", "Remonte lentement."],
-  "Même principe que le tirage bras tendus : le dos seul travaille.", "Plier les bras.");
+  "Même principe que le tirage bras tendus : le grand dorsal fait l'essentiel, aidé par la longue portion du triceps.", "Plier les bras.");
 F("Shrug haltères", "Trapèzes", "Haltères",
   ["Debout, haltères le long du corps.", "Monte les épaules droit vers les oreilles.", "Tiens 1 seconde en haut, redescends lentement."],
   "Monte droit, sans rouler les épaules.", "Plier les coudes pour tirer.");

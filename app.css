@@ -571,6 +571,7 @@ h1, h2, h3, p { margin: 0; }
 .sq-zone { stroke: var(--sport); stroke-width: 5; stroke-linecap: round; }
 .sq-zone.plein { stroke-width: 9; }
 .sq-zone-p { fill: var(--sport); }
+.sq-barre { stroke: var(--mou); stroke-width: 4; stroke-linecap: round; }
 .sq-plateau { stroke: var(--mou); stroke-width: 5; stroke-linecap: round; }
 .sq-elastique { stroke: var(--sport); stroke-width: 2.5; stroke-dasharray: 3 3; }
 .sq-banc-p.fin { stroke-width: 2; }

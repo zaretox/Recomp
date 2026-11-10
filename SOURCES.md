@@ -53,3 +53,13 @@ La courbe est calculée sur la pose du schéma : effort à l'articulation = forc
 | Inclinaison 30° pour le haut des pecs. | Rodríguez-Ridao et coll., 2020 (voir plus haut) | |
 
 Courbes : développés et pull-over calculés sur la pose (poids vertical). Pompes et machine : même géométrie qu'un développé couché par rapport à la force, la courbe du développé sert de référence. Dips : réaction des barres sur les mains, effort à l'épaule. Écartés haltères : vue de bout, poids vertical. Écarté poulie : câble. Pec deck : bras de levier fixe autour de l'épaule, résistance constante.
+
+## Dos
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Tractions et tirage vertical : la prise change peu le grand dorsal ; en supination, le biceps aide davantage. Tirage horizontal : prise serrée et coudes près du corps = plus de grand dorsal. Pull-over allongé : plus de pecs que de grand dorsal. | Di Fonza et coll., 2026, *Journal of Functional Morphology and Kinesiology*, [10.3390/jfmk11030315](https://doi.org/10.3390/jfmk11030315) | Revue des études EMG du grand dorsal : prise peu influente au tirage (3 études) et aux tractions (4 études) ; au pull-over, activité des pecs supérieure à celle du grand dorsal (Marchetti et Uchida, 2011, 8 hommes). |
+| Prise au tirage vertical. | Buonsenso et coll., 2025 (voir plus haut) | |
+| Hyperextension : fessiers et ischios très actifs. | Lawrence et coll., 2019, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0000000000003146](https://doi.org/10.1519/JSC.0000000000003146) | 20 personnes actives : activité intégrée du biceps fémoral et du grand fessier plus élevée en hyperextension qu'en hyperextension inversée. |
+
+Courbes : rowings, rack pull, soulevé de terre et hyperextension calculés sur la pose (poids vertical ; pour l'hyperextension, le poids du buste agit à l'épaule). Tirages à la poulie : câble. Tractions et tirages verticaux : réaction de la barre, lue de face (prise large). Rowing inversé : réaction de la barre sur les mains. Shrugs : la charge monte à la verticale, son levier ne change pas.

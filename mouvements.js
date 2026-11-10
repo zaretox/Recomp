@@ -198,6 +198,145 @@ Object.assign(SCHEMAS, {
     depart: { ...ALLONGE, bras: 180, avbras: 176 }, arrivee: { bras: 284, avbras: 280 },
     objets: [{ t: "haltere" }], decor: BANC_PLAT, muscle: ["pecs", "dos"], fleche: { suit: "main", decale: [0, -14] },
     effort: [{ art: "epaule", nom: "Épaule · pecs et grand dorsal" }], charge: { t: "poids" }, etire: 1,
-    analyse: { pourquoi: "Le pull-over fait travailler le grand pectoral et le grand dorsal ensemble : les deux ramènent le bras depuis derrière la tête.", faisceaux: "La charge pèse le plus bras derrière la tête, quand pecs et grand dorsal sont étirés, et presque plus au-dessus de la poitrine. Descends seulement tant que l'épaule est à l'aise." },
+    analyse: { pourquoi: "Le pull-over ramène le bras depuis derrière la tête : le grand pectoral et le grand dorsal peuvent tous deux le faire. Allongé avec un haltère, ce sont surtout les pecs qui travaillent.", faisceaux: "La charge pèse le plus bras derrière la tête, quand les muscles sont étirés, et presque plus au-dessus de la poitrine. Pour cibler le dos, préfère le tirage bras tendus à la poulie. Descends seulement tant que l'épaule est à l'aise." },
+  },
+});
+
+/* ── DOS ── */
+const POURQUOI_DOS = "Le grand dorsal ramène le bras vers le bas et vers l'arrière ; le milieu du dos (trapèzes, rhomboïdes) rapproche les omoplates. Les tirages verticaux ciblent surtout le grand dorsal, les rowings tout le dos.";
+// Tractions et tirage vertical : l'effort de l'épaule se lit de face, comme pour le tirage vertical
+const PLAN_TIRAGE = { vue: "face", depart: { hanche: [100, 100], bras: 160, avbras: 165 }, arrivee: { bras: 35, avbras: 170 } };
+const BARRE_FIXE = [{ t: "barrefixe", x: 100, y: 34 }, SOL];
+// Penché en avant, appui sur un banc (rowing un bras)
+const BANC_ROWING = [{ t: "banc", x: 20, y: 146, l: 116 }, { t: "pied", x: 34, y: 154, y2: 181 }, { t: "pied", x: 122, y: 154, y2: 181 }, SOL];
+const PENCHE_BANC = { hanche: [66, 98], torse: 92, tete: -14, cuisse: [2, 0], tibia: [0, 270], pied: [90, 180], brasAbs: true };
+// Debout penché à 45° (rowing barre)
+const PENCHE = { ancre: "pieds", cheville: [96, 178], torse: 128, tete: -18, cuisse: 22, tibia: -14, brasAbs: true };
+Object.assign(SCHEMAS, {
+  "Tractions": {
+    legende: "Tractions vues de profil : suspendu à la barre, on tire les coudes vers les hanches jusqu'à passer le menton au-dessus.",
+    depart: { ancre: "mains", main: [100, 34], torse: 184, cuisse: 8, tibia: -24, pied: 70, brasAbs: true, bras: 182, avbras: 180 }, arrivee: { torse: 192, bras: -14, avbras: 178 },
+    objets: [], decor: BARRE_FIXE, muscle: ["dos", "biceps"], fleche: { suit: "epaule", decale: [-22, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal", plan: PLAN_TIRAGE }], charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Toutes les prises font travailler le grand dorsal à peu près autant. Paumes vers toi (supination), le biceps aide davantage. Choisis la prise où tes épaules et tes coudes sont à l'aise." },
+  },
+  "Tractions assistées": {
+    legende: "Tractions assistées vues de profil : genoux sur la plateforme, même mouvement qu'une traction.",
+    depart: { ancre: "mains", main: [100, 34], torse: 184, cuisse: 84, tibia: 0, pied: 90, brasAbs: true, bras: 182, avbras: 180 }, arrivee: { torse: 192, bras: -14, avbras: 178 },
+    objets: [{ t: "boudin", sur: "genou" }], decor: BARRE_FIXE, muscle: ["dos", "biceps"], fleche: { suit: "epaule", decale: [-22, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal", plan: PLAN_TIRAGE, note: "L'aide allège toute la courbe sans en changer la forme." }], charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Même travail qu'une traction, avec une partie du poids du corps retirée. Diminue l'aide au fil des semaines : c'est ta progression vers les tractions complètes." },
+  },
+  "Tirage vertical prise serrée": {
+    legende: "Tirage vertical prise serrée vu de profil : poignée triangle, on tire vers le bas du sternum.",
+    depart: { hanche: [92, 128], torse: 192, tete: -10, cuisse: 92, tibia: 4, pied: 90, bras: 166, avbras: 166 }, arrivee: { bras: -20, avbras: 142 },
+    objets: [{ t: "cable", de: [84, 6] }], muscle: ["dos"], fleche: { suit: "main", decale: [22, 0] },
+    decor: [{ t: "banc", x: 70, y: 134, l: 46 }, { t: "pied", x: 93, y: 142, y2: 181 }, { t: "appui", x: 118, y: 116, l: 26, h: 8 }, { t: "poulie", x: 84, y: 6 }, SOL],
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal", plan: { vue: "face", depart: { hanche: [100, 100], bras: 172, avbras: 188 }, arrivee: { bras: 20, avbras: 196 } } }], charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Prise serrée ou large, le grand dorsal travaille à peu près autant. La prise serrée permet une plus grande amplitude : cherche l'étirement complet en haut." },
+  },
+  "Tirage horizontal poulie": {
+    legende: "Tirage horizontal vu de profil : assis, on tire la poignée vers le nombril en serrant les omoplates.",
+    depart: { hanche: [70, 134], torse: 166, tete: -6, cuisse: [88, 84], tibia: [52, 48], pied: 90, bras: 76, avbras: 76 }, arrivee: { torse: 186, bras: -46, avbras: 86 },
+    objets: [{ t: "cable", de: [192, 128] }], decor: [{ t: "banc", x: 40, y: 140, l: 70 }, { t: "pied", x: 70, y: 148, y2: 181 }, { t: "poulieb", x: 192, y: 128 }, SOL],
+    muscle: ["dos"], fleche: { suit: "main", decale: [0, -16] },
+    effort: [{ art: "epaule", nom: "Épaule · dos" }], charge: { t: "cable", de: [192, 128] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Prise serrée, coudes près du corps : le grand dorsal travaille davantage. Coudes écartés : le haut du dos et l'arrière des épaules prennent plus de part. La poulie garde de la tension sur tout le trajet, avec un pic au milieu du mouvement." },
+  },
+  "Tirage bûcheron": {
+    legende: "Rowing un bras vu de profil : genou et main sur le banc, dos plat, on tire l'haltère vers la hanche.",
+    depart: { ...PENCHE_BANC, bras: [0, 0], avbras: [0, 0] }, arrivee: { bras: [-118, 0], avbras: [4, 0] },
+    objets: [{ t: "haltere" }], decor: BANC_ROWING, muscle: ["dos"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Tirer vers la hanche, coude près du corps, fait travailler surtout le grand dorsal. À l'haltère, la charge pèse le plus en haut, coude en arrière : c'est là qu'il faut serrer, sans tourner le buste." },
+  },
+  "Rowing haltère": {
+    legende: "Rowing haltère vu de profil : appui sur le banc, dos plat, on tire l'haltère vers la hanche.",
+    depart: { ...PENCHE_BANC, bras: [0, 0], avbras: [0, 0] }, arrivee: { bras: [-116, 0], avbras: [2, 0] },
+    objets: [{ t: "haltere" }], decor: BANC_ROWING, muscle: ["dos"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · dos" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Même mouvement que le bûcheron. Coude près du corps : plus de grand dorsal ; coude écarté : plus de haut du dos. La charge pèse le plus en haut du mouvement." },
+  },
+  "Rowing barre": {
+    legende: "Rowing barre vu de profil : debout, penché à 45°, dos plat, on tire la barre vers le bas du ventre.",
+    depart: { ...PENCHE, bras: 0, avbras: 0 }, arrivee: { bras: -100, avbras: 2 },
+    objets: [{ t: "barre" }], decor: [SOL], muscle: ["dos", "lombaires"], fleche: { suit: "main", decale: [22, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · dos" }, { art: "hanche", nom: "Hanche · lombaires" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Tout le dos travaille : grand dorsal, trapèzes, rhomboïdes, arrière des épaules. Les lombaires et les fessiers tiennent la position penchée pendant toute la série : leur effort reste élevé du début à la fin." },
+  },
+  "Rowing T-bar": {
+    legende: "Rowing T-bar vu de profil : penché, dos plat, on tire la poignée vers le ventre.",
+    depart: { ...PENCHE, torse: 136, bras: 0, avbras: 0 }, arrivee: { bras: -104, avbras: 0 },
+    objets: [{ t: "barre", r: 13 }, { t: "poignee" }], decor: [SOL], muscle: ["dos", "lombaires"], fleche: { suit: "main", decale: [22, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · dos" }, { art: "hanche", nom: "Hanche · lombaires" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Même travail qu'un rowing barre, avec une trajectoire plus stable. La prise serrée en poignée neutre garde les coudes près du corps : plus de grand dorsal." },
+  },
+  "Rowing machine": {
+    legende: "Rowing machine vu de profil : poitrine contre l'appui, on tire les coudes vers l'arrière.",
+    depart: { hanche: [70, 132], torse: 172, cuisse: [86, 82], tibia: [8, 4], pied: 90, bras: 82, avbras: 82 }, arrivee: { bras: -44, avbras: 84 },
+    objets: [{ t: "cable", de: [196, 96] }], decor: [{ t: "banc", x: 44, y: 138, l: 56 }, { t: "pied", x: 70, y: 146, y2: 181 }, { t: "bancr", x: 84, y: 60, l: 46, a: -80, app: true }, SOL],
+    muscle: ["dos"], fleche: { suit: "main", decale: [0, -16] },
+    effort: [{ art: "epaule", nom: "Épaule · dos", note: "Sur machine, la forme exacte dépend du modèle." }], charge: { t: "cable", de: [196, 96] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "L'appui poitrine supprime le travail des lombaires : tout l'effort va au dos. Coudes serrés pour le grand dorsal, coudes écartés pour le haut du dos." },
+  },
+  "Tirage bras tendus poulie": {
+    legende: "Tirage bras tendus vu de profil : bras presque tendus, on ramène la barre de la hauteur des yeux jusqu'aux cuisses.",
+    depart: { ancre: "pieds", cheville: [86, 178], torse: 166, cuisse: 8, tibia: -6, bras: 128, avbras: 132 }, arrivee: { bras: 8, avbras: 12 },
+    objets: [{ t: "cable", de: [176, 22] }], decor: [{ t: "poulie", x: 176, y: 22 }, SOL], muscle: ["dos", "triceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal" }], charge: { t: "cable", de: [176, 22] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Bras tendus, le biceps ne peut pas aider : le grand dorsal fait l'essentiel, avec la longue portion du triceps. Bon exercice de pré-fatigue avant un tirage." },
+  },
+  "Pull-over poulie": {
+    legende: "Pull-over à la poulie vu de profil : buste penché, bras presque tendus, on ramène la corde de la tête jusqu'aux cuisses.",
+    depart: { ancre: "pieds", cheville: [80, 178], torse: 150, cuisse: 14, tibia: -10, bras: 140, avbras: 144 }, arrivee: { bras: 6, avbras: 10 },
+    objets: [{ t: "cable", de: [182, 26] }], decor: [{ t: "poulie", x: 182, y: 26 }, SOL], muscle: ["dos", "triceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · grand dorsal" }], charge: { t: "cable", de: [182, 26] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Buste penché, la poulie tire depuis l'avant : le grand dorsal est chargé dès l'étirement, bras en haut. Contrairement au pull-over allongé, c'est bien le dos qui fait le travail." },
+  },
+  "Rowing inversé": {
+    legende: "Rowing inversé vu de profil : sous une barre, talons au sol, corps gainé, on tire la poitrine vers la barre.",
+    depart: { ancre: "mains", main: [62, 96], torse: 252, tete: -6, cuisse: [72, 72], tibia: [72, 72], pied: [160, 160], brasAbs: true, bras: 176, avbras: 178 },
+    arrivee: { torse: 238, cuisse: [58, 58], tibia: [58, 58], pied: [150, 150], bras: 26, avbras: 168 },
+    objets: [], decor: [{ t: "barrefixe", x: 62, y: 96 }, SOL], muscle: ["dos", "biceps"], fleche: { suit: "epaule", decale: [0, 18] },
+    effort: [{ art: "epaule", nom: "Épaule · dos", point: "main" }], charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_DOS, faisceaux: "Un rowing au poids du corps : tout le dos travaille, avec les biceps. Le plus dur est dans la seconde moitié de la montée, en approchant de la barre. Plus les pieds sont hauts, plus c'est difficile." },
+  },
+  "Rack pull": {
+    legende: "Rack pull vu de profil : barre posée à hauteur des genoux, on se redresse en poussant les hanches vers l'avant.",
+    depart: { ancre: "pieds", cheville: [96, 178], torse: 140, tete: -10, cuisse: 24, tibia: -6, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { torse: 180, tete: 0, cuisse: 0, tibia: 0 },
+    objets: [{ t: "barre" }], decor: [{ t: "appui", x: 94, y: 130, l: 26, h: 6 }, SOL], muscle: ["dos", "trapezes", "fessiers"], fleche: { suit: "main", decale: [28, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers et dos" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: "Un soulevé de terre partiel : il charge lourd le haut du dos, les trapèzes, les fessiers et la prise, en épargnant le bas du mouvement.", faisceaux: "L'effort de la hanche est maximal au départ, buste penché, et diminue à mesure qu'on se redresse. En haut, les trapèzes et les avant-bras tiennent la barre : c'est là que la prise lâche en premier." },
+  },
+  "Soulevé de terre": {
+    legende: "Soulevé de terre vu de profil : barre au sol au-dessus du milieu du pied, on se relève barre collée aux jambes.",
+    depart: { ancre: "pieds", cheville: [92, 178], torse: 126, tete: -16, cuisse: 62, tibia: -24, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { torse: 180, tete: 0, cuisse: 0, tibia: 0 },
+    objets: [{ t: "barre" }], decor: [SOL], muscle: ["fessiers", "ischios", "lombaires"], fleche: { suit: "main", decale: [30, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers et ischios" }, { art: "genou", nom: "Genou · quadriceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: "Le soulevé de terre fait travailler presque tout le corps : fessiers, ischios et lombaires pour redresser la hanche, quadriceps pour tendre les genoux, dos et avant-bras pour tenir la barre.", faisceaux: "Au départ, les quadriceps et les hanches poussent ensemble ; une fois la barre passée aux genoux, ce sont surtout les fessiers et les ischios qui finissent le mouvement." },
+  },
+  "Shrug haltères": {
+    vue: "face",
+    legende: "Shrug haltères vu de face : bras le long du corps, on monte les épaules droit vers les oreilles.",
+    depart: { hanche: [100, 104], bras: 6, avbras: 2, cuisse: 4, tibia: 2, hausse: 0 }, arrivee: { hausse: 9 },
+    objets: [{ t: "halteres" }], decor: [SOL], muscle: ["trapezes"], fleche: { suit: "main", decale: [14, 0] },
+    effort: [{ art: "epaule", nom: "Épaules · trapèzes", profil: [1, 1, 1, 1, 1], note: "On monte la charge droit vers le haut : son poids ne change pas de levier." }], etire: 0,
+    analyse: { pourquoi: "Le haut des trapèzes monte les épaules et les omoplates. Le shrug isole ce mouvement.", faisceaux: "Surtout le faisceau supérieur des trapèzes. Monte droit, sans rouler les épaules : rouler n'ajoute rien et fatigue l'articulation." },
+  },
+  "Shrug barre": {
+    vue: "face",
+    legende: "Shrug barre vu de face : barre devant les cuisses, on hausse les épaules le plus haut possible.",
+    depart: { hanche: [100, 104], bras: 4, avbras: 0, cuisse: 4, tibia: 2, hausse: 0 }, arrivee: { hausse: 9 },
+    objets: [{ t: "barreface" }], decor: [SOL], muscle: ["trapezes"], fleche: { suit: "main", decale: [48, 0] },
+    effort: [{ art: "epaule", nom: "Épaules · trapèzes", profil: [1, 1, 1, 1, 1], note: "On monte la charge droit vers le haut : son poids ne change pas de levier." }], etire: 0,
+    analyse: { pourquoi: "Le haut des trapèzes monte les épaules et les omoplates. La barre permet de charger plus lourd qu'aux haltères.", faisceaux: "Surtout le faisceau supérieur des trapèzes. Des sangles aident si la prise lâche avant les trapèzes." },
+  },
+  "Hyperextensions": {
+    legende: "Hyperextension vue de profil : hanches sur l'appui, on remonte le buste jusqu'à l'alignement avec les jambes.",
+    depart: { hanche: [104, 100], torse: 26, tete: 14, cuisse: [300, 300], tibia: [300, 300], pied: [210, 210], bras: 30, avbras: 150 }, arrivee: { torse: 120, tete: 0 },
+    objets: [], decor: [{ t: "bancr", x: 74, y: 120, l: 40, a: -30, app: true }, { t: "appui", x: 18, y: 148, l: 14, h: 8 }, { t: "pied", x: 60, y: 140, x2: 40, y2: 181 }, SOL],
+    muscle: ["lombaires", "fessiers", "ischios"], fleche: { suit: "tete", decale: [16, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers et lombaires", point: "epaule" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: "L'hyperextension redresse le buste depuis la hanche : fessiers, ischios et muscles du bas du dos travaillent ensemble.", faisceaux: "Les fessiers et les ischios y sont très actifs. L'effort est le plus grand en haut, buste aligné avec les jambes : inutile d'aller au-delà en se cambrant." },
   },
 });

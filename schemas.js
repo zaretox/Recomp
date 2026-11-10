@@ -28,7 +28,7 @@ function articulations(p) {
     const cou = plus(hanche, dirA(t, L_CORPS.torse));
     const cote = (s, i) => {
       const m = v => m1(s, v);
-      const ep = plus(cou, [s * 14, 4]), hp = plus(hanche, [s * 8, 0]);
+      const ep = plus(cou, [s * 14, 4 - (p.hausse || 0)]), hp = plus(hanche, [s * 8, 0]);
       const coude = plus(ep, m(dirA(br[i], L_CORPS.bras))), main = plus(coude, m(dirA(ab[i], L_CORPS.avbras)));
       const genou = plus(hp, m(dirA(cu[i], L_CORPS.cuisse))), cheville = plus(genou, m(dirA(ti[i], L_CORPS.tibia)));
       return { ep, hp, coude, main, genou, cheville, orteil: plus(cheville, m([7, 0])) };
@@ -152,6 +152,12 @@ function Objets({ j, objets }) {
     if (o.t === "halteres") return h("g", { key: i }, face ? [Disque({ p: p.main, r: 8, k: 0 }), Disque({ p: l.main, r: 8, k: 1 })] : [Disque({ p: l.main, r: 8, loin: true, k: 0 }), Disque({ p: p.main, r: 8, k: 1 })]);
     if (o.t === "haltere") return h("g", { key: i }, Disque({ p: plus(p.main, o.decale || [0, 0]), r: o.r || 8, k: 0 }));
     if (o.t === "barre" || o.t === "disque") return h("g", { key: i }, Disque({ p: pointBarre(j, [o]), r: o.r || (o.t === "disque" ? 12 : 15), k: 0 }));
+    if (o.t === "barreface") {  // barre vue de face : une ligne entre les mains, un disque à chaque bout
+      const a = p.main, b = l.main, d = moins(a, b), L = Math.hypot(...d) || 1, u = [d[0] / L, d[1] / L], ext = o.ext || 34;
+      const e1 = plus(a, [u[0] * ext, u[1] * ext]), e2 = moins(b, [u[0] * ext, u[1] * ext]);
+      return h("g", { key: i }, h("line", { x1: e2[0], y1: e2[1], x2: e1[0], y2: e1[1], className: "sq-barre" }),
+        [e1, e2].map((e, k) => h("rect", { key: k, x: e[0] - 3.5, y: e[1] - 16, width: 7, height: 32, rx: 2, className: "sq-disque" })));
+    }
     if (o.t === "roue") return h("g", { key: i }, h("circle", { cx: p.main[0], cy: p.main[1] + 4, r: 10, className: "sq-disque" }));
     if (o.t === "boudin") { const c = o.sur === "genou" ? p.genou : o.sur === "cuisse" ? plus(p.hp, [(p.genou[0] - p.hp[0]) * .75, (p.genou[1] - p.hp[1]) * .75]) : plus(p.cheville, [(p.genou[0] - p.cheville[0]) * .15, (p.genou[1] - p.cheville[1]) * .15]); const off = o.cote ? dirA(Math.atan2(p.cheville[0] - p.genou[0], p.cheville[1] - p.genou[1]) * 180 / Math.PI + 90 * o.cote, 8) : [0, 0]; return h("circle", { key: i, cx: c[0] + off[0], cy: c[1] + off[1], r: 6.5, className: "sq-appui" }); }
     if (o.t === "plateforme") { const c = plus(p.cheville, [(p.orteil[0] - p.cheville[0]) * .5, (p.orteil[1] - p.cheville[1]) * .5]), a = o.a ?? 90, d = dirA(a, 16), n = dirA(a - 90, o.cote ?? 6); const q = plus(c, n); return h("line", { key: i, x1: q[0] - d[0], y1: q[1] - d[1], x2: q[0] + d[0], y2: q[1] + d[1], className: "sq-plateau" }); }
