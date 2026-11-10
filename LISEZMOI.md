@@ -61,7 +61,7 @@ Inchangées : `sport-logs`, `maison-logs`, `nutri-logs`, `food-log`, `foods-cust
 
 Deux nouvelles clés : `fin-fixes` (charges fixes) et `courses-etat` (liste de courses en cours).
 
-Champs ajoutés, que l'ancienne version ignore : `startedAt`, `endedAt`, `swaps`, `finisher` dans `sport-logs` ; `tags` dans `recup-logs` ; `mealScale` dans `nutri-logs` ; `fixId` dans `fin-expenses` ; `depense` dans `nutri-cal-cfg` ; `objectifKg` et `theme` dans `profil`.
+Champs ajoutés, que l'ancienne version ignore : `startedAt`, `endedAt`, `swaps`, `finisher`, `ajouts` (exercices ajoutés en cours de séance), `retires` (exercices retirés pour la séance) dans `sport-logs`, et `aide` (contrepoids) et `pc` (poids du corps) dans les séries des exercices assistés, dont `w` est alors la charge soulevée ; `tags` dans `recup-logs` ; `mealScale` dans `nutri-logs` ; `fixId` dans `fin-expenses` ; `depense` dans `nutri-cal-cfg` ; `objectifKg` et `theme` dans `profil`.
 
 La sauvegarde garde le même format de fichier : une sauvegarde de l'ancienne version se restaure ici, et inversement.
 

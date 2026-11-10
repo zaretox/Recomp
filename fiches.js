@@ -9,7 +9,7 @@ const EXOS_EN_PLUS = [
   ["Tirage vertical prise serrée","Dos"], ["Rowing T-bar","Dos"], ["Rowing machine","Dos"], ["Tirage bras tendus poulie","Dos"], ["Hyperextensions","Dos"], ["Rowing inversé","Dos"], ["Shrug barre","Dos"],
   ["Développé haltères assis","Épaules"], ["Élévations latérales poulie","Épaules"], ["Tirage menton","Épaules"], ["Développé épaules machine","Épaules"], ["Oiseau machine","Épaules"],
   ["Curl concentré","Biceps"], ["Curl araignée","Biceps"], ["Curl inversé","Biceps"],
-  ["Extension triceps haltère","Triceps"], ["Pompes diamant","Triceps"], ["Dips entre deux bancs","Triceps"], ["Extension triceps corde","Triceps"],
+  ["Extension triceps haltère","Triceps"], ["Pompes diamant","Triceps"], ["Dips assistés","Triceps"], ["Dips entre deux bancs","Triceps"], ["Extension triceps corde","Triceps"],
   ["Sissy squat","Quadriceps"], ["Fentes marchées","Quadriceps"], ["Squat pendulaire","Quadriceps"], ["Presse unilatérale","Quadriceps"],
   ["RDL haltères","Ischios"], ["Leg curl debout","Ischios"],
   ["Fentes arrière","Fessiers"], ["Clamshell","Fessiers"], ["Abduction poulie","Fessiers"], ["Soulevé de terre sumo","Fessiers"],
@@ -75,7 +75,7 @@ F("Tractions", "Biceps, arrière d'épaule", "Barre fixe",
   "Pense « coudes dans les poches arrière » plutôt que « monter le menton ».", "Se balancer ou faire des demi-répétitions.");
 F("Tractions assistées", "Biceps", "Machine ou élastique",
   ["Genoux sur la plateforme ou pied dans l'élastique.", "Même mouvement qu'une traction : épaules basses, coudes vers les hanches.", "Redescends jusqu'en bas, bras tendus."],
-  "Baisse l'aide au fil des semaines : c'est ta progression.", "Garder trop d'aide trop longtemps.");
+  "Dans l'app, tu notes le contrepoids : elle calcule la charge soulevée (ton poids moins le contrepoids). Baisser le contrepoids, c'est ta progression.", "Garder trop d'aide trop longtemps.");
 F("Tirage vertical", "Biceps, arrière d'épaule", "Poulie haute, barre large",
   ["Cuisses calées, prise un peu plus large que les épaules.", "Poitrine sortie, tire la barre vers le haut des pecs.", "Remonte lentement jusqu'à étirer le dos."],
   "Le mouvement part des omoplates, pas des bras.", "Se pencher très en arrière et tirer avec tout le corps.");
@@ -226,6 +226,9 @@ F("Développé couché prise serrée", "Pecs, avant d'épaule", "Barre, banc pla
 F("Dips", "Pecs, avant d'épaule", "Barres parallèles",
   ["En appui, buste droit, coudes vers l'arrière.", "Descends jusqu'à ce que les bras soient à angle droit.", "Pousse jusqu'à tendre les bras."],
   "Buste droit = triceps ; penché en avant = pecs.", "Descendre trop bas en forçant sur l'épaule.");
+F("Dips assistés", "Pecs, avant d'épaule", "Machine à contrepoids",
+  ["Genoux sur la plateforme, mains sur les poignées, bras tendus.", "Descends en pliant les coudes jusqu'à angle droit, buste droit.", "Pousse jusqu'à tendre les bras."],
+  "Dans l'app, tu notes le contrepoids : elle calcule la charge soulevée (ton poids moins le contrepoids). Baisser le contrepoids, c'est ta progression.", "Descendre trop bas en forçant sur l'épaule.");
 F("Dips entre deux bancs", "Pecs, avant d'épaule", "Deux bancs ou un banc",
   ["Mains sur le bord d'un banc, derrière toi, jambes tendues devant.", "Descends en pliant les coudes vers l'arrière.", "Remonte jusqu'à tendre les bras."],
   "Reste près du banc et ne descends pas trop bas.", "Coudes qui s'écartent.");

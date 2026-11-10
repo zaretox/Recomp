@@ -5,23 +5,38 @@
 const DIFFICULTES = [[7, "Facile"], [8, "Bien"], [9, "Dur"], [10, "Limite"]];
 const ouvrirSeance = (iso, s) => Nav.sheet("seance", { iso, prog: s.prog === "maison" ? "maison" : "salle", code: s.code });
 
-/* Exercices ajoutés en cours de séance, avant la première série cochée : gardés ici tant que la séance n'est pas écrite,
- * pour ne pas marquer la séance comme faite. Ensuite, ils vivent dans le champ « ajouts » de la séance (sport-logs). */
-const AJOUTS_EN_ATTENTE = {};
+/* Changements de la séance du jour (exercices ajoutés, retirés, remplacés) faits avant la première série cochée :
+ * gardés ici tant que la séance n'est pas écrite, pour ne pas la marquer comme faite. Ensuite, ils vivent dans les champs
+ * « ajouts », « retires » et « swaps » de la séance (sport-logs). */
+const EN_ATTENTE = {};
 const cleAjouts = (iso, code) => iso + "|" + code;
 function versLog(iso, code, cfg, log) {
   // Une séance notée après coup n'a pas d'heure de début : sa durée n'aurait pas de sens
-  const attente = AJOUTS_EN_ATTENTE[cleAjouts(iso, code)];
-  return log || { id: Date.now(), date: dateCourte(iso), dateISO: iso, seance: code, deload: !!cfg.deload, ...(iso === aujourdhui() ? { startedAt: Date.now() } : {}), ...(attente?.length ? { ajouts: [...attente] } : {}), exercices: [] };
+  const a = EN_ATTENTE[cleAjouts(iso, code)] || {};
+  return log || { id: Date.now(), date: dateCourte(iso), dateISO: iso, seance: code, deload: !!cfg.deload, ...(iso === aujourdhui() ? { startedAt: Date.now() } : {}),
+    ...(a.ajouts?.length ? { ajouts: [...a.ajouts] } : {}), ...(a.retires?.length ? { retires: [...a.retires] } : {}), ...(a.swaps && Object.keys(a.swaps).length ? { swaps: { ...a.swaps } } : {}), exercices: [] };
 }
+/* Modifie la composition de la séance : dans la séance si elle est écrite, sinon en attente */
+function modifSeance(iso, code, fn) {
+  const log = DB.get("sport-logs").find(l => l.dateISO === iso && l.seance === code);
+  if (log) return majSeance(iso, code, l => ({ ...l, ...fn(l) }));
+  const k = cleAjouts(iso, code);
+  EN_ATTENTE[k] = { ...(EN_ATTENTE[k] || {}), ...fn(EN_ATTENTE[k] || {}) };
+}
+/* Exercices assistés (machine à contrepoids) : la charge soulevée = poids du corps − contrepoids */
+const estAssiste = nom => /assist[ée]/i.test(nom || "");
+const poidsDuCorps = () => { const t = tendancePoids(); return t.length ? arrondi(t[t.length - 1].t, 1) : null; };
 /* Dernière fois qu'un exercice a été fait, toutes séances confondues */
 function dernierPartout(logs, nom) {
   const l = (logs || []).filter(x => !x.deload && (x.exercices || []).some(e => e.nom === nom && e.weight > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
   return l ? l.exercices.find(e => e.nom === nom) : null;
 }
 function majSeance(iso, code, fn) {
-  const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), cfg = reglages();
+  const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), cfg = reglages(), k = cleAjouts(iso, code);
   const suivant = fn(versLog(iso, code, cfg, log));
+  // La séance écrite reprend les changements en attente ; si elle s'efface (toutes séries décochées), ils repassent en attente
+  if (suivant) delete EN_ATTENTE[k];
+  else if (log && (log.ajouts?.length || log.retires?.length || (log.swaps && Object.keys(log.swaps).length))) EN_ATTENTE[k] = { ajouts: log.ajouts, retires: log.retires, swaps: log.swaps };
   const reste = logs.filter(l => l !== log);
   return DB.set("sport-logs", suivant ? [...reste, suivant] : reste);
 }
@@ -33,7 +48,10 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
   const [nbLignes, setNb] = useState(prevues);
   const [brouillon, setB] = useState({});
   const total = Math.max(nbLignes, faites.length);
-  const ligne = k => faites[k] || brouillon[k] || (k > 0 && (brouillon[k - 1] || faites[k - 1])) || { w: prop.weight || 0, r: prop.reps || 0 };
+  const assiste = estAssiste(ex.nom), pc = assiste ? poidsDuCorps() : null;
+  const base = assiste ? { w: prop.weight || 0, r: prop.reps || 0, ...(prop.weight && pc ? { aide: Math.max(0, arrondi(pc - prop.weight, 1)) } : {}) } : { w: prop.weight || 0, r: prop.reps || 0 };
+  const ligne = k => faites[k] || brouillon[k] || (k > 0 && (brouillon[k - 1] || faites[k - 1])) || base;
+  const aideDe = v => v.aide != null ? v.aide : null;
   const der = dernierExo(avant, code, ex.nom), mal = douleurSur(ex.nom, douleurs);
   const complet = faites.length >= total;
   const ecrire = lignes => majSeance(iso, code, l => {
@@ -46,7 +64,7 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
   const tick = async k => {
     if (k < faites.length) { await ecrire(faites.slice(0, k)); Repos.arreter(); return; }
     const lignes = [...faites];
-    for (let j = faites.length; j <= k; j++) lignes.push({ w: ligne(j).w, r: ligne(j).r });
+    for (let j = faites.length; j <= k; j++) { const v = ligne(j); lignes.push(v.aide != null ? { w: v.w, r: v.r, aide: v.aide, pc: v.pc ?? pc } : { w: v.w, r: v.r }); }
     if (lignes.some(s => !s.w && !s.r)) return toast("Indique la charge ou les reps de la série");
     await ecrire(lignes);
     const n = lignes.length;
@@ -56,6 +74,16 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
   };
   const edite = async (k, champ) => {
     const v = ligne(k);
+    if (assiste && champ === "w") {
+      // On saisit le contrepoids ; la charge soulevée en découle
+      const a = await saisir({ titre: ex.nom + " · contrepoids", valeur: aideDe(v) ?? 0, mode: "dec", unite: "kg d'aide", pas: [pasDeCharge(ex.nom), pasDeCharge(ex.nom) * 2], min: 0 });
+      if (a == null) return;
+      if (!pc) toast("Pèse-toi (onglet Corps) pour que l'app calcule la charge soulevée");
+      const nv = { aide: a, pc, w: pc ? Math.max(0, arrondi(pc - a, 1)) : 0 };
+      if (k < faites.length) return ecrire(faites.map((s, j) => j === k ? { ...s, ...nv } : s));
+      setB(b => { const n = { ...b }; for (let j = k; j < total; j++) n[j] = { ...ligne(j), ...nv }; return n; });
+      return;
+    }
     const r = await saisir(champ === "w"
       ? { titre: ex.nom, valeur: v.w, mode: "dec", unite: "kg", pas: [pasDeCharge(ex.nom), pasDeCharge(ex.nom) * 2], min: 0 }
       : { titre: ex.nom, valeur: v.r, mode: "ent", unite: "reps", pas: [1], min: 0 });
@@ -68,10 +96,11 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
 
   if (!ouvert) return h("button.exo.ferme", { onClick: () => setOuvert(i), className: complet ? "fait" : "" },
     complet ? h("i.ok", h(Icone, { n: "check", t: 16 })) : h("i.num", faites.length + "/" + total),
-    h("span", h("b", ex.nom, ex.ajoute && h("em.exo-ajout", "ajouté")), h("small", faites.length ? fmtSeries({ setsDetail: faites }) : (prop.weight ? nb(prop.weight) + " kg × " : "") + (prop.reps || ""))),
+    h("span", h("b", ex.nom, ex.ajoute && h("em.exo-ajout", "ajouté")), h("small", faites.length ? fmtSeries({ setsDetail: faites }) : assiste && base.aide != null ? "aide " + nb(base.aide) + " kg × " + (prop.reps || "") : (prop.weight ? nb(prop.weight) + " kg × " : "") + (prop.reps || ""))),
     mal.length > 0 && h("em.alerte", mal[0].zone));
 
-  const coach = prop.src === "coach" ? prop.txt : prop.src === "science" ? "objectif réglé : " + nb(prop.weight) + " kg" : prop.src === "phase" && prop.weight ? "charge de départ : " + nb(prop.weight) + " kg" : null;
+  let coach = prop.src === "coach" ? prop.txt : prop.src === "science" ? "objectif réglé : " + nb(prop.weight) + " kg" : prop.src === "phase" && prop.weight ? "charge de départ : " + nb(prop.weight) + " kg" : null;
+  if (assiste && prop.weight && pc) coach = "objectif : " + nb(prop.weight) + " kg soulevés, soit " + nb(Math.max(0, arrondi(pc - prop.weight, 1))) + " kg d'aide";
   return h("article.exo.ouvert",
     h("header",
       h("div", h("h3", ex.nom, ex.ajoute && h("em.exo-ajout", "ajouté")), coach && h("p.coach-l", { "data-a": prop.action }, coach)),
@@ -79,12 +108,15 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
     der && h("p.dernier", "Dernière fois : " + fmtSeries(der) + (der.rpe ? ", " + (DIFFICULTES.find(d => d[0] >= der.rpe)?.[1] || "").toLowerCase() : "")),
     mal.length > 0 && h("button.alerte-b", { onClick: () => Nav.sheet("exercice", { nom: ex.nom, orig: ex.orig, iso, code, kg: ligne(0).w }) }, mal.map(m => m.zone + " " + m.i + "/10").join(", ") + " : baisse la charge ou remplace"),
     ex.note && h("p.dernier", ex.note),
-    ex.ajoute && !faites.length && retirer && h("button.mini.exo-retirer", { onClick: () => retirer(ex.orig || ex.nom) }, "Retirer de la séance"),
+    assiste && h("p.dernier", pc ? "Ton poids : " + nb(pc) + " kg. Tu règles le contrepoids ; charge soulevée = " + nb(pc) + " − contrepoids." : "Pèse-toi (onglet Corps) pour que l'app calcule la charge soulevée."),
+    !faites.length && retirer && h("button.mini.exo-retirer", { onClick: () => retirer(ex) }, "Retirer de la séance"),
     h("div.series", Array.from({ length: total }, (_, k) => {
       const v = ligne(k), fait = k < faites.length;
       return h("div.serie", { key: k, className: fait ? "fait" : k === faites.length ? "courante" : "" },
         h("span.serie-n", k + 1),
-        h("button.val", { onClick: () => edite(k, "w") }, h("b", nb(v.w) || "—"), h("small", "kg")),
+        assiste
+          ? h("button.val", { onClick: () => edite(k, "w") }, h("b", aideDe(v) != null ? nb(aideDe(v)) : "—"), h("small", aideDe(v) != null && v.w ? "aide · " + nb(v.w) + " kg" : "kg d'aide"))
+          : h("button.val", { onClick: () => edite(k, "w") }, h("b", nb(v.w) || "—"), h("small", "kg")),
         h("span.fois", "×"),
         h("button.val", { onClick: () => edite(k, "r") }, h("b", v.r || "—"), h("small", "reps")),
         h(Coche, { fait, onClick: () => tick(k), label: "Série " + (k + 1), t: 46 }));
@@ -141,27 +173,35 @@ function FeuilleSeance({ iso, prog, code }) {
   if (!se) return h(Feuille, { titre: "Séance introuvable" }, h(Vide, null, "Cette séance n'existe plus dans ton programme."));
   const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), avant = logs.filter(l => l.dateISO < iso);
   const cfg = reglages(), phase = +DB.get("sport-phase") || 0, douleurs = douleursRecentes(10);
-  const swaps = log?.swaps || {};
+  const swaps = (log || EN_ATTENTE[cleAjouts(iso, code)] || {}).swaps || {};
   // Exercices ajoutés en cours de séance : 3 séries de 10-12 par défaut, et la dernière charge connue, toutes séances confondues
-  const ajouts = log?.ajouts || AJOUTS_EN_ATTENTE[cleAjouts(iso, code)] || [];
+  const meta = log || EN_ATTENTE[cleAjouts(iso, code)] || {};
+  const ajouts = meta.ajouts || [], retires = meta.retires || [];
   const enPlus = ajouts.map(n => ({ nom: n, detail: "3×10-12", charges: [], note: "", ajoute: true }));
-  const exos = [...se.exercices, ...enPlus].map(ex => swaps[ex.nom] ? { ...ex, nom: swaps[ex.nom], orig: ex.nom, charges: [], note: "" } : ex);
+  const exos = [...se.exercices.filter(ex => !retires.includes(ex.nom)), ...enPlus].map(ex => swaps[ex.nom] ? { ...ex, nom: swaps[ex.nom], orig: ex.nom, charges: [], note: "" } : ex);
   const props = exos.map(ex => {
-    const p = proposition(avant, code, ex, phase, cfg), d = ex.ajoute && !p.weight ? dernierPartout(avant, ex.nom) : null;
-    return d ? { ...p, weight: cfg.deload ? Math.round(d.weight * .6 * 2) / 2 : d.weight, reps: d.reps || p.reps, src: "phase" } : p;
+    let p = proposition(avant, code, ex, phase, cfg);
+    // Assisté : l'historique sans contrepoids noté ne dit pas quelle charge était soulevée, on l'ignore
+    const hist = dernierExo(avant, code, ex.nom) || dernierPartout(avant, ex.nom);
+    if (estAssiste(ex.nom) && hist && !(hist.setsDetail || []).some(s => s.aide != null)) p = { ...p, weight: null, src: null, txt: null };
+    const d = (ex.ajoute || ex.orig) && !p.weight ? dernierPartout(avant, ex.nom) : null;
+    return d && !(estAssiste(ex.nom) && !(d.setsDetail || []).some(s => s.aide != null)) ? { ...p, weight: cfg.deload ? Math.round(d.weight * .6 * 2) / 2 : d.weight, reps: d.reps || p.reps, src: "phase" } : p;
   });
   const ajouter = nom => {
     if (exos.some(ex => ex.nom === nom || ex.orig === nom)) return toast(nom + " est déjà dans la séance");
-    if (log) majSeance(iso, code, l => ({ ...l, ajouts: [...(l.ajouts || []), nom] }));
-    else { const k = cleAjouts(iso, code); AJOUTS_EN_ATTENTE[k] = [...(AJOUTS_EN_ATTENTE[k] || []), nom]; redessine(x => x + 1); }
-    setOuvert(exos.length);
+    if (retires.includes(nom)) { modifSeance(iso, code, m => ({ retires: (m.retires || []).filter(x => x !== nom) })); setOuvert(null); }
+    else { modifSeance(iso, code, m => ({ ajouts: [...(m.ajouts || []), nom] })); setOuvert(exos.length); }  // la carte du nouvel exercice s'ouvre
+    redessine(x => x + 1);
     toast(nom + " ajouté à la séance");
   };
-  const retirer = nom => {
-    if (log) majSeance(iso, code, l => ({ ...l, ajouts: (l.ajouts || []).filter(x => x !== nom) }));
-    const k = cleAjouts(iso, code); if (AJOUTS_EN_ATTENTE[k]) AJOUTS_EN_ATTENTE[k] = AJOUTS_EN_ATTENTE[k].filter(x => x !== nom);
+  // Retirer : un exercice ajouté disparaît ; un exercice du programme est mis de côté pour aujourd'hui (on peut le remettre)
+  const retirer = ex => {
+    const nom = ex.orig || ex.nom;
+    modifSeance(iso, code, m => ex.ajoute ? { ajouts: (m.ajouts || []).filter(x => x !== nom) } : { retires: [...(m.retires || []), nom] });
     setOuvert(null); redessine(x => x + 1);
+    toast(ex.nom + " retiré de la séance d'aujourd'hui");
   };
+  const remettre = nom => { modifSeance(iso, code, m => ({ retires: (m.retires || []).filter(x => x !== nom) })); redessine(x => x + 1); };
   const fait = ex => { const e = log?.exercices?.find(x => x.nom === ex.nom); return e ? seriesDe(e) : 0; };
   const total = props.reduce((a, p) => a + (p.sets || 3), 0), faites = exos.reduce((a, ex, i) => a + Math.min(fait(ex), props[i].sets || 3), 0);
   const courant = ouvert ?? exos.findIndex((ex, i) => fait(ex) < (props[i].sets || 3));
@@ -180,6 +220,7 @@ function FeuilleSeance({ iso, prog, code }) {
       cfg.deload && h("p.bandeau", "Semaine légère : charges −40 %, les records ne comptent pas."),
       r?.score != null && iso === aujourdhui() && h("button.bandeau", { onClick: () => Nav.sheet("forme") }, h("b", "Forme " + r.score + ". "), r.conseil),
       exos.map((ex, i) => h(CarteExo, { key: ex.nom + i, ex, i, ouvert: courant === i, setOuvert, iso, code, log, prop: props[i], avant, douleurs, record: cfg.deload ? Infinity : meilleureCharge(avant, ex.nom) || Infinity, suivant: k => setOuvert(k + 1 < exos.length ? k + 1 : null), retirer })),
+      retires.length > 0 && h("div.retires", h("small", "Retiré aujourd'hui"), retires.map(n => h("div.retire", { key: n }, h("span", n), h("button.mini", { onClick: () => remettre(n) }, "Remettre")))),
       h(Bouton, { cl: "contour", ico: "plus", onClick: () => { vibre(); Nav.sheet("bibliotheque", { choisir: nom => ajouter(nom) }); } }, "Ajouter un exercice"),
       se.finisher && h("button.finisher", { className: log?.finisher ? "fait" : "", onClick: () => majSeance(iso, code, l => ({ ...l, finisher: !l.finisher })) }, h("i", h(Icone, { n: "check", t: 16 })), h("span", h("small", "Pour finir"), h("b", se.finisher))),
       h(Bouton, { cl: "plein grand", onClick: terminer }, faites >= total ? "Terminer la séance" : "Terminer maintenant")));
@@ -222,7 +263,7 @@ function FeuilleExercice({ nom, orig, iso, code, kg }) {
   const dansSeance = code ? (seanceParId(code)?.exercices || []).map(e => e.nom) : [];
   const dis = disquesPour(cible, barre), ech = echauffement(kg), subs = (SUBSTITUTIONS[orig || nom] || []).filter(a => !dansSeance.includes(a));
   const remplacer = async a => {
-    await majSeance(iso, code, l => ({ ...l, swaps: { ...(l.swaps || {}), [orig || nom]: a } }));
+    await modifSeance(iso, code, m => ({ swaps: { ...(m.swaps || {}), [orig || nom]: a } }));
     Nav.fermer();
     toast("Remplacé pour aujourd'hui : " + a);
   };
@@ -235,7 +276,8 @@ function FeuilleExercice({ nom, orig, iso, code, kg }) {
     pts.length >= 2 && h(Section, { titre: "Max estimé" }, h(Courbe, { pts, unite: "kg", ton: "sport" })),
     ech.length > 0 && code && h(Section, { titre: "Échauffement avant " + nb(kg) + " kg" }, h("p.ligne-simple", ech.map(s => nb(s.w) + " kg × " + s.r).join("  ·  "))),
     (subs.length > 0 && iso) && h(Section, { titre: "Remplacer pour aujourd'hui" }, h(Puces, null, subs.map(a => h(Puce, { key: a, onClick: () => remplacer(a) }, a)))),
-    orig && iso && h(Bouton, { cl: "contour", onClick: async () => { await majSeance(iso, code, l => { const s = { ...(l.swaps || {}) }; delete s[orig]; return { ...l, swaps: s }; }); Nav.fermer(); } }, "Revenir à " + orig),
+    iso && code && h(Bouton, { cl: "contour", ico: "liste", onClick: () => Nav.sheet("bibliotheque", { choisir: a => { if (a !== nom) remplacer(a); } }) }, "Remplacer par un autre exercice"),
+    orig && iso && h(Bouton, { cl: "contour", onClick: async () => { await modifSeance(iso, code, m => { const s = { ...(m.swaps || {}) }; delete s[orig]; return { swaps: s }; }); Nav.fermer(); } }, "Revenir à " + orig),
     h(Section, { titre: "Disques par côté" },
       h("div.deux", h(Champ, { etiquette: "Charge", valeur: cible, unite: "kg", mode: "dec", pas: [2.5, 5], min: 0, onChange: setCible }),
         h(Puces, null, [20, 15, 10].map(b => h(Puce, { key: b, actif: barre === b, onClick: () => setBarre(b) }, "Barre " + b)))),

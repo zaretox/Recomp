@@ -577,6 +577,13 @@ Object.assign(SCHEMAS, {
     effort: [{ art: "epaule", nom: "Épaule · pecs et triceps", point: "main" }], charge: { t: "haut" }, etire: 1,
     analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Les dips font travailler fortement le triceps et les pecs. Buste droit, la part du triceps augmente. Le plus dur est en bas : arrête-toi bras à angle droit." },
   },
+  "Dips assistés": {
+    legende: "Dips assistés vus de profil : genoux sur la plateforme à contrepoids, on descend jusqu'à bras à angle droit puis on pousse.",
+    depart: { ancre: "mains", main: [100, 80], torse: 176, cuisse: [26, 22], tibia: [-84, -88], pied: 10, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { torse: 168, bras: -78, avbras: 6 },
+    objets: [{ t: "boudin", sur: "genou" }], decor: [{ t: "barres", x: 100, y: 82 }, SOL], muscle: ["triceps", "pecs"], fleche: { suit: "epaule", decale: [22, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · pecs et triceps", point: "main", note: "Le contrepoids allège toute la courbe sans en changer la forme." }], charge: { t: "haut" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Même travail que des dips, avec une partie du poids du corps retirée par le contrepoids. La charge réellement soulevée est ton poids moins le contrepoids : c'est elle que l'app suit pour tes progrès." },
+  },
   "Dips entre deux bancs": {
     legende: "Dips au banc vus de profil : mains sur le bord du banc derrière soi, jambes tendues devant, on descend en pliant les coudes.",
     depart: { ancre: "mains", main: [70, 120], torse: 180, cuisse: [90, 86], tibia: [76, 72], pied: 160, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { bras: -64, avbras: 4, cuisse: [80, 76], tibia: [84, 80] },
