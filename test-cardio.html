@@ -173,18 +173,57 @@
   let dernierHex = "";
   // Diagnostic : on compte et on décrit tous les signaux reçus, même ceux qu'on ne sait pas décoder
   let recus = 0, decrits = 0;
-  const cles = m => { const o = []; try { m && m.forEach((v, k) => o.push((typeof k === "number" ? "0x" + k.toString(16).padStart(4, "0") : k) + " = " + (v && v.byteLength != null ? hex(v) : String(v)))); } catch (e) { o.push("illisible : " + decrire(e)); } return o; };
+  // Les navigateurs ne rangent pas tous les données de la même façon : table (norme), objet simple, octets bruts, texte…
+  const enOctets = v => {
+    if (v == null) return null;
+    if (v instanceof DataView) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    if (v instanceof ArrayBuffer) return new Uint8Array(v);
+    if (ArrayBuffer.isView(v)) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+    if (Array.isArray(v)) return Uint8Array.from(v);
+    if (typeof v === "string") {
+      const s = v.replace(/[\s:<>-]/g, "");
+      if (/^[0-9a-f]+$/i.test(s) && s.length % 2 === 0) return Uint8Array.from(s.match(/../g).map(x => parseInt(x, 16)));
+      try { return Uint8Array.from(atob(v), c => c.charCodeAt(0)); } catch (e) { return null; }
+    }
+    if (typeof v === "object" && v.buffer instanceof ArrayBuffer) return new Uint8Array(v.buffer);
+    if (typeof v === "object") { const k = Object.keys(v); if (k.length && k.every(x => /^\d+$/.test(x) && typeof v[x] === "number")) return Uint8Array.from(k.sort((a, b) => a - b).map(x => v[x])); }
+    return null;
+  };
+  const hexO = u => Array.from(u).map(b => b.toString(16).padStart(2, "0")).join(" ");
+  // Liste de [clé, octets] quelle que soit la forme
+  const entrees = m => {
+    if (m == null) return [];
+    if (typeof m.forEach === "function" && typeof m.get === "function") { const o = []; m.forEach((v, k) => o.push([k, enOctets(v)])); return o; }
+    const brut = enOctets(m);
+    if (brut && !(typeof m === "object" && !ArrayBuffer.isView(m) && !(m instanceof ArrayBuffer) && !Array.isArray(m) && Object.keys(m).some(k => !/^\d+$/.test(k)))) return [["brut", brut]];
+    if (typeof m === "object") return Object.keys(m).map(k => [k, enOctets(m[k])]);
+    return [];
+  };
+  const forme = m => { try { return (m === null ? "null" : typeof m) + " " + Object.prototype.toString.call(m) + (m && typeof m === "object" ? " clés : " + Object.keys(m).slice(0, 6).join(",") : ""); } catch (e) { return "?"; } };
+  const cles = m => entrees(m).map(([k, u]) => (typeof k === "number" ? "0x" + k.toString(16).padStart(4, "0") : k) + " = " + (u ? hexO(u) : "illisible"));
+  // Les octets Polar : sous la clé 0x006B (107), ou en brut précédés de « 6b 00 »
+  const octetsPolar = m => {
+    for (const [k, u] of entrees(m)) {
+      if (!u || !u.length) continue;
+      const kn = typeof k === "number" ? k : /^0x/i.test(k) ? parseInt(k, 16) : /^\d+$/.test(k) ? +k : /^[0-9a-f]{2,4}$/i.test(k) ? parseInt(k, 16) : null;
+      if (kn === POLAR) return u;
+      if (u.length > 2 && u[0] === 0x6b && u[1] === 0x00) return u.subarray(2);
+    }
+    return null;
+  };
   const recevoir = ev => {
     recus++;
     $("recus").textContent = recus;
     if (decrits < 8) {
       decrits++;
+      if (decrits === 1) journal("Forme des données constructeur : " + forme(ev.manufacturerData) + " · de service : " + forme(ev.serviceData));
       const fab = cles(ev.manufacturerData), serv = cles(ev.serviceData);
       journal("Signal n°" + recus + (ev.rssi != null ? " (force " + ev.rssi + " dBm)" : "") + " · constructeur : " + (fab.join(" ; ") || "aucune donnée") + " · services : " + (serv.join(" ; ") || "aucune donnée") + (ev.uuids && ev.uuids.length ? " · uuids : " + ev.uuids.join(", ") : ""));
     }
-    const d = ev.manufacturerData && ev.manufacturerData.get(POLAR);
-    if (!d || !d.byteLength) return;
-    const h = hex(d), bpm = d.getUint8(d.byteLength - 1);
+    let u = null;
+    try { u = octetsPolar(ev.manufacturerData); } catch (e) { if (decrits < 9) journal("Lecture impossible : " + decrire(e)); }
+    if (!u || !u.length) return;
+    const h = hexO(u), bpm = u[u.length - 1];
     if (h !== dernierHex && n < 5) journal("Signal Polar : " + h + " → " + bpm + " bpm");
     dernierHex = h;
     if (bpm < 25 || bpm > 240) return;
