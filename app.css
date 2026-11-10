@@ -143,7 +143,7 @@ h1, h2, h3, p { margin: 0; }
 .bouton.occupe { opacity: .6; }
 .lien { display: inline-flex; align-items: center; gap: 2px; font-size: 13px; font-weight: 700; color: var(--mou); }
 .puces { display: flex; flex-wrap: wrap; gap: 6px; }
-.puces.defile { flex-wrap: nowrap; overflow-x: auto; margin: 0 calc(var(--gout) * -1); padding: 0 var(--gout); }
+.puces.defile { flex-wrap: nowrap; overflow-x: auto; overflow-y: hidden; min-height: 40px; margin: 0 calc(var(--gout) * -1); padding: 0 var(--gout); }
 .puce { flex: none; min-height: 38px; padding: 0 14px; border-radius: 999px; background: var(--fond3); color: var(--encre); font-size: 14px; font-weight: 700; white-space: nowrap; transition: background .15s, color .15s; }
 .puce.actif { background: var(--encre); color: var(--fond); }
 .feuille[data-t] .puce.actif, .page:not([data-t="jour"]) .puce.actif { background: var(--ton); color: var(--sur); }

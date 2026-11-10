@@ -88,13 +88,19 @@ function FeuilleBibliotheque({ choisir, onglet }) {
     h(Puces, { defile: true }, ["Tous", ...MUSCLES].map(m => h(Puce, { key: m, actif: mu === m, onClick: () => setMu(m) }, m))),
     choisir && q.trim() && !tous.some(([n]) => sansAccent(n) === ql) && h(Bouton, { cl: "contour", onClick: () => setCreer(q.trim()) }, "Créer « " + q.trim() + " »"),
     h("p.note", pluriel(liste.length, "exercice")),
-    h("div.liste", liste.map(([n, m]) => {
-      const fiche = ficheDe(n);
-      return h("div.ligne-biblio", { key: n },
-        h("button.ligne", { onClick: () => choisir ? pris(n, m) : fiche ? Nav.sheet("fiche", { nom: n }) : null },
-          h("span", n, h("small", m + (fiche?.mat ? " · " + fiche.mat : ""))), !choisir && fiche && h(Icone, { n: "fleche", t: 16 })),
-        choisir && fiche && h("button.rond.petit", { onClick: () => Nav.sheet("fiche", { nom: n }), "aria-label": "Comment faire " + n }, h(Icone, { n: "liste", t: 16 })));
-    })));
+    // Rangés par groupe musculaire, dans l'ordre du corps ; les exercices perso sans muscle connu à la fin
+    [...MUSCLES, null].map(g => {
+      const du = liste.filter(([, m]) => g ? m === g : !MUSCLES.includes(m));
+      if (!du.length) return null;
+      return h(Section, { key: g || "autres", titre: g || "Autres", droite: h("span.compte", du.length) },
+        h("div.liste", du.map(([n, m]) => {
+          const fiche = ficheDe(n);
+          return h("div.ligne-biblio", { key: n },
+            h("button.ligne", { onClick: () => choisir ? pris(n, m) : fiche ? Nav.sheet("fiche", { nom: n }) : null },
+              h("span", n, fiche?.mat && h("small", fiche.mat)), !choisir && fiche && h(Icone, { n: "fleche", t: 16 })),
+            choisir && fiche && h("button.rond.petit", { onClick: () => Nav.sheet("fiche", { nom: n }), "aria-label": "Comment faire " + n }, h(Icone, { n: "liste", t: 16 })));
+        })));
+    }));
   const techs = h(Fragment, null,
     h("p.texte-p", "Des façons de rendre une série plus difficile sans forcément ajouter de charge. ", h("b", "Une ou deux par séance suffisent"), ", sur les derniers exercices."),
     CATEGORIES_TECH.map(c => h(Section, { key: c, titre: c },
