@@ -44,10 +44,10 @@ async function delierPolar() {
 }
 
 /* Lecture d'une donnée AccessLink */
-async function polarLire(chemin, methode = "GET") {
+async function polarLire(chemin, methode = "GET", params) {
   const l = lienPolar();
   if (!l?.jeton) throw new Error("montre non reliée");
-  const r = await fetch(POLAR_FN + "?action=api&chemin=" + encodeURIComponent(chemin), { method: methode, cache: "no-store", headers: { Authorization: "Bearer " + l.jeton } });
+  const r = await fetch(POLAR_FN + "?action=api&chemin=" + encodeURIComponent(chemin) + (params ? "&" + new URLSearchParams(params) : ""), { method: methode, cache: "no-store", headers: { Authorization: "Bearer " + l.jeton } });
   if (r.status === 401 || r.status === 403) throw new Error(r.status === 403 ? "Polar demande d'accepter ses conditions dans Polar Flow" : "liaison expirée : relie à nouveau ta montre");
   if (r.status === 204 || r.status === 404) return null;
   if (!r.ok) throw new Error("Polar a répondu " + r.status);
@@ -69,3 +69,110 @@ async function matinPolar(jour) {
     dates: [r?.date, s?.date].filter(Boolean),
   };
 }
+
+/* SORTIES — séances enregistrées par la montre (parcours, distance, FC), copiées dans « polar-seances ».
+ * Polar ne garde que 30 jours et seulement les séances synchronisées après la liaison : on importe tout ce qui est nouveau. */
+const sortiesPolar = () => DB.get("polar-seances").filter(s => !s.supprime);
+const dureeIso = d => { const m = /^PT(?:([\d.]+)H)?(?:([\d.]+)M)?(?:([\d.]+)S)?$/.exec(d || ""); return m ? (+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0) : 0; };
+
+const NOMS_SPORT = {
+  RUNNING: "Course", ROAD_RUNNING: "Course sur route", TRAIL_RUNNING: "Trail", TREADMILL_RUNNING: "Course sur tapis", TRACK_AND_FIELD_RUNNING: "Course sur piste",
+  WALKING: "Marche", NORDIC_WALKING: "Marche nordique", HIKING: "Randonnée", CYCLING: "Vélo", ROAD_BIKING: "Vélo de route", MOUNTAIN_BIKING: "VTT",
+  INDOOR_CYCLING: "Vélo d'intérieur", SWIMMING: "Natation", POOL_SWIMMING: "Natation en piscine", OPEN_WATER_SWIMMING: "Nage en eau libre",
+  STRENGTH_TRAINING: "Musculation", CIRCUIT_TRAINING: "Circuit training", CORE: "Gainage", YOGA: "Yoga", ROWING: "Aviron", INDOOR_ROWING: "Rameur",
+  FUNCTIONAL_TRAINING: "Entraînement fonctionnel", OTHER_INDOOR: "Activité en salle", OTHER_OUTDOOR: "Activité en extérieur", OTHER: "Autre activité",
+};
+const nomSortie = s => NOMS_SPORT[s.detail] || NOMS_SPORT[s.sport] || (x => x.charAt(0) + x.slice(1).toLowerCase())(String(s.detail || s.sport || "Activité").replace(/_/g, " "));
+// Famille : décide de l'affichage (allure au km, vitesse, allure aux 100 m)
+const familleSortie = s => { const t = (s.sport || "") + " " + (s.detail || ""); return /SWIM/.test(t) ? "nage" : /RUN/.test(t) ? "course" : /WALK|HIK/.test(t) ? "marche" : /CYCL|BIK/.test(t) ? "velo" : "autre"; };
+const COURT_SORTIE = { course: "Course", marche: "Marche", velo: "Vélo", nage: "Nage", autre: "Polar" };
+
+/* Échantillons : « 0,100,102,… » enregistrés toutes les r secondes */
+const lireEchantillons = l => {
+  const o = {};
+  (l || []).forEach(x => { o[+x["sample-type"]] = { r: +x["recording-rate"] || 1, v: String(x.data || "").split(",").map(y => y === "" || y === "NULL" ? null : +y) }; });
+  return o;
+};
+// Moyennes par paquets : au plus `max` points, assez pour une courbe sur téléphone
+function reduire(e, max = 300) {
+  const k = Math.max(1, Math.ceil(e.v.length / max)), v = [];
+  for (let i = 0; i < e.v.length; i += k) {
+    const p = e.v.slice(i, i + k).filter(x => x != null && isFinite(x));
+    v.push(p.length ? arrondi(p.reduce((a, x) => a + x, 0) / p.length, 1) : null);
+  }
+  return { pas: e.r * k, v };
+}
+// Dénivelé positif, avec un seuil de 4 m pour ne pas compter le bruit de l'altitude GPS
+function denivele(v) {
+  let total = 0, ref = null;
+  for (const a of v) {
+    if (a == null) continue;
+    if (ref == null || a < ref) ref = a;
+    else if (a - ref >= 4) { total += a - ref; ref = a; }
+  }
+  return Math.round(total);
+}
+// Tours au km : temps et FC moyenne de chaque kilomètre, d'après la distance cumulée
+function toursAuKm(dist, fc) {
+  const tps = [], tours = [], d = dist.v;
+  const temps = m => {
+    for (let i = 1; i < d.length; i++) if (d[i] != null && d[i] >= m) {
+      const a = d[i - 1] ?? d[i], f = d[i] > a ? (m - a) / (d[i] - a) : 1;
+      return (i - 1 + f) * dist.r;
+    }
+    return null;
+  };
+  const fin = d.filter(x => x != null).pop() || 0;
+  for (let k = 1; k * 1000 <= fin; k++) tps.push(temps(k * 1000));
+  const fcEntre = (a, b) => { if (!fc) return null; const p = fc.v.slice(Math.floor(a / fc.r), Math.ceil(b / fc.r)).filter(x => x > 0); return p.length ? Math.round(p.reduce((s, x) => s + x, 0) / p.length) : null; };
+  let avant = 0;
+  tps.forEach((t, i) => { if (t == null) return; tours.push({ km: i + 1, s: Math.round(t - avant), fc: fcEntre(avant, t) }); avant = t; });
+  const reste = fin - tps.length * 1000, total = (d.length - 1) * dist.r;
+  if (reste >= 100 && total > avant) tours.push({ km: arrondi(fin / 1000, 2), m: Math.round(reste), s: Math.round(total - avant), fc: fcEntre(avant, total) });
+  return tours;
+}
+// Parcours allégé (Douglas-Peucker, environ 4 m de précision) : [[lat, lon], …]
+function alleger(route) {
+  const p = (route || []).filter(x => x.latitude != null && x.longitude != null && (x.latitude || x.longitude));
+  if (p.length < 3) return p.map(x => [arrondi(x.latitude, 5), arrondi(x.longitude, 5)]);
+  const c = Math.cos(p[0].latitude * Math.PI / 180), X = x => x.longitude * 111320 * c, Y = x => x.latitude * 110540;
+  const garde = new Uint8Array(p.length); garde[0] = garde[p.length - 1] = 1;
+  const pile = [[0, p.length - 1]];
+  while (pile.length) {
+    const [a, b] = pile.pop(), ax = X(p[a]), ay = Y(p[a]), dx = X(p[b]) - ax, dy = Y(p[b]) - ay, l = Math.hypot(dx, dy) || 1;
+    let m = -1, dm = 4;
+    for (let i = a + 1; i < b; i++) { const e = Math.abs(dy * (X(p[i]) - ax) - dx * (Y(p[i]) - ay)) / l; if (e > dm) { dm = e; m = i; } }
+    if (m > 0) { garde[m] = 1; pile.push([a, m], [m, b]); }
+  }
+  return p.filter((_, i) => garde[i]).map(x => [arrondi(x.latitude, 5), arrondi(x.longitude, 5)]);
+}
+
+function sortieDepuisPolar(d) {
+  const e = lireEchantillons(d.samples), fc = e[0], vit = e[1], alt = e[3], dist = e[10];
+  const distFin = dist ? dist.v.filter(x => x != null).pop() : null;
+  return {
+    id: d.id, debut: d.start_time || null, dateISO: (d.start_time || aujourdhui()).slice(0, 10), sport: d.sport || "OTHER", detail: d.detailed_sport_info || null,
+    duree: Math.round(dureeIso(d.duration)), distance: d.distance ?? distFin ?? null, kcal: d.calories ?? null,
+    fcMoy: d.heart_rate?.average ?? null, fcMax: d.heart_rate?.maximum ?? null, charge: d.training_load != null ? Math.round(d.training_load) : null,
+    appareil: d.device || null, deniv: alt ? denivele(alt.v) : null, trace: alleger(d.route),
+    fc: fc ? reduire(fc) : null, vit: vit ? reduire(vit) : null, alt: alt ? reduire(alt) : null, tours: dist ? toursAuKm(dist, fc) : [],
+    zones: (d.heart_rate_zones || []).map(z => ({ i: z.index, bas: z["lower-limit"], haut: z["upper-limit"], s: Math.round(dureeIso(z["in-zone"])) })),
+    importe: aujourdhui(),
+  };
+}
+
+/* Importe les séances nouvelles. Renvoie leur nombre. */
+async function importerSortiesPolar() {
+  const l = await polarLire("/v3/exercises"), liste = Array.isArray(l) ? l : l?.exercises || [];
+  const deja = new Set(DB.get("polar-seances").map(s => s.id)), neuves = [];
+  for (const x of liste) {
+    if (!x?.id || deja.has(x.id)) continue;
+    const d = await polarLire("/v3/exercises/" + x.id, "GET", { samples: true, zones: true, route: true });
+    if (d) neuves.push(sortieDepuisPolar({ ...x, ...d }));
+  }
+  try { localStorage.setItem("recomp_polar_import", String(Date.now())); } catch (e) { /* facultatif */ }
+  if (neuves.length) await DB.set("polar-seances", [...DB.get("polar-seances"), ...neuves].sort((a, b) => (b.debut || "").localeCompare(a.debut || "")));
+  return neuves.length;
+}
+// Retirer de RECOMP : on garde l'identifiant pour ne pas la réimporter
+const retirerSortie = id => avecAnnuler("polar-seances", DB.get("polar-seances").map(s => s.id === id ? { id, supprime: true } : s), "Séance retirée");

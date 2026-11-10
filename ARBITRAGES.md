@@ -74,6 +74,7 @@
 | Comparateur de photos | Applis de suivi | Un trait à faire glisser entre deux dates. |
 | Écran toujours allumé | Strong | Pendant la séance, le téléphone ne se verrouille plus. Non vérifié sur iPhone. |
 | Thèmes Nuit et Papier | — | Nuit par défaut, Papier pour retrouver le clair. |
+| Sorties de la montre | Strava, Polar Flow | Parcours sur carte, km, allure, FC, zones, tours au km. Import à la demande ou tout seul en ouvrant Sport (au plus toutes les 30 min). N'entre pas dans le score de forme. Le fond de carte (OpenStreetMap) demande du réseau ; le tracé s'affiche sans. |
 | Saisie du matin depuis Polar | Polar Flow | Un bouton lit la Recharge nocturne (SNA, VFC, FC) et le sommeil. Validé par Aurélien : les données passent par une fonction Netlify à lui, qui ne garde rien ; le jeton reste sur le téléphone. |
 
 ## Écarté

@@ -18,7 +18,7 @@ const FEUILLES = {
   programmes: FeuilleProgrammes, import: FeuilleImport, editeur: FeuilleEditeur, bibliotheque: FeuilleBibliotheque, fiche: FeuilleFiche, technique: FeuilleTechnique,
   repas: FeuilleRepas, equivalents: FeuilleEquivalents, aliment: FeuilleAliment, calories: FeuilleCalories, courses: FeuilleCourses,
   operation: FeuilleOperation, fixes: FeuilleFixes, mensurations: FeuilleMensurations, photos: FeuillePhotos, bilans: FeuilleBilans,
-  capture: FeuilleCapture, reglages: FeuilleReglages,
+  capture: FeuilleCapture, reglages: FeuilleReglages, sorties: FeuilleSorties, sortie: FeuilleSortie,
 };
 
 /* Pastille de repos, visible partout quand la séance est réduite */

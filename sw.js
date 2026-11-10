@@ -34,6 +34,7 @@ const FICHIERS = [
   "./ecran-programmes.js",
   "./ecran-repas.js",
   "./ecran-argent.js",
+  "./ecran-sorties.js",
   "./corps.js",
   "./reglages.js",
   "./app.js",

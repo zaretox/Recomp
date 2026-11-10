@@ -39,8 +39,9 @@ function SemaineSport() {
   return h("div.sem-sport", ORDRE_JOURS.map((_, i) => {
     const d = decale(lundi, i), p = seanceDuJour(d, prog), n = nagePrevue(d);
     const l = DB.get("sport-logs").find(x => x.dateISO === d), m = DB.get("maison-logs").find(x => x.dateISO === d), sw = DB.get("natation-logs").find(x => x.dateISO === d);
-    const label = l?.seance || (m ? "Maison " + m.seance : null) || p?.code || (n || sw ? "Nage" : "—"), fait = !!(l || m || sw);
-    return h("button", { key: d, className: (fait ? "fait " : "") + (d === auj ? "auj" : ""), onClick: () => l ? Nav.sheet("seanceDetail", { id: l.id }) : p ? ouvrirSeance(d, p) : n || sw ? Nav.sheet("natation") : null },
+    const po = sortiesPolar().find(x => x.dateISO === d);
+    const label = l?.seance || (m ? "Maison " + m.seance : null) || p?.code || (n || sw ? "Nage" : po ? COURT_SORTIE[familleSortie(po)] : "—"), fait = !!(l || m || sw || po);
+    return h("button", { key: d, className: (fait ? "fait " : "") + (d === auj ? "auj" : ""), onClick: () => l ? Nav.sheet("seanceDetail", { id: l.id }) : p ? ouvrirSeance(d, p) : n || sw ? Nav.sheet("natation") : po ? Nav.sheet("sortie", { id: po.id }) : null },
       h("small", JOURS[jourSem(d)]), h("b", label.replace("Maison ", "")));
   }));
 }
@@ -73,11 +74,12 @@ function EcranSport() {
   const vol = n => Math.round(logs.filter(l => { const e = ecart(l.dateISO, auj); return e >= n * 7 && e < (n + 1) * 7; }).reduce((a, l) => a + volumeSeance(l), 0));
   const v0 = vol(0), v1 = vol(1), rec = recordsDe(logs.filter(l => dansLes(l.dateISO, 30)));
   const barres = Array.from({ length: 8 }, (_, i) => { const n = 7 - i; return { l: n === 0 ? "Cette" : "S−" + n, v: Math.round(vol(n) / 1000 * 10) / 10 }; });
-  const hist = [...logs.map(l => ({ ...l, _t: "s" })), ...DB.get("maison-logs").map(l => ({ ...l, _t: "m" })), ...DB.get("natation-logs").map(l => ({ ...l, _t: "n" }))].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || b.id - a.id);
+  const hist = [...logs.map(l => ({ ...l, _t: "s" })), ...DB.get("maison-logs").map(l => ({ ...l, _t: "m" })), ...DB.get("natation-logs").map(l => ({ ...l, _t: "n" })), ...sortiesPolar().map(l => ({ ...l, _t: "p" }))].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || (b.id - a.id) || 0);
   return h("div.page", { "data-t": "sport" },
     h(HeroSport),
     h("div.corps-p",
       h(Section, { titre: "Ta semaine" }, h(SemaineSport)),
+      h(SectionSorties),
       h(Section, { titre: "Organisation" },
         h(Rangee, { ico: "nage", titre: "Natation", sous: "Séances types, records", onClick: () => Nav.sheet("natation") }),
         h(Rangee, { ico: "bulle", titre: "Bibliothèque", sous: EXO_LIB.length + " exercices expliqués, " + TECHNIQUES.length + " techniques", onClick: () => Nav.sheet("bibliotheque") }),
@@ -93,9 +95,9 @@ function EcranSport() {
         h("div.interrupteurs",
           h(Interrupteur, { actif: cfg.deload, titre: "Semaine légère", sous: "Charges −40 %, même nombre de séries", onClick: () => DB.set("science-config", { ...cfg, deload: !cfg.deload }) }),
           h(Interrupteur, { actif: cfg.recovery, titre: "Mode récup", sous: "Aucune hausse de charge. Automatique si ta forme passe sous 50", onClick: () => DB.set("science-config", { ...cfg, recovery: !cfg.recovery }) }))),
-      h(Section, { titre: "Historique" }, hist.length ? hist.slice(0, 12).map(l => h("button.ligne", { key: l._t + l.id, onClick: () => l._t === "s" ? Nav.sheet("seanceDetail", { id: l.id }) : l._t === "n" ? Nav.sheet("natation") : ouvrirSeance(l.dateISO, { prog: "maison", code: l.seance }) },
-        h("span", h("b", l._t === "s" ? l.seance : l._t === "m" ? "Maison " + l.seance : "Natation"), h("small", dateMini(l.dateISO))),
-        h("b", l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" : l._t === "n" ? entier(l.distance) + " m" : "")
+      h(Section, { titre: "Historique" }, hist.length ? hist.slice(0, 12).map(l => h("button.ligne", { key: l._t + l.id, onClick: () => l._t === "s" ? Nav.sheet("seanceDetail", { id: l.id }) : l._t === "n" ? Nav.sheet("natation") : l._t === "p" ? Nav.sheet("sortie", { id: l.id }) : ouvrirSeance(l.dateISO, { prog: "maison", code: l.seance }) },
+        h("span", h("b", l._t === "s" ? l.seance : l._t === "m" ? "Maison " + l.seance : l._t === "p" ? nomSortie(l) : "Natation"), h("small", dateMini(l.dateISO))),
+        h("b", l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" : l._t === "n" ? entier(l.distance) + " m" : l._t === "p" ? (l.distance > 0 ? kmDe(l.distance) + " km" : chrono(l.duree)) : "")
       )) : h(Vide, null, "Aucune séance pour l'instant."))));
 }
 const Interrupteur = ({ actif, titre, sous, onClick }) => h("button.inter", { className: actif ? "actif" : "", role: "switch", "aria-checked": !!actif, onClick: () => { vibre(); onClick(); } },

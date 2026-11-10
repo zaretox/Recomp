@@ -29,7 +29,7 @@ Tout est à la racine, sauf `vendor/` et `netlify/functions/`. Pas d'autre sous-
 | `app.css` | Tout le style, avec un sommaire en tête. |
 | `sw.js` | Hors ligne et mises à jour. |
 | `vendor/` | React 18 (ne pas toucher). |
-| `polar.js`, `polar-retour.html`, `netlify/functions/polar.mjs` | Liaison avec la montre Polar (service AccessLink). La fonction Netlify garde la clé secrète, lue dans les variables `POLAR_CLIENT_ID` et `POLAR_CLIENT_SECRET`, et ne stocke rien. `polar-retour.html` est la page où Polar renvoie après l'accord. |
+| `polar.js`, `polar-retour.html`, `netlify/functions/polar.mjs` | Liaison avec la montre Polar (service AccessLink). La fonction Netlify garde la clé secrète, lue dans les variables `POLAR_CLIENT_ID` et `POLAR_CLIENT_SECRET`, et ne stocke rien. `polar-retour.html` est la page où Polar renvoie après l'accord. `ecran-sorties.js` affiche les séances de la montre (carte OpenStreetMap, FC, allure, tours au km). |
 | `manifest.json` | Ton fichier, à garder dans le dépôt. |
 
 Deux noms ne doivent jamais se répéter : un fichier à la racine en écrase un autre du même nom.
@@ -60,7 +60,7 @@ Pousse les fichiers sur GitHub, Netlify publie. À l'ouverture suivante, l'app t
 
 Inchangées : `sport-logs`, `maison-logs`, `nutri-logs`, `food-log`, `foods-custom`, `mensurations`, `photos-index` + `photo:<id>`, `douleur-logs`, `budget-logs`, `fin-income`, `fin-expenses`, `fin-caps`, `fin-goal`, `nutri-cal-cfg`, `science-config`, `sport-phase`, `profil`, `repas-alts`, `taille-corps`, `last-export`, `programmes`, `exos-perso`, `natation-modeles`, `natation-logs`, `recup-logs`, `bilans`.
 
-Nouvelles clés : `fin-fixes` (charges fixes), `courses-etat` (liste de courses en cours) et `polar-lien` (jeton de la montre Polar : `{ jeton, utilisateur, depuis, expire }`, jamais mis dans la sauvegarde).
+Nouvelles clés : `fin-fixes` (charges fixes), `courses-etat` (liste de courses en cours) `polar-lien` (jeton de la montre Polar : `{ jeton, utilisateur, depuis, expire }`, jamais mis dans la sauvegarde) et `polar-seances` (séances importées de la montre : résumé, parcours allégé `trace`, courbes `fc`/`vit`/`alt` en `{ pas, v }`, `tours` au km, `zones` de FC ; une séance retirée devient `{ id, supprime: true }` pour ne pas revenir).
 
 Champs ajoutés, que l'ancienne version ignore : `startedAt`, `endedAt`, `swaps`, `finisher`, `ajouts` (exercices ajoutés en cours de séance), `retires` (exercices retirés pour la séance) dans `sport-logs`, et `aide` (contrepoids) et `pc` (poids du corps) dans les séries des exercices assistés, dont `w` est alors la charge soulevée ; `tags` dans `recup-logs` ; `mealScale` dans `nutri-logs` ; `fixId` dans `fin-expenses` ; `depense` dans `nutri-cal-cfg` ; `objectifKg` et `theme` dans `profil`.
 
