@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Test cardio</title>
+<style>
+  /* Page de test séparée de l'app : vérifie que la montre envoie sa fréquence cardiaque en Bluetooth. Rien n'est enregistré. */
+  :root { --fond: #0E0E0C; --fond2: #191916; --fond3: #26261F; --encre: #F5F3EB; --mou: #B4B2A6; --pale: #827F73; --sport: #FF5A2B; --vert: #2FD07E; --rouge: #FF4D4D; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fond); color: var(--encre); font-family: system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; }
+  main { max-width: 480px; margin: 0 auto; padding: calc(20px + env(safe-area-inset-top)) 16px calc(32px + env(safe-area-inset-bottom)); display: grid; gap: 16px; }
+  h1 { margin: 0; font: 900 40px/1 Impact, "Arial Narrow Bold", sans-serif; text-transform: uppercase; letter-spacing: .01em; }
+  p { margin: 0; line-height: 1.45; color: var(--mou); }
+  ol { margin: 0; padding-left: 22px; display: grid; gap: 8px; line-height: 1.45; }
+  .carte { padding: 14px; border-radius: 10px; background: var(--fond2); display: grid; gap: 10px; }
+  .carte b { color: var(--encre); }
+  button { font: inherit; font-weight: 800; border: 0; border-radius: 10px; padding: 15px 18px; cursor: pointer; }
+  .plein { background: var(--sport); color: var(--fond); font-size: 17px; }
+  .contour { background: var(--fond3); color: var(--encre); }
+  button:disabled { opacity: .45; }
+  .cardio { display: none; text-align: center; padding: 22px 14px; border-radius: 10px; background: var(--fond2); }
+  .cardio.ok { display: block; }
+  .bpm { font: 900 112px/1 Impact, "Arial Narrow Bold", sans-serif; font-variant-numeric: tabular-nums; }
+  .bpm small { font-size: 28px; color: var(--mou); margin-left: 6px; }
+  .coeur { color: var(--sport); display: inline-block; animation: bat 1s infinite; }
+  @keyframes bat { 0%, 100% { transform: scale(1); } 15% { transform: scale(1.18); } }
+  .etat { font-weight: 800; }
+  .etat.bon { color: var(--vert); }
+  .etat.mauvais { color: var(--rouge); }
+  .infos { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .infos div { padding: 10px; border-radius: 8px; background: var(--fond3); }
+  .infos b { display: block; font-size: 20px; }
+  .infos span { font-size: 12px; color: var(--mou); }
+  pre { margin: 0; padding: 12px; border-radius: 10px; background: var(--fond2); color: var(--mou); font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; max-height: 260px; overflow: auto; }
+  h2 { margin: 6px 0 0; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--pale); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Test cardio</h1>
+  <p>Cette page vérifie seulement que ta montre envoie ta fréquence cardiaque en Bluetooth. Elle n'enregistre rien et ne touche pas à tes données RECOMP.</p>
+
+  <div class="carte">
+    <ol>
+      <li>Dans l'app <b>Polar Flow</b> : profils sportifs, ouvre le profil que tu utilises en musculation, et active l'option qui rend la <b>fréquence cardiaque visible pour d'autres appareils</b> (dans ses réglages de fréquence cardiaque). Synchronise la montre.</li>
+      <li>Sur la montre, <b>lance une séance</b> avec ce profil.</li>
+      <li>Ouvre cette page dans <b>Bluefy</b>, puis touche « Connecter ma montre » et choisis ta Polar dans la liste.</li>
+    </ol>
+  </div>
+
+  <p class="etat" id="etat">Prêt.</p>
+  <button class="plein" id="connecter">Connecter ma montre</button>
+  <button class="contour" id="tous">Ma montre n'apparaît pas : voir tous les appareils</button>
+
+  <div class="cardio" id="cardio">
+    <div class="bpm"><span class="coeur">♥</span> <span id="bpm">--</span><small>bpm</small></div>
+    <div class="infos">
+      <div><b id="appareil">—</b><span>appareil</span></div>
+      <div><b id="nb">0</b><span>mesures reçues</span></div>
+      <div><b id="rr">—</b><span>dernier intervalle R-R</span></div>
+      <div><b id="duree">0 s</b><span>depuis la connexion</span></div>
+    </div>
+  </div>
+
+  <h2>Journal du test</h2>
+  <pre id="journal"></pre>
+  <p>Si ça ne marche pas, envoie une capture de ce journal : il dit à quelle étape ça bloque.</p>
+</main>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const journal = (t, cls) => { const l = new Date().toLocaleTimeString("fr-FR") + "  " + t; $("journal").textContent = l + "\n" + $("journal").textContent; };
+  const etat = (t, cls) => { $("etat").textContent = t; $("etat").className = "etat " + (cls || ""); };
+  let appareil = null, n = 0, debut = 0, minuteur = null;
+
+  journal("Navigateur : " + navigator.userAgent);
+  if (!navigator.bluetooth) {
+    etat("Ce navigateur ne gère pas le Bluetooth.", "mauvais");
+    journal("navigator.bluetooth absent : sur iPhone, Safari ne le permet pas. Ouvre cette page dans Bluefy.");
+    $("connecter").disabled = true; $("tous").disabled = true;
+    return;
+  }
+  journal("Bluetooth web disponible dans ce navigateur.");
+
+  // Mesure de fréquence cardiaque (norme Bluetooth) : 1er octet = options, puis bpm sur 8 ou 16 bits, puis éventuels intervalles R-R (1/1024 s)
+  const lireMesure = dv => {
+    const options = dv.getUint8(0), bpm16 = options & 1, rrPresents = options & 16, energie = options & 8;
+    let i = 1;
+    const bpm = bpm16 ? dv.getUint16(i, true) : dv.getUint8(i); i += bpm16 ? 2 : 1;
+    if (energie) i += 2;
+    const rr = [];
+    if (rrPresents) for (; i + 1 < dv.byteLength; i += 2) rr.push(Math.round(dv.getUint16(i, true) / 1024 * 1000));
+    return { bpm, rr };
+  };
+
+  const brancher = async tous => {
+    try {
+      etat("Choisis ta montre dans la liste…");
+      journal(tous ? "Recherche de tous les appareils Bluetooth." : "Recherche des appareils qui diffusent une fréquence cardiaque.");
+      appareil = await navigator.bluetooth.requestDevice(tous
+        ? { acceptAllDevices: true, optionalServices: ["heart_rate", "battery_service"] }
+        : { filters: [{ services: ["heart_rate"] }], optionalServices: ["battery_service"] });
+      journal("Appareil choisi : " + (appareil.name || "(sans nom)"));
+      $("appareil").textContent = appareil.name || "—";
+      appareil.addEventListener("gattserverdisconnected", () => {
+        etat("Montre déconnectée. Relance une séance sur la montre si besoin, puis reconnecte.", "mauvais");
+        journal("Déconnexion.");
+        clearInterval(minuteur);
+      });
+      etat("Connexion…");
+      const serveur = await appareil.gatt.connect();
+      journal("Connecté.");
+      const service = await serveur.getPrimaryService("heart_rate");
+      journal("Service fréquence cardiaque trouvé.");
+      const mesure = await service.getCharacteristic("heart_rate_measurement");
+      mesure.addEventListener("characteristicvaluechanged", ev => {
+        const { bpm, rr } = lireMesure(ev.target.value);
+        n++;
+        $("bpm").textContent = bpm; $("nb").textContent = n;
+        if (rr.length) $("rr").textContent = rr[rr.length - 1] + " ms";
+        if (n === 1) { journal("Première mesure reçue : " + bpm + " bpm" + (rr.length ? ", intervalles R-R présents" : ", sans intervalle R-R")); etat("Ça marche : ta montre envoie ta fréquence cardiaque.", "bon"); }
+      });
+      await mesure.startNotifications();
+      journal("Abonné aux mesures, en attente…");
+      $("cardio").classList.add("ok");
+      debut = Date.now(); clearInterval(minuteur);
+      minuteur = setInterval(() => {
+        $("duree").textContent = Math.round((Date.now() - debut) / 1000) + " s";
+        if (n === 0 && Date.now() - debut > 10000) etat("Connecté, mais aucune mesure depuis 10 s : la séance est-elle bien lancée sur la montre ?", "mauvais");
+      }, 1000);
+      etat("Connecté. Attente de la première mesure…");
+    } catch (err) {
+      const msg = (err && (err.name + " : " + err.message)) || String(err);
+      journal("Erreur : " + msg);
+      if (err && err.name === "NotFoundError") etat("Aucun appareil choisi ou trouvé. Vérifie que la séance est lancée sur la montre et l'option activée dans Polar Flow.", "mauvais");
+      else if (err && /heart_rate|service/i.test(err.message || "")) etat("La montre est connectée mais ne propose pas de fréquence cardiaque. Vérifie l'option dans Polar Flow.", "mauvais");
+      else etat("Échec : " + msg, "mauvais");
+    }
+  };
+  $("connecter").onclick = () => brancher(false);
+  $("tous").onclick = () => brancher(true);
+})();
+</script>
+</body>
+</html>

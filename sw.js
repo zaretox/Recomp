@@ -91,6 +91,9 @@ self.addEventListener("fetch", e => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  // Seule la page de l'app passe par le cache ; les autres pages du site (page de test…) vont au réseau
+  const page = url.pathname.split("/").pop();
+  if (req.mode === "navigate" && page !== "" && page !== "index.html") return;
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       const cache = (await caches.match("./index.html")) || (await caches.match("./"));
