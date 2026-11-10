@@ -74,3 +74,15 @@ Courbes : rowings, rack pull, soulevé de terre et hyperextension calculés sur 
 | Tirage menton : prise large = plus de deltoïde et de trapèzes, moins de biceps. | McAllister et coll., 2013, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0b013e31824f23ad](https://doi.org/10.1519/JSC.0b013e31824f23ad) | 16 hommes entraînés, prises à 50, 100 et 200 % de la largeur des épaules. |
 
 Courbes : développés au-dessus de la tête lus de face, coudes sur les côtés (poids vertical). Élévations, oiseau, tirage araignée : poids vertical. Écarté inversé et face pull : câble, vus du dessus. Oiseau machine : bras de levier fixe. Tirage menton : effort au coude, qui porte la barre.
+
+## Bras
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Curl au pupitre : insister sur la première moitié (bras presque tendu) fait un peu plus grossir le bas du biceps. | Pedrosa et coll., 2023, *Sports*, [10.3390/sports11020039](https://doi.org/10.3390/sports11020039) | 19 jeunes femmes, 8 semaines, un bras 0–68°, l'autre 68–135° : plus de croissance à 70 % de la longueur du biceps (partie basse) avec l'amplitude initiale ; pareil à 50 %. |
+| Idem, avantage léger chez des pratiquants entraînés. | Havers et coll., 2025, *European Journal of Sport Science*, [10.1002/ejsc.70087](https://doi.org/10.1002/ejsc.70087) | 13 pratiquants entraînés, 8 semaines : avantage faible à 70 % ; pareil à 50 %. |
+| Paume vers le haut = plus de biceps ; paume vers le bas = plus de brachio-radial. | Chen et coll., 2025, *BMC Sports Science, Medicine and Rehabilitation*, [10.1186/s13102-025-01226-y](https://doi.org/10.1186/s13102-025-01226-y) | 36 hommes, flexion isométrique : biceps plus actif en supination, brachio-radial en pronation. |
+| Extension bras au-dessus de la tête : plus de croissance de la longue portion. | Maeo et coll., 2023 (voir plus haut) | |
+| Curl incliné : pas plus de croissance. | Larsen 2026, Attarieh 2025 (voir plus haut) | |
+
+Courbes : curls et extensions calculés sur la pose (poids vertical ou câble). Développé serré et pompes diamant : référence du développé couché, coudes serrés. Dips : réaction des barres sur les mains, effort à l'épaule.

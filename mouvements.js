@@ -447,3 +447,149 @@ Object.assign(SCHEMAS, {
     analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Plus la prise est large, plus le deltoïde et les trapèzes travaillent, et moins le biceps aide. Monte jusqu'au bas de la poitrine, coudes en premier : inutile d'aller jusqu'au menton." },
   },
 });
+
+/* ── BICEPS ── */
+const POURQUOI_BICEPS = "Le biceps plie le coude et tourne la main paume vers le haut ; le brachial, dessous, plie le coude quelle que soit la main ; le brachio-radial, sur l'avant-bras, aide surtout main de côté ou paume vers le bas.";
+const DEBOUT = { ancre: "pieds", cheville: [94, 178], torse: 180 };
+const CURL = { depart: { ...DEBOUT, bras: [4, -4], avbras: [6, 2] }, arrivee: { avbras: [148, 140] } };
+Object.assign(SCHEMAS, {
+  "Curl barre": {
+    legende: "Curl barre vu de profil : coudes collés au corps, la barre monte des cuisses jusqu'aux épaules.",
+    ...CURL, objets: [{ t: "barre", r: 12 }], decor: [SOL], muscle: ["biceps"], fleche: { suit: "main", decale: [22, 0] },
+    effort: [{ art: "coude", nom: "Coude · biceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Paumes vers le haut, c'est la prise où le biceps travaille le plus. La charge pèse le plus avant-bras à l'horizontale, au milieu du mouvement. La barre EZ, un peu coudée, ménage les poignets." },
+  },
+  "Curl marteau": {
+    legende: "Curl marteau vu de profil : paumes face à face, coudes fixes, on monte les haltères vers les épaules.",
+    ...CURL, objets: [{ t: "halteres" }], decor: [SOL], muscle: ["biceps", "avbras"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · brachial" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Main de côté, le biceps travaille un peu moins et le brachial et le brachio-radial davantage : le bras s'épaissit, l'avant-bras aussi. Bon complément du curl classique." },
+  },
+  "Curl incliné": {
+    legende: "Curl incliné vu de profil : assis sur un banc incliné, bras pendants derrière le corps, on plie les coudes sans les avancer.",
+    depart: { hanche: [104, 130], torse: 222, tete: -16, cuisse: [84, 80], tibia: [0, -4], pied: 90, brasAbs: true, bras: [0, -4], avbras: [2, -2] }, arrivee: { avbras: [150, 144] },
+    objets: [{ t: "halteres" }], decor: [{ t: "bancr", x: 58, y: 90, l: 62, a: -48 }, { t: "banc", x: 96, y: 136, l: 38 }, { t: "pied", x: 112, y: 144, y2: 181 }, SOL],
+    muscle: ["biceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · biceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Le bras derrière le corps étire la longue portion du biceps. Cette position ne le fait pourtant pas grossir plus qu'un curl classique : c'est une variante pour changer, pas un raccourci." },
+  },
+  "Curl pupitre": {
+    legende: "Curl au pupitre vu de profil : bras posés sur le pupitre, on monte la charge sans décoller les coudes.",
+    depart: { hanche: [70, 132], torse: 180, cuisse: [88, 84], tibia: [2, -2], pied: 90, brasAbs: true, bras: [46, 42], avbras: [42, 38] }, arrivee: { avbras: [172, 166] },
+    objets: [{ t: "barre", r: 11 }], decor: [{ t: "bancr", x: 66, y: 92, l: 40, a: -46, app: true }, { t: "pied", x: 98, y: 124, y2: 181 }, { t: "banc", x: 46, y: 138, l: 46 }, { t: "pied", x: 68, y: 146, y2: 181 }, SOL],
+    muscle: ["biceps"], fleche: { suit: "main", decale: [18, -4] },
+    effort: [{ art: "coude", nom: "Coude · biceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Au pupitre, la charge pèse le plus dans la première moitié, bras presque tendu, et plus du tout en haut. Insister sur cette première moitié fait un peu plus grossir le bas du biceps." },
+  },
+  "Curl poulie": {
+    legende: "Curl à la poulie vu de profil : face à la poulie basse, coudes le long du corps, on monte la barre vers les épaules.",
+    ...CURL, objets: [{ t: "cable", de: [128, 174] }], decor: [{ t: "poulieb", x: 128, y: 174 }, SOL], muscle: ["biceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · biceps" }], charge: { t: "cable", de: [128, 174] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "La poulie garde de la tension plus haut dans le mouvement qu'un haltère. Reculer d'un pas déplace le moment le plus dur : plus loin de la poulie, plus de tension en haut." },
+  },
+  "Curl concentré": {
+    legende: "Curl concentré vu de profil : assis, coude calé contre l'intérieur de la cuisse, on monte l'haltère vers l'épaule.",
+    depart: { hanche: [64, 132], torse: 146, tete: 10, cuisse: [86, 80], tibia: [4, 0], pied: 90, brasAbs: true, bras: [4, 0], avbras: [8, 2] }, arrivee: { avbras: [158, 2] },
+    objets: [{ t: "haltere" }], decor: [{ t: "banc", x: 30, y: 138, l: 60 }, { t: "pied", x: 60, y: 146, y2: 181 }, SOL], muscle: ["biceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · biceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Le coude calé empêche toute triche : seul le bras travaille. La charge pèse le plus avant-bras à l'horizontale. Vise la sensation plutôt que la charge." },
+  },
+  "Curl araignée": {
+    legende: "Curl araignée vu de profil : à plat ventre sur un banc incliné, bras pendants, on monte la charge sans bouger les coudes.",
+    depart: { hanche: [70, 124], torse: 132, tete: 10, cuisse: [338, 342], tibia: [4, 0], pied: 90, brasAbs: true, bras: [2, -2], avbras: [4, 0] }, arrivee: { avbras: [156, 150] },
+    objets: [{ t: "barre", r: 11 }], decor: [{ t: "bancr", x: 78, y: 132, l: 50, a: 48 }, { t: "pied", x: 84, y: 132, y2: 181 }, SOL],
+    muscle: ["biceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · biceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Bras vertical devant le corps, le biceps est déjà raccourci : la contraction en haut est très forte. Tiens 1 seconde en haut, avec une charge légère." },
+  },
+  "Curl inversé": {
+    legende: "Curl inversé vu de profil : paumes vers le bas, poignets droits, coudes fixes, on monte la barre.",
+    ...CURL, objets: [{ t: "barre", r: 10 }], decor: [SOL], muscle: ["avbras", "biceps"], fleche: { suit: "main", decale: [20, 0] },
+    effort: [{ art: "coude", nom: "Coude · brachio-radial" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_BICEPS, faisceaux: "Paumes vers le bas, le biceps travaille moins et c'est le brachio-radial, sur le dessus de l'avant-bras, qui prend le relais. La charge est bien plus légère qu'en curl classique : c'est normal." },
+  },
+});
+
+/* ── TRICEPS ── */
+const POURQUOI_TRICEPS = "Le triceps tend le coude. Sa longue portion passe aussi par l'épaule : elle n'est vraiment étirée que bras au-dessus de la tête, et c'est dans cette position qu'elle grossit le plus.";
+const PLAN_DEV_SERRE = { depart: { ...ALLONGE, bras: 180, avbras: 180 }, arrivee: { bras: 30, avbras: 178 } };
+Object.assign(SCHEMAS, {
+  "Triceps poulie": {
+    legende: "Extension à la poulie haute vue de profil : coudes collés au corps, on pousse la barre vers le bas jusqu'à tendre les bras.",
+    depart: { ...DEBOUT, torse: 174, bras: [2, -2], avbras: [104, 98] }, arrivee: { avbras: [6, 2] },
+    objets: [{ t: "cable", de: [118, 8] }], decor: [{ t: "poulie", x: 118, y: 8 }, SOL], muscle: ["triceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "cable", de: [118, 8] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Bras le long du corps, ce sont surtout les portions latérale et médiale qui travaillent. La charge pèse le plus au début, coude plié, quand le triceps est étiré. Pour la longue portion, ajoute une extension bras au-dessus de la tête." },
+  },
+  "Extension triceps corde": {
+    legende: "Extension à la corde vue de profil : coudes fixes, on pousse vers le bas et on écarte la corde en fin de mouvement.",
+    depart: { ...DEBOUT, torse: 172, bras: [2, -2], avbras: [110, 104] }, arrivee: { avbras: [2, -2] },
+    objets: [{ t: "cable", de: [118, 8] }], decor: [{ t: "poulie", x: 118, y: 8 }, SOL], muscle: ["triceps"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "cable", de: [118, 8] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Même travail qu'à la barre, avec un peu plus d'amplitude en bas grâce à la corde. Écarter les mains en bas renforce la contraction." },
+  },
+  "Ext. triceps": {
+    legende: "Extension au-dessus de la tête vue de profil : bras vers le plafond, on descend la charge derrière la tête puis on tend les bras.",
+    depart: { ...DEBOUT, brasAbs: true, bras: [172, 168], avbras: [330, 326] }, arrivee: { avbras: [178, 174] },
+    objets: [{ t: "haltere" }], decor: [SOL], muscle: ["triceps"], fleche: { suit: "main", decale: [-16, 0] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Bras au-dessus de la tête, la longue portion est étirée : c'est la position qui la fait le plus grossir, nettement plus que bras le long du corps, même avec une charge plus légère. La charge pèse le plus avant-bras à l'horizontale, derrière la tête." },
+  },
+  "Extension triceps haltère": {
+    legende: "Extension haltère vue de profil : haltère tenu à deux mains au-dessus de la tête, on le descend derrière la nuque.",
+    depart: { ...DEBOUT, brasAbs: true, bras: [174, 170], avbras: [326, 322] }, arrivee: { avbras: [178, 174] },
+    objets: [{ t: "haltere", r: 9 }], decor: [SOL], muscle: ["triceps"], fleche: { suit: "main", decale: [-16, 0] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Même avantage que toute extension au-dessus de la tête : la longue portion travaille étirée. Garde les coudes pointés vers le haut." },
+  },
+  "Extension triceps poulie haute": {
+    legende: "Extension à la poulie, dos à la machine, vue de profil : buste penché, on tend les bras vers l'avant.",
+    depart: { ancre: "pieds", cheville: [104, 178], torse: 150, cuisse: [10, -10], tibia: [-6, -14], brasAbs: true, bras: [132, 128], avbras: [304, 300] }, arrivee: { avbras: [134, 130] },
+    objets: [{ t: "cable", de: [22, 70] }], decor: [{ t: "poulieb", x: 22, y: 70 }, SOL], muscle: ["triceps"], fleche: { suit: "main", decale: [0, -16] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "cable", de: [22, 70] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Bras levés devant soi, la longue portion est étirée comme pour une extension au-dessus de la tête, avec une poulie qui garde la tension sur tout le trajet." },
+  },
+  "Barre au front": {
+    legende: "Barre au front vue de profil : allongé, bras verticaux, on plie les coudes pour descendre la barre derrière la tête.",
+    depart: { ...ALLONGE, bras: 196, avbras: 196 }, arrivee: { avbras: 296 },
+    objets: [{ t: "barre", r: 11 }], decor: BANC_PLAT, muscle: ["triceps"], fleche: { suit: "main", decale: [0, -16] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Bras inclinés vers la tête, la longue portion est plus étirée que bras le long du corps. Descendre la barre derrière la tête plutôt que vers le front charge le triceps étiré et soulage le coude." },
+  },
+  "Kickback haltère": {
+    legende: "Kickback vu de profil : buste penché, bras collé au corps, on tend l'avant-bras vers l'arrière.",
+    depart: { ...PENCHE_BANC, bras: [-96, 0], avbras: [-2, 0] }, arrivee: { avbras: [-94, 0] },
+    objets: [{ t: "haltere" }], decor: BANC_ROWING, muscle: ["triceps"], fleche: { suit: "main", decale: [0, 16] },
+    effort: [{ art: "coude", nom: "Coude · triceps" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "L'haltère ne pèse presque rien au départ, avant-bras vertical, et le plus à la fin, bras tendu : c'est là qu'il faut tenir 1 seconde. Une version poulie charge davantage le début." },
+  },
+  "Développé couché prise serrée": {
+    legende: "Développé prise serrée vu de profil : mains à largeur d'épaules, coudes près du corps, la barre descend vers le bas des pecs.",
+    depart: { ...ALLONGE, bras: 180, avbras: 180 }, arrivee: { bras: 30, avbras: 178 },
+    objets: [{ t: "barre" }], decor: BANC_PLAT, muscle: ["triceps", "pecs"], fleche: { suit: "main", decale: [26, -4] },
+    effort: [{ art: "epaule", nom: "Épaule · pecs et triceps", plan: PLAN_DEV_SERRE }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Mains plus serrées et coudes près du corps : le triceps prend une plus grande part du travail que dans un développé classique, qui fait déjà bien travailler le triceps. Largeur d'épaules suffit : plus serré, les poignets souffrent." },
+  },
+  "Dips": {
+    legende: "Dips buste droit vus de profil : en appui sur les barres, on descend jusqu'à bras à angle droit puis on pousse.",
+    depart: { ancre: "mains", main: [100, 80], torse: 176, cuisse: [10, 4], tibia: [-70, -74], pied: 20, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { torse: 168, bras: -78, avbras: 6 },
+    objets: [], decor: [{ t: "barres", x: 100, y: 82 }, SOL], muscle: ["triceps", "pecs"], fleche: { suit: "epaule", decale: [22, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · pecs et triceps", point: "main" }], charge: { t: "haut" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Les dips font travailler fortement le triceps et les pecs. Buste droit, la part du triceps augmente. Le plus dur est en bas : arrête-toi bras à angle droit." },
+  },
+  "Dips entre deux bancs": {
+    legende: "Dips au banc vus de profil : mains sur le bord du banc derrière soi, jambes tendues devant, on descend en pliant les coudes.",
+    depart: { ancre: "mains", main: [70, 120], torse: 180, cuisse: [90, 86], tibia: [76, 72], pied: 160, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { bras: -64, avbras: 4, cuisse: [80, 76], tibia: [84, 80] },
+    objets: [], decor: [{ t: "banc", x: 30, y: 122, l: 50 }, { t: "pied", x: 50, y: 130, y2: 181 }, SOL], muscle: ["triceps"], fleche: { suit: "epaule", decale: [-20, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · triceps", point: "main" }], charge: { t: "haut" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Une version plus facile des dips, dont on règle la difficulté avec les jambes : pieds au sol genoux pliés pour débuter, pieds surélevés pour corser. Ne descends pas trop bas : l'épaule part vers l'avant." },
+  },
+  "Pompes diamant": {
+    legende: "Pompes diamant vues de profil : mains rapprochées sous la poitrine, coudes près du corps.",
+    depart: { ancre: "mains", main: [128, 177], torse: 114, cuisse: [294, 294], tibia: [294, 294], pied: [10, 10], brasAbs: true, bras: 4, avbras: 0 },
+    arrivee: { torse: 103, cuisse: [283, 283], tibia: [283, 283], bras: -82, avbras: 8 },
+    objets: [], decor: [SOL], muscle: ["triceps", "pecs"], fleche: { suit: "epaule", decale: [16, -20] },
+    effort: [{ art: "epaule", nom: "Épaule · pecs et triceps", plan: PLAN_DEV_SERRE }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Mains rapprochées, le triceps fait une plus grande part du travail qu'en pompe classique. Trop dur ? Fais-les sur les genoux." },
+  },
+});
