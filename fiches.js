@@ -33,7 +33,7 @@ F("DC haltères neutre", "Triceps, avant d'épaule", "Haltères, banc plat",
   ["Même placement qu'au développé haltères, paumes face à face.", "Coudes près du corps, descends les haltères le long du torse.", "Pousse jusqu'en haut sans verrouiller sèchement les coudes."],
   "La prise neutre ménage l'épaule : idéale si elle est sensible.", "Écarter les coudes, ce qui annule l'intérêt de la prise.");
 F("DI haltères", "Avant d'épaule, triceps", "Haltères, banc incliné à 30°",
-  ["Banc incliné à 30° environ : c'est l'angle qui active le plus le haut des pecs ; au-delà de 45°, l'épaule prend le relais (Rodríguez-Ridao 2020).", "Omoplates serrées, haltères au niveau du haut des pecs.", "Pousse vers le haut en rapprochant les haltères, puis redescends lentement."],
+  ["Banc incliné à 30° environ : c'est l'angle qui fait le plus travailler le haut des pecs ; au-delà de 45°, l'épaule prend le relais.", "Omoplates serrées, haltères au niveau du haut des pecs.", "Pousse vers le haut en rapprochant les haltères, puis redescends lentement."],
   "Vise le haut des pecs : les haltères descendent vers les clavicules, pas vers le ventre.", "Banc trop incliné, qui transfère le travail sur l'épaule.");
 F("Développé incliné barre", "Avant d'épaule, triceps", "Barre, banc incliné",
   ["Banc à 30°, yeux sous la barre, omoplates serrées.", "Descends la barre sous les clavicules, coudes légèrement rentrés.", "Pousse à la verticale, sans décoller les fesses."],
@@ -181,7 +181,7 @@ F("Curl marteau", "Brachial, avant-bras", "Haltères",
   "Épaissit le bras par le muscle sous le biceps.", "Avancer les coudes.");
 F("Curl incliné", "Avant-bras", "Haltères, banc incliné",
   ["Assis sur un banc incliné à 45-60°, bras pendants derrière le corps.", "Monte sans avancer les coudes.", "Redescends jusqu'à l'étirement complet."],
-  "Le bras en arrière étire davantage le biceps. Les études ne montrent pas plus de croissance qu'un curl classique : c'est une variante, pas un raccourci.", "Décoller les épaules du dossier.");
+  "Le bras en arrière étire davantage le biceps, mais ne le fait pas grossir plus qu'un curl classique : c'est une variante, pas un raccourci.", "Décoller les épaules du dossier.");
 F("Curl pupitre", "Brachial", "Pupitre, barre EZ ou haltère",
   ["Bras posés sur le pupitre, aisselles calées.", "Monte la charge.", "Redescends lentement sans verrouiller brutalement en bas."],
   "Le pupitre interdit toute triche.", "Lâcher la descente : risque pour le tendon.");
@@ -207,7 +207,7 @@ F("Extension triceps corde", "—", "Poulie haute, corde",
   "Écarter la corde en bas renforce la contraction.", "Décoller les coudes.");
 F("Ext. triceps", "—", "Haltère ou poulie",
   ["Bras au-dessus de la tête, coudes vers le plafond.", "Descends la charge derrière la tête.", "Tends les bras sans écarter les coudes."],
-  "Bras au-dessus de la tête, la longue portion s'étire. Dans une étude de 12 semaines (Maeo 2023), elle a grossi de 28,5 % contre 19,6 % bras le long du corps.", "Écarter les coudes vers l'extérieur.");
+  "Bras au-dessus de la tête, la longue portion s'étire : elle grossit nettement plus qu'avec les bras le long du corps. C'est la meilleure extension pour le volume du bras.", "Écarter les coudes vers l'extérieur.");
 F("Extension triceps haltère", "—", "Un haltère",
   ["Assis ou debout, haltère tenu à deux mains au-dessus de la tête.", "Descends derrière la tête en gardant les coudes serrés.", "Remonte jusqu'à bras tendus."],
   "Garde les coudes pointés vers le haut.", "Se cambrer pour aider.");
@@ -295,7 +295,7 @@ F("Leg curl", "Mollets", "Machine",
   "Pointe de pied vers toi : plus de force.", "Décoller les hanches.");
 F("Leg curl assis", "Mollets", "Machine assise",
   ["Cuisses bloquées, genou dans l'axe.", "Ramène les talons sous le siège.", "Remonte lentement."],
-  "Assis, les ischios sont étirés à la hanche. Dans une étude de 12 semaines (Maeo 2021), le leg curl assis les a fait grossir davantage que le leg curl allongé.", "Lâcher la remontée.");
+  "Assis, les ischios sont étirés à la hanche : cette version les fait grossir davantage que le leg curl allongé.", "Lâcher la remontée.");
 F("Leg curl allongé", "Mollets", "Machine allongée",
   ["À plat ventre, boudin au-dessus des talons.", "Ramène les talons vers les fesses sans décoller le bassin.", "Redescends lentement."],
   "Bassin collé au banc tout du long.", "Bassin qui se soulève.");
@@ -338,10 +338,10 @@ F("Clamshell", "—", "Élastique, sol",
 /* ── MOLLETS ── */
 F("Mollets debout", "—", "Machine ou marche",
   ["Avant du pied sur le bord d'une marche, jambes tendues.", "Descends les talons au maximum.", "Monte le plus haut possible, tiens 1 seconde."],
-  "Pause en bas pour supprimer l'effet ressort du tendon. Jambes tendues, le mollet est étiré : c'est la version qui l'a fait le plus grossir dans les études (Kinoshita 2023).", "Rebondir en bas.");
+  "Pause en bas pour supprimer l'effet ressort du tendon. Jambes tendues, le mollet est étiré : c'est la version qui le fait le plus grossir.", "Rebondir en bas.");
 F("Mollets assis", "—", "Machine assise",
   ["Genoux sous les appuis, avant du pied sur la marche.", "Descends les talons au maximum.", "Monte, tiens 1 seconde."],
-  "Genoux pliés, le gros muscle du mollet travaille peu. Une étude (Kinoshita 2023) a trouvé bien plus de croissance du mollet debout qu'assis ; le soléaire a grossi autant dans les deux. Garde le mollet debout comme exercice principal.", "Petites répétitions sans amplitude.");
+  "Genoux pliés, le gros muscle du mollet travaille peu et grossit à peine. Le soléaire, dessous, grossit autant qu'au mollet debout : garde le mollet debout comme exercice principal.", "Petites répétitions sans amplitude.");
 F("Mollets presse", "—", "Presse à cuisses",
   ["Avant du pied sur le bas de la plateforme, jambes tendues.", "Pousse avec les pointes de pied.", "Reviens lentement jusqu'à l'étirement."],
   "Garde les genoux tendus mais pas verrouillés.", "Plier les genoux pour aider.");
@@ -438,7 +438,7 @@ const TECHNIQUES = [
     exemple: "Tractions : monte, puis descends en 5 secondes.", quand: "Pour progresser sur un mouvement trop dur, comme les tractions, ou pour plus de stimulation.", attention: "Fait souvent plus de courbatures : commence par une seule série." },
   { cat: "Prolonger une série", nom: "Répétitions partielles", bref: "Arrivé à l'échec, tu continues sur la moitié du mouvement.",
     comment: ["Fais ta série complète jusqu'à l'échec.", "Continue avec 3 à 6 répétitions sur la partie la plus étirée du mouvement.", "Arrête quand ça ne bouge plus."],
-    exemple: "Curl incliné : 10 complètes, puis 5 demi-répétitions en bas.", quand: "En fin de série, sur des exercices d'isolation.", attention: "Fais-les en position étirée. Faites seules, ces partielles donnent des résultats comparables à l'amplitude complète (Wolf 2025), pas meilleurs." },
+    exemple: "Curl incliné : 10 complètes, puis 5 demi-répétitions en bas.", quand: "En fin de série, sur des exercices d'isolation.", attention: "Fais-les en position étirée. Faites seules, ces partielles donnent des résultats comparables à l'amplitude complète, pas meilleurs." },
   { cat: "Prolonger une série", nom: "Méthode 21", bref: "7 répétitions en bas, 7 en haut, 7 complètes, sans pause.",
     comment: ["7 demi-répétitions sur la moitié basse.", "7 demi-répétitions sur la moitié haute.", "7 répétitions complètes."],
     exemple: "Curl barre en 21.", quand: "Surtout pour les biceps, en fin de séance.", attention: "Prends une charge bien plus légère que d'habitude." },

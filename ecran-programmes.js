@@ -122,21 +122,9 @@ function FeuilleFiche({ nom }) {
     schemaDe(nom)?.analyse && h(Section, { titre: "Comprendre le mouvement" },
       h("div.fiche-cle", h("b", "Pourquoi ce mouvement"), h("p", schemaDe(nom).analyse.pourquoi)),
       h("div.fiche-cle", h("b", "Quelles parties du muscle"), h("p", schemaDe(nom).analyse.faisceaux)),
-      h("div.fiche-cle.evite", h("b", "Et les fibres ?"), h("p", "Fibres lentes ou rapides : ce n'est pas le matériel qui décide. Ton corps active d'abord les petites fibres, puis les grosses à mesure que la série devient dure. En moyenne, le muscle grossit davantage quand la série finit près de l'échec, sans qu'il soit nécessaire d'aller jusqu'à l'échec total. Haltère, poulie ou machine changent surtout l'endroit du mouvement où la charge pèse le plus : c'est ce que montre la courbe d'effort.")),
-      h(Etudes, { liste: [...(schemaDe(nom).analyse.etudes || []), ...ETUDES_FIBRES] })),
+      h("div.fiche-cle.evite", h("b", "Et les fibres ?"), h("p", "Fibres lentes ou rapides : ce n'est pas le matériel qui décide. Ton corps active d'abord les petites fibres, puis les grosses à mesure que la série devient dure. En moyenne, le muscle grossit davantage quand la série finit près de l'échec, sans qu'il soit nécessaire d'aller jusqu'à l'échec total. Haltère, poulie ou machine changent surtout l'endroit du mouvement où la charge pèse le plus : c'est ce que montre la courbe d'effort."))),
     (SUBSTITUTIONS[nom] || []).length > 0 && h(Section, { titre: "Si ça fait mal, remplace par" }, h(Puces, null, SUBSTITUTIONS[nom].map(a => h(Puce, { key: a, onClick: () => ficheDe(a) && Nav.sheet("fiche", { nom: a }) }, a)))),
     fait && h(Bouton, { cl: "contour", ico: "chrono", onClick: () => Nav.sheet("exercice", { nom }) }, "Ma progression"));
-}
-
-/* Les études citées, avec un lien vers chacune */
-function Etudes({ liste }) {
-  const [ouvert, setOuvert] = useState(false);
-  if (!liste?.length) return null;
-  return h("div.etudes",
-    h("button.etudes-t", { onClick: () => setOuvert(!ouvert), "aria-expanded": ouvert }, h("span", "Ce que disent les études (" + liste.length + ")"), h(Icone, { n: ouvert ? "bas" : "fleche", t: 16 })),
-    ouvert && liste.map((e, i) => h("div.etude", { key: i },
-      h("p", e.dit),
-      h("a", { href: "https://doi.org/" + e.doi, target: "_blank", rel: "noopener" }, e.ref))));
 }
 
 /* Une technique d'intensification */
