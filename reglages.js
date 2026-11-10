@@ -94,6 +94,14 @@ function appliquerTheme(t) {
   else document.documentElement.dataset.theme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "papier" ? "#F0F1EC" : "#0E0E0C");
 }
+/* Notifications « séance arrivée » et « nuit arrivée » */
+function InterNotifs() {
+  const [charge, setCharge] = useState(false), actif = notifsActives();
+  const basculer = async () => { if (charge) return; setCharge(true); try { await (actif ? couperNotifs() : activerNotifs()); } finally { setCharge(false); } };
+  return h(Fragment, null,
+    h(Interrupteur, { actif, titre: charge ? "Un instant…" : "Me prévenir", sous: "Quand une séance ou ta nuit arrive de ta montre", onClick: basculer }),
+    !notifsPossibles() && h("p.note", "Sur iPhone, les notifications ne marchent que si RECOMP est ouverte depuis son icône sur l'écran d'accueil."));
+}
 /* Montre Polar : liaison par le service AccessLink, pour remplir la saisie du matin */
 function SectionPolar() {
   const l = lienPolar();
@@ -101,6 +109,7 @@ function SectionPolar() {
     l?.jeton ? h(Fragment, null,
       h("p.texte-p", h("b", "Montre reliée"), " depuis le " + dateJour(l.depuis) + ". Dans « Forme du matin », un bouton remplit SNA, VFC, FC et sommeil depuis ta Recharge nocturne."),
       h("p.note", "Ta montre doit d'abord avoir synchronisé la nuit avec l'app Polar Flow."),
+      h(InterNotifs),
       h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier la montre Polar ?", message: "RECOMP ne pourra plus lire tes nuits. Tes saisies déjà faites restent.", oui: "Délier" })) delierPolar(); } }, "Délier la montre"))
     : h(Fragment, null,
       h("p.texte-p", "Relie ton compte Polar pour remplir la saisie du matin d'un geste. Polar te demandera ton accord ; tes données ne sont stockées que sur ce téléphone."),

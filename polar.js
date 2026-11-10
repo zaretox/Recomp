@@ -38,6 +38,7 @@ function codePolarDansAdresse() {
 }
 async function delierPolar() {
   const l = lienPolar();
+  if (l?.notifs) await couperNotifs(true);
   if (l?.utilisateur) { try { await polarLire("/v3/users/" + l.utilisateur, "DELETE"); } catch (e) { /* on délie quand même ce téléphone */ } }
   await DB.set("polar-lien", null);
   toast("Montre Polar déliée");
@@ -165,8 +166,10 @@ function sortieDepuisPolar(d) {
   };
 }
 
-/* Importe les séances nouvelles. Renvoie leur nombre. */
-async function importerSortiesPolar() {
+/* Importe les séances nouvelles. Renvoie leur nombre. Un seul import à la fois (bouton, ouverture de Sport, notification). */
+let importPolarEnCours = null;
+const importerSortiesPolar = () => importPolarEnCours || (importPolarEnCours = importerSortiesPolar1().finally(() => { importPolarEnCours = null; }));
+async function importerSortiesPolar1() {
   const l = await polarLire("/v3/exercises"), liste = Array.isArray(l) ? l : l?.exercises || [];
   const deja = new Set(DB.get("polar-seances").map(s => s.id)), neuves = [];
   for (const x of liste) {
@@ -175,8 +178,9 @@ async function importerSortiesPolar() {
     if (d) neuves.push(sortieDepuisPolar({ ...x, ...d }));
   }
   try { localStorage.setItem("recomp_polar_import", String(Date.now())); } catch (e) { /* facultatif */ }
-  if (neuves.length) await DB.set("polar-seances", [...DB.get("polar-seances"), ...neuves].sort((a, b) => (b.debut || "").localeCompare(a.debut || "")));
-  return neuves.length;
+  const dedans = new Set(DB.get("polar-seances").map(s => s.id)), vraies = neuves.filter(s => !dedans.has(s.id));
+  if (vraies.length) await DB.set("polar-seances", [...DB.get("polar-seances"), ...vraies].sort((a, b) => (b.debut || "").localeCompare(a.debut || "")));
+  return vraies.length;
 }
 // Retirer de RECOMP : on garde l'identifiant pour ne pas la réimporter
 const retirerSortie = id => avecAnnuler("polar-seances", DB.get("polar-seances").map(s => s.id === id ? { id, supprime: true } : s), "Séance retirée");
@@ -199,4 +203,49 @@ function logDeSortie(s) {
   if (f === "muscu") { const l = DB.get("sport-logs").find(x => x.dateISO === s.dateISO && sortieDeMuscu(x)?.id === s.id); return l ? { t: "s", log: l } : null; }
   if (f === "nage") { const l = DB.get("natation-logs").find(x => sortieDeNage(x)?.id === s.id); return l ? { t: "n", log: l } : null; }
   return null;
+}
+
+/* NOTIFICATIONS — l'iPhone s'abonne, la fonction Netlify range l'abonnement dans le webhook Polar.
+ * Sur iPhone, il faut que RECOMP soit ouverte depuis l'icône de l'écran d'accueil. */
+const notifsPossibles = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+const notifsActives = () => !!lienPolar()?.notifs && notifsPossibles() && Notification.permission === "granted";
+const octetsB64u = s => Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), c => c.charCodeAt(0));
+const texteB64u = b => b ? btoa(String.fromCharCode(...new Uint8Array(b))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "") : "";
+async function activerNotifs() {
+  const l = lienPolar();
+  if (!l?.jeton) return toast("Relie d'abord ta montre", { danger: true });
+  if (!notifsPossibles()) return toast("Ajoute d'abord RECOMP à ton écran d'accueil (Partager → Sur l'écran d'accueil), puis ouvre-la depuis l'icône.", { danger: true });
+  // La demande d'autorisation doit partir tout de suite après le toucher
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") return toast("Notifications refusées. Tu peux les autoriser dans Réglages de l'iPhone → Notifications → RECOMP.", { danger: true });
+  try {
+    const { cle } = await fetch(POLAR_FN + "?action=cle-push", { cache: "no-store" }).then(r => r.json());
+    if (!cle) throw new Error("clé absente");
+    const reg = await navigator.serviceWorker.ready;
+    let ab = await reg.pushManager.getSubscription();
+    if (ab && texteB64u(ab.options?.applicationServerKey) !== cle) { await ab.unsubscribe(); ab = null; }
+    if (!ab) ab = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: octetsB64u(cle) });
+    const r = await fetch(POLAR_FN + "?action=abonner", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + l.jeton }, body: JSON.stringify({ abonnement: ab.toJSON(), utilisateur: l.utilisateur }) });
+    const d = await r.json().catch(() => null);
+    if (!r.ok) throw new Error(d?.erreur || "erreur " + r.status);
+    await DB.set("polar-lien", { ...lienPolar(), notifs: true });
+    toast("Notifications activées. Une notification d'essai arrive.");
+  } catch (e) { toast("Notifications impossibles : " + e.message, { danger: true }); }
+}
+async function couperNotifs(silencieux) {
+  const l = lienPolar();
+  try { const reg = await navigator.serviceWorker?.ready; const ab = await reg?.pushManager?.getSubscription(); if (ab) await ab.unsubscribe(); } catch (e) { /* déjà coupé */ }
+  if (l?.jeton) { try { await fetch(POLAR_FN + "?action=desabonner", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "Bearer " + l.jeton }, body: JSON.stringify({ utilisateur: l.utilisateur }) }); } catch (e) { /* hors ligne */ } }
+  if (l) await DB.set("polar-lien", { ...l, notifs: false });
+  if (!silencieux) toast("Notifications coupées");
+}
+// Toucher une notification : l'écran qui va avec
+function ouvrirDepuisNotif(o) {
+  if (!o) return;
+  if (o === "matin") return Nav.sheet("matin", { auto: true });
+  if (o.startsWith("sortie:")) {
+    const id = o.slice(7);
+    Nav.tab("sport");
+    importerSortiesPolar().catch(() => 0).then(() => sortiesPolar().some(s => s.id === id) ? Nav.sheet("sortie", { id }) : toast("La séance n'est pas encore disponible chez Polar : réessaie dans une minute."));
+  }
 }

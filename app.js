@@ -78,6 +78,10 @@ function App() {
   await DB.init();
   if (window.RECOMP_DEMO) await window.RECOMP_DEMO();
   codePolarDansAdresse();
+  const notif = new URLSearchParams(location.search).get("ouvrir");
+  if (notif) history.replaceState(null, "", location.pathname);
+  navigator.serviceWorker?.addEventListener("message", e => ouvrirDepuisNotif(e.data?.ouvrir));
   appliquerTheme(profil().theme || "nuit");
   ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+  if (notif) setTimeout(() => ouvrirDepuisNotif(notif), 50);
 })().catch(e => { console.error(e); window.recompFatal?.(String(e.message || e)); });

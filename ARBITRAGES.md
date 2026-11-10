@@ -83,7 +83,7 @@
 | --- | --- |
 | Scan de code-barres | Il faut une bibliothèque de lecture et des essais sur un vrai iPhone. Je préfère ne pas livrer ce que je ne peux pas tester. |
 | Lecture automatique de la banque | Il faudrait un serveur : vos données quitteraient le téléphone. |
-| Notifications | Sur iPhone, elles exigent aussi un serveur. Le calendrier .ics reste la solution fiable. |
+| Rappels à heure fixe (repas, coucher) | Il faudrait un serveur qui connaisse tes horaires. Le calendrier .ics reste la solution fiable. Seules les notifications « séance arrivée » et « nuit arrivée » de la montre Polar existent, validées par Aurélien. |
 | Réseau social, défis, niveaux | Vous ne vouliez ni niveaux ni démarrage en questions, et rien de tel n'a été ajouté. |
 
 ## Pas vérifié

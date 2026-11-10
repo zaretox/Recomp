@@ -119,3 +119,58 @@ self.addEventListener("fetch", e => {
     } catch (err) { return new Response("", { status: 504 }); }
   })());
 });
+
+/* NOTIFICATIONS — envoyées par la fonction Netlify quand la montre Polar a synchronisé une séance ou une nuit.
+ * Pour une séance, on lit son résumé chez Polar (jeton pris dans les données de l'app) pour un message parlant. */
+const lireCle = cle => new Promise(ok => {
+  try {
+    const r = indexedDB.open("recomp", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onerror = () => ok(null);
+    r.onsuccess = () => {
+      try { const g = r.result.transaction("kv", "readonly").objectStore("kv").get(cle); g.onsuccess = () => { try { ok(g.result ? JSON.parse(g.result) : null); } catch (e) { ok(null); } }; g.onerror = () => ok(null); }
+      catch (e) { ok(null); }
+    };
+  } catch (e) { ok(null); }
+});
+const SPORTS_NOTIF = [[/SWIM/, "Natation"], [/RUN/, "Course"], [/STRENGTH|CIRCUIT|FUNCTIONAL|CORE/, "Musculation"], [/CYCL|BIK/, "Vélo"], [/WALK/, "Marche"], [/HIK/, "Randonnée"]];
+async function resumeSeance(id) {
+  const lien = await lireCle("polar-lien");
+  if (!lien?.jeton) return null;
+  const arret = new AbortController(), minuteur = setTimeout(() => arret.abort(), 6000);
+  try {
+    const r = await fetch("/.netlify/functions/polar?action=api&chemin=" + encodeURIComponent("/v3/exercises/" + id), { headers: { Authorization: "Bearer " + lien.jeton }, signal: arret.signal, cache: "no-store" });
+    if (!r.ok) return null;
+    const d = await r.json(), t = (d.sport || "") + " " + (d.detailed_sport_info || ""), nage = /SWIM/.test(t);
+    const m = /^PT(?:([\d.]+)H)?(?:([\d.]+)M)?(?:([\d.]+)S)?$/.exec(d.duration || ""), s = m ? Math.round((+m[1] || 0) * 3600 + (+m[2] || 0) * 60 + (+m[3] || 0)) : 0;
+    const duree = s >= 3600 ? Math.floor(s / 3600) + " h " + String(Math.floor(s % 3600 / 60)).padStart(2, "0") : Math.floor(s / 60) + " min";
+    const dist = d.distance > 0 ? (nage ? Math.round(d.distance).toLocaleString("fr-FR") + " m" : (d.distance / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 2 }) + " km") : null;
+    return {
+      titre: ((SPORTS_NOTIF.find(([x]) => x.test(t)) || [0, "Séance"])[1]) + " enregistrée",
+      corps: [dist, duree, d.heart_rate?.average ? d.heart_rate.average + " bpm en moyenne" : null].filter(Boolean).join(" · ") + ". Touche pour voir le détail.",
+    };
+  } catch (e) { return null; }
+  finally { clearTimeout(minuteur); }
+}
+self.addEventListener("push", e => {
+  let m = {};
+  try { m = e.data ? e.data.json() : {}; } catch (x) { /* message illisible : notification générique */ }
+  e.waitUntil((async () => {
+    if (m.seance) { const r = await resumeSeance(m.seance); if (r) Object.assign(m, r); }
+    await self.registration.showNotification(m.titre || "RECOMP", { body: m.corps || "", tag: m.tag || undefined, icon: "./icon-192.png", data: { ouvrir: m.ouvrir || "" } });
+  })());
+});
+// Toucher la notification : ouvre l'app (ou la ramène devant) sur le bon écran
+self.addEventListener("notificationclick", e => {
+  e.notification.close();
+  const ouvrir = e.notification.data?.ouvrir || "";
+  e.waitUntil((async () => {
+    const fenetres = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    if (fenetres.length) {
+      const f = fenetres[0];
+      if (ouvrir) f.postMessage({ ouvrir });
+      return f.focus();
+    }
+    return self.clients.openWindow("./" + (ouvrir ? "?ouvrir=" + encodeURIComponent(ouvrir) : ""));
+  })());
+});

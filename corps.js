@@ -68,7 +68,7 @@ const CHAMPS_MATIN = [
   { k: "fc", t: "FC nocturne", court: "FC", mode: "ent", u: "bpm", i: "Recharge nocturne, moyenne de la nuit", pas: [1], min: 25, max: 130 },
   { k: "sleep", t: "Sommeil", court: "Sommeil", mode: "hm", u: "", i: "Tape 7, 4, 5 pour 7 h 45", pas: [.25], min: 0, max: 15.9 },
 ];
-function FeuilleMatin({ iso }) {
+function FeuilleMatin({ iso, auto }) {
   useDB();
   const jour = iso || aujourdhui(), ex = useMemo(() => DB.get("recup-logs").find(l => l.dateISO === jour), []);
   const veille = useMemo(() => [...DB.get("recup-logs")].filter(l => l.dateISO < jour).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0], []);
@@ -111,6 +111,8 @@ function FeuilleMatin({ iso }) {
     } catch (e) { toast("Polar : " + e.message, { danger: true }); }
     finally { setCharge(false); }
   };
+  // Ouverte depuis la notification « Ta nuit est arrivée » : on remplit tout de suite
+  useEffect(() => { if (auto && polar?.jeton) depuisPolar(); }, []);
   const r = fini ? recuperation(jour) : null;
   if (fini) return h(Feuille, { plein: true, sansTete: true, ton: "corps" },
     h("div.resultat", { "data-ton": r?.verdict?.ton || "papier" },
