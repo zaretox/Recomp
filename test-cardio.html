@@ -44,7 +44,7 @@
   <div class="carte">
     <ol>
       <li>Dans l'app <b>Polar Flow</b> : profils sportifs, ouvre le profil que tu utilises en musculation, et active l'option qui rend la <b>fréquence cardiaque visible pour d'autres appareils</b> (dans ses réglages de fréquence cardiaque). Synchronise la montre.</li>
-      <li>Sur la montre, <b>lance une séance</b> avec ce profil.</li>
+      <li>Sur la montre, <b>lance une séance</b> avec ce profil (appuie sur Démarrer : l'écran de choix du sport ne suffit pas). Ferme l'app Polar Flow sur ton iPhone pendant le test.</li>
       <li>Ouvre cette page dans <b>Bluefy</b>, puis touche « Connecter ma montre » et choisis ta Polar dans la liste.</li>
     </ol>
   </div>
@@ -94,14 +94,27 @@
     return { bpm, rr };
   };
 
+  // Bluefy ne renvoie pas toujours une erreur standard : on décrit tout ce qu'elle contient
+  const decrire = err => {
+    if (err == null) return "erreur vide";
+    if (typeof err !== "object") return String(err);
+    const morceaux = [];
+    ["name", "message", "code"].forEach(k => { if (err[k] != null) morceaux.push(k + " = " + err[k]); });
+    try { const j = JSON.stringify(err); if (j && j !== "{}") morceaux.push(j); } catch (e) { /* rien */ }
+    try { const s = String(err); if (s && s !== "[object Object]") morceaux.push(s); } catch (e) { /* rien */ }
+    return morceaux.length ? morceaux.join(" · ") : "erreur sans détail (" + Object.prototype.toString.call(err) + ")";
+  };
+  let etape = "";
   const brancher = async tous => {
     try {
-      etat("Choisis ta montre dans la liste…");
+      etape = ""; etat("Choisis ta montre dans la liste…");
       journal(tous ? "Recherche de tous les appareils Bluetooth." : "Recherche des appareils qui diffusent une fréquence cardiaque.");
+      appareil = null;
       appareil = await navigator.bluetooth.requestDevice(tous
         ? { acceptAllDevices: true, optionalServices: ["heart_rate", "battery_service"] }
         : { filters: [{ services: ["heart_rate"] }], optionalServices: ["battery_service"] });
       journal("Appareil choisi : " + (appareil.name || "(sans nom)"));
+      etape = "préparation";
       $("appareil").textContent = appareil.name || "—";
       appareil.addEventListener("gattserverdisconnected", () => {
         etat("Montre déconnectée. Relance une séance sur la montre si besoin, puis reconnecte.", "mauvais");
@@ -109,10 +122,18 @@
         clearInterval(minuteur);
       });
       etat("Connexion…");
+      etape = "connexion à la montre"; journal("Connexion à la montre…");
       const serveur = await appareil.gatt.connect();
       journal("Connecté.");
-      const service = await serveur.getPrimaryService("heart_rate");
+      etape = "recherche du service fréquence cardiaque";
+      let service;
+      try { service = await serveur.getPrimaryService("heart_rate"); }
+      catch (e) {
+        try { const s = await serveur.getPrimaryServices(); journal("Services visibles : " + (s.map(x => x.uuid).join(", ") || "aucun")); } catch (e2) { journal("Liste des services impossible : " + decrire(e2)); }
+        throw e;
+      }
       journal("Service fréquence cardiaque trouvé.");
+      etape = "abonnement aux mesures";
       const mesure = await service.getCharacteristic("heart_rate_measurement");
       mesure.addEventListener("characteristicvaluechanged", ev => {
         const { bpm, rr } = lireMesure(ev.target.value);
@@ -131,11 +152,14 @@
       }, 1000);
       etat("Connecté. Attente de la première mesure…");
     } catch (err) {
-      const msg = (err && (err.name + " : " + err.message)) || String(err);
-      journal("Erreur : " + msg);
-      if (err && err.name === "NotFoundError") etat("Aucun appareil choisi ou trouvé. Vérifie que la séance est lancée sur la montre et l'option activée dans Polar Flow.", "mauvais");
-      else if (err && /heart_rate|service/i.test(err.message || "")) etat("La montre est connectée mais ne propose pas de fréquence cardiaque. Vérifie l'option dans Polar Flow.", "mauvais");
-      else etat("Échec : " + msg, "mauvais");
+      const msg = decrire(err);
+      journal("Erreur pendant : " + (etape || "le choix de l'appareil") + " → " + msg);
+      if (!etape) etat("Aucune montre trouvée ou choix annulé. Si la liste était vide avec ce bouton, la montre ne diffuse pas encore sa fréquence cardiaque : lance une séance avec le bon profil.", "mauvais");
+      else if (etape === "connexion à la montre") etat("La montre refuse la connexion. Lance une séance sur la montre (profil avec la fréquence cardiaque visible), ferme l'app Polar Flow, puis réessaie.", "mauvais");
+      else if (etape === "recherche du service fréquence cardiaque") etat("La montre est connectée mais ne propose pas de fréquence cardiaque : la séance est-elle lancée avec le bon profil ?", "mauvais");
+      else etat("Échec pendant : " + etape + ".", "mauvais");
+      etape = "";
+      try { if (appareil?.gatt?.connected) appareil.gatt.disconnect(); } catch (e) { /* rien */ }
     }
   };
   $("connecter").onclick = () => brancher(false);
