@@ -21,9 +21,9 @@ Tout est à la racine, sauf `vendor/`. Pas de sous-dossier : l'envoi par la page
 | Fichiers | Rôle |
 | --- | --- |
 | `stockage.js`, `base.js` | IndexedDB ; `h()`, le magasin `DB`, les dates et les formats. |
-| `programmes.js`, `repas.js`, `libelles.js`, `courses.js` | Données pures : programmes, menus, listes, prix. Aucune logique. |
+| `programmes.js`, `fiches.js`, `repas.js`, `libelles.js`, `courses.js` | Données pures : programmes, fiches d'exercices et techniques, menus, listes, prix. Aucune logique. |
 | `programme.js`, `entrainement.js`, `nutrition.js`, `recuperation.js`, `argent.js`, `coach.js` | Tous les calculs, sans interface. |
-| `kit.js`, `pave.js`, `graphiques.js`, `repos.js` | Briques d'écran : pavé numérique, courbes, minuteur. |
+| `kit.js`, `pave.js`, `graphiques.js`, `schemas.js`, `mouvements.js`, `repos.js` | Briques d'écran : pavé numérique, courbes, schémas animés d'exercices (moteur dans `schemas.js`, un schéma par exercice dans `mouvements.js`), minuteur. |
 | `jour.js`, `seance.js`, `sport.js`, `corps.js`, `reglages.js`, `ecran-*.js` | Les écrans. |
 | `app.js` | Onglets, pile de feuilles, démarrage. |
 | `app.css` | Tout le style, avec un sommaire en tête. |

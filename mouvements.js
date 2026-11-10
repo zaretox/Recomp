@@ -849,3 +849,137 @@ Object.assign(SCHEMAS, {
     analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Un exercice doux pour le moyen fessier, utile en échauffement ou si la hanche est sensible. Garde le bassin immobile : s'il bascule en arrière, ce sont d'autres muscles qui ouvrent la jambe." },
   },
 });
+
+/* ── MOLLETS ── */
+const POURQUOI_MOLLETS = "Le mollet monte le talon. Le gros muscle visible (gastrocnémien) passe aussi par le genou : il travaille bien jambe tendue, presque plus genou plié. Le soléaire, dessous, travaille dans les deux cas.";
+const MARCHE = [{ t: "boite", x: 96, y: 171, l: 60, h: 10 }, SOL];
+const EFFORT_MOLLET = [{ art: "cheville", nom: "Cheville · mollet", point: "orteil" }];
+Object.assign(SCHEMAS, {
+  "Mollets debout": {
+    legende: "Mollets debout vus de profil : avant du pied sur une marche, on descend le talon au maximum puis on monte le plus haut possible.",
+    depart: { ancre: "orteils", orteil: [108, 170], torse: 180, cuisse: 0, tibia: 0, pied: 122, bras: 6, avbras: 2 }, arrivee: { pied: 52 },
+    objets: [{ t: "halteres" }], decor: MARCHE, muscle: ["mollet"], fleche: { suit: "cheville", decale: [-16, 0] },
+    effort: EFFORT_MOLLET, charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_MOLLETS, faisceaux: "Jambes tendues, le gastrocnémien est étiré : c'est la version qui fait le plus grossir le mollet. Marque une pause talon en bas pour supprimer l'effet ressort du tendon." },
+  },
+  "Mollets assis": {
+    legende: "Mollets assis vus de profil : genoux sous les appuis, on descend les talons puis on monte.",
+    depart: { ancre: "orteils", orteil: [126, 170], torse: 180, cuisse: [90, 86], tibia: [0, 0], pied: 122, bras: 20, avbras: 60 }, arrivee: { pied: 52 },
+    objets: [{ t: "boudin", sur: "genou" }], decor: [{ t: "banc", x: 52, y: 128, l: 46 }, { t: "pied", x: 74, y: 136, y2: 181 }, ...MARCHE], muscle: ["mollet"], fleche: { suit: "cheville", decale: [-16, 0] },
+    effort: EFFORT_MOLLET, charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_MOLLETS, faisceaux: "Genoux pliés, le gastrocnémien est relâché et grossit à peine ; le soléaire, lui, grossit autant qu'au mollet debout. Garde le mollet debout comme exercice principal." },
+  },
+  "Mollets presse": {
+    legende: "Mollets à la presse vus de profil : jambes tendues, avant du pied sur le bas de la plateforme, on pousse avec la pointe des pieds.",
+    depart: { ...PRESSE, cuisse: [134, 130], tibia: [134, 130], pied: [256, 252] }, arrivee: { pied: [184, 180] },
+    objets: [], decor: DECOR_PRESSE, muscle: ["mollet"], fleche: { suit: "orteil", decale: [12, 12] },
+    effort: [{ art: "cheville", nom: "Cheville · mollet", point: "orteil" }], charge: RAIL_PRESSE, etire: 0,
+    analyse: { pourquoi: POURQUOI_MOLLETS, faisceaux: "Jambes tendues comme au mollet debout, sans charge sur les épaules ni sur le dos. Garde les genoux tendus mais pas verrouillés." },
+  },
+  "Mollets unilatéral haltère": {
+    legende: "Mollet à une jambe vu de profil : un pied sur la marche, haltère du même côté, on monte le plus haut possible.",
+    depart: { ancre: "orteils", orteil: [108, 170], torse: 180, cuisse: [0, 16], tibia: [0, -60], pied: [122, 70], bras: [6, 30], avbras: [2, 70] }, arrivee: { pied: [52, 70] },
+    objets: [{ t: "haltere" }], decor: MARCHE, muscle: ["mollet"], fleche: { suit: "cheville", decale: [-16, 0] },
+    effort: EFFORT_MOLLET, charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_MOLLETS, faisceaux: "Une jambe à la fois : tout le poids du corps passe par un seul mollet, sans machine. Utile pour corriger un mollet plus faible." },
+  },
+  "Mollets donkey": {
+    legende: "Mollets donkey vus de profil : buste penché à angle droit, jambes tendues, on monte sur la pointe des pieds.",
+    depart: { ancre: "orteils", orteil: [80, 170], torse: 94, tete: -20, cuisse: 0, tibia: 0, pied: 122, bras: 92, avbras: 92 }, arrivee: { pied: 52 },
+    objets: [], decor: [{ t: "appui", x: 128, y: 92, l: 14, h: 89 }, { t: "boite", x: 68, y: 171, l: 60, h: 10 }, SOL], muscle: ["mollet"], fleche: { suit: "cheville", decale: [-16, 0] },
+    effort: EFFORT_MOLLET, charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_MOLLETS, faisceaux: "Jambes tendues comme au mollet debout, mais sans charge sur le dos. Le gastrocnémien travaille bien, comme dans toutes les versions jambes tendues." },
+  },
+});
+
+/* ── ABDOS ── */
+const POURQUOI_ABDOS = "Le grand droit enroule le buste vers le bassin, ou le bassin vers le buste ; les obliques font tourner et pencher le tronc. Tous ensemble, ils gainent : ils empêchent le dos de se creuser ou de tourner.";
+const AU_SOL = { hanche: [112, 168], torse: 270, brasAbs: true };
+Object.assign(SCHEMAS, {
+  "Gainage": {
+    statique: true,
+    legende: "Gainage vu de profil : sur les avant-bras et la pointe des pieds, le corps reste droit de la tête aux talons.",
+    depart: { hanche: [92, 154], torse: 98, tete: -6, cuisse: [280, 280], tibia: [280, 280], pied: [10, 10], brasAbs: true, bras: 0, avbras: 90 },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: {},
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Les abdos travaillent sans bouger : ils empêchent le bassin de tomber. Mieux vaut 30 secondes parfaites qu'une minute avec le dos creusé. Pour progresser, allonge la durée ou écarte les coudes vers l'avant." },
+  },
+  "Gainage latéral": {
+    vue: "face", statique: true,
+    legende: "Gainage latéral vu de face : sur un avant-bras, pieds empilés, le bassin reste haut et aligné.",
+    depart: { hanche: [108, 146], torse: 258, tete: 0, cuisse: [4, 4], tibia: [2, 2], bras: [20, 92], avbras: [150, 178] },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: {},
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Surtout les obliques et le carré des lombes, avec le moyen fessier : ils empêchent le bassin de tomber vers le sol. Commence genoux pliés si c'est trop dur." },
+  },
+  "Crunch": {
+    legende: "Crunch vu de profil : allongé, genoux pliés, on enroule le haut du dos en rapprochant les côtes du bassin.",
+    depart: { ...AU_SOL, cuisse: [130, 126], tibia: [8, 4], pied: 90, tete: 0, bras: [200, 200], avbras: [300, 300] }, arrivee: { torse: 244, tete: -16 },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: { suit: "epaule", decale: [0, -16] },
+    effort: [{ art: "hanche", nom: "Tronc · grand droit", point: "epaule" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Surtout le grand droit. L'effort reste à peu près le même sur ce petit enroulement : inutile de monter jusqu'en position assise, ce sont alors les muscles de la hanche qui prennent le relais." },
+  },
+  "Crunch poulie": {
+    legende: "Crunch à la poulie vu de profil : à genoux, corde de chaque côté de la tête, on enroule le buste vers le sol.",
+    depart: { ancre: "genoux", genou: [104, 172], cuisse: [4, 4], tibia: [270, 270], pied: [180, 180], torse: 166, tete: 10, bras: 170, avbras: 40 }, arrivee: { cuisse: [-14, -14], torse: 98, tete: 30 },
+    objets: [{ t: "cable", de: [170, 10] }], decor: [{ t: "poulie", x: 170, y: 10 }, SOL], muscle: ["abdos"], fleche: { suit: "main", decale: [16, 0] },
+    effort: [{ art: "hanche", nom: "Tronc · grand droit", point: "main" }], charge: { t: "cable", de: [170, 10] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "La poulie permet de charger les abdos comme n'importe quel muscle, et de progresser en charge. Les hanches restent fixes : seul le dos s'enroule." },
+  },
+  "Crunch inversé": {
+    legende: "Crunch inversé vu de profil : allongé, jambes pliées en l'air, on enroule le bassin pour ramener les genoux vers la poitrine.",
+    depart: { ...AU_SOL, cuisse: [146, 142], tibia: [62, 58], pied: 150, bras: [90, 90], avbras: [90, 90] }, arrivee: { cuisse: [200, 196], tibia: [110, 106] },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: { suit: "genou", decale: [0, -16] },
+    effort: [{ art: "hanche", nom: "Bassin · grand droit", point: "genou" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Le bas du grand droit enroule le bassin. Le plus dur est le début, jambes encore loin ; une fois les genoux au-dessus des hanches, leur poids n'aide plus à travailler." },
+  },
+  "Relevé de jambes": {
+    legende: "Relevé de jambes vu de profil : allongé, jambes tendues, on les monte à la verticale sans cambrer le bas du dos.",
+    depart: { ...AU_SOL, cuisse: [86, 84], tibia: [86, 84], pied: 170, bras: [90, 90], avbras: [90, 90] }, arrivee: { cuisse: [180, 176], tibia: [180, 176] },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: { suit: "cheville", decale: [0, -16] },
+    effort: [{ art: "hanche", nom: "Hanche · abdos et psoas", point: "cheville" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Ce sont les muscles de la hanche qui montent les jambes ; les abdos, eux, empêchent le bas du dos de se creuser. Le plus dur est jambes près du sol : arrête-toi avant si le dos décolle." },
+  },
+  "Relevé de jambes suspendu": {
+    legende: "Relevé de jambes suspendu vu de profil : suspendu à la barre, on monte les jambes devant soi sans se balancer.",
+    depart: { ancre: "mains", main: [100, 34], torse: 180, cuisse: [2, 0], tibia: [2, 0], pied: 90, brasAbs: true, bras: 180, avbras: 180 }, arrivee: { torse: 186, cuisse: [96, 92], tibia: [96, 92] },
+    objets: [], decor: BARRE_FIXE, muscle: ["abdos"], fleche: { suit: "cheville", decale: [14, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · abdos et psoas", point: "cheville" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Plus les jambes montent, plus leur poids s'éloigne de la hanche : le plus dur est à l'horizontale. Pour faire vraiment travailler les abdos, enroule le bassin en fin de mouvement. Commence genoux pliés." },
+  },
+  "Roue abdominale": {
+    legende: "Roue abdominale vue de profil : à genoux, on roule vers l'avant dos plat, puis on revient en contractant les abdos.",
+    depart: { ancre: "genoux", genou: [60, 172], cuisse: [8, 8], tibia: [270, 270], pied: [180, 180], torse: 108, tete: 6, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { cuisse: [-55, -55], torse: 98, bras: 59, avbras: 59 },
+    objets: [{ t: "roue" }], decor: [SOL], muscle: ["abdos"], fleche: { suit: "main", decale: [0, -18] },
+    effort: [{ art: "genou", nom: "Tronc · abdos", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Plus on roule loin, plus le corps fait levier : le plus dur est bras tendus, abdos étirés. Ne va pas plus loin que ce que tu contrôles sans creuser le dos." },
+  },
+  "Pallof press": {
+    vue: "bout",
+    legende: "Pallof press vu du dessus : de côté par rapport à la poulie, on pousse la poignée devant soi sans laisser le buste tourner.",
+    depart: { ...BOUT, bras: [24, 24], avbras: [204, 204] }, arrivee: { bras: [186, 174], avbras: [186, 174] },
+    objets: [{ t: "cable", de: [196, 60] }], decor: [{ t: "poulie", x: 196, y: 60 }], muscle: ["torse"], fleche: { suit: "main", decale: [12, 0] },
+    texteEffort: "La poulie tire sur le côté : plus les bras s'éloignent du buste, plus elle cherche à te faire tourner. L'effort des abdos est le plus grand bras tendus ; tiens 2 secondes.",
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Un exercice d'anti-rotation : les obliques et le grand droit travaillent pour que rien ne bouge. Utile pour un tronc solide sous les charges lourdes." },
+  },
+  "Russian twist": {
+    vue: "face",
+    legende: "Russian twist vu de face : assis, buste incliné en arrière, on tourne la charge d'un côté puis de l'autre.",
+    depart: { hanche: [100, 132], lc: .38, cuisse: [20, 20], tibia: [10, 10], bras: [52, -40], avbras: [40, -60] }, arrivee: { bras: [-40, 52], avbras: [-60, 40] },
+    objets: [{ t: "disque", r: 10 }], decor: [SOL], muscle: ["abdos"], fleche: { suit: "main", decale: [0, -16] },
+    texteEffort: "La charge tenue à bout de bras pèse le plus sur les côtés : c'est là que les obliques travaillent le plus. Au centre, l'effort est presque nul.",
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Surtout les obliques. Tourne les épaules, pas seulement les bras, et garde le dos droit : un dos arrondi reporte l'effort sur la colonne." },
+  },
+  "Dead bug": {
+    legende: "Dead bug vu de profil : allongé, bras vers le plafond et jambes pliées en l'air, on tend un bras et la jambe opposée sans décoller le bas du dos.",
+    depart: { ...AU_SOL, cuisse: [180, 180], tibia: [90, 90], pied: 180, bras: [180, 180], avbras: [180, 180] }, arrivee: { cuisse: [180, 96], tibia: [90, 96], bras: [262, 180], avbras: [262, 180] },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: { suit: "main", decale: [0, -14] },
+    texteEffort: "L'effort est le plus grand bras et jambe tendus : plus ils s'éloignent du tronc, plus les abdos doivent empêcher le bas du dos de se creuser.",
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Le grand droit et les muscles profonds du ventre plaquent le bas du dos au sol pendant que les membres bougent. Lent et contrôlé : la vitesse n'apporte rien ici." },
+  },
+  "Mountain climbers": {
+    legende: "Mountain climbers vus de profil : en position de pompe, on ramène les genoux vers la poitrine en alternant vite.",
+    depart: { ancre: "mains", main: [142, 177], torse: 104, brasAbs: true, bras: 0, avbras: 0, cuisse: [284, 284], tibia: [284, 284], pied: [10, 10] }, arrivee: { cuisse: [392, 284], tibia: [336, 284] },
+    objets: [], decor: [SOL], muscle: ["abdos"], fleche: { suit: "genou", decale: [0, 14] },
+    texteEffort: "Du gainage en mouvement : les abdos tiennent le bassin pendant que les jambes alternent. L'effort reste à peu près le même ; il s'accumule avec la vitesse et la durée.",
+    analyse: { pourquoi: POURQUOI_ABDOS, faisceaux: "Les abdos stabilisent, les épaules portent le haut du corps, et le cœur monte vite : c'est autant du cardio que du gainage. Garde les hanches basses." },
+  },
+});

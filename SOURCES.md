@@ -106,3 +106,13 @@ Courbes : squats, fentes, step-up et sissy squat : effort au genou calculé depu
 | Hip thrust = squat pour les fessiers ; le squat fait en plus grossir quadriceps et adducteurs ; l'EMG plus élevée au hip thrust ne prédit pas la croissance. | Plotkin et coll., 2023, *Frontiers in Physiology*, [10.3389/fphys.2023.1279170](https://doi.org/10.3389/fphys.2023.1279170) | Débutants, 9 semaines, IRM : croissance des fessiers semblable ; quadriceps et adducteurs davantage avec le squat. |
 
 Courbes : soulevés et good morning calculés sur la pose (poids vertical). Leg curls : machine à came ronde (constante) ou lest à la cheville (calculé). Nordic : poids du corps à l'épaule. Hip thrust et pont : réaction du sol sous les pieds. Abductions : machine constante, élastique de plus en plus tendu, poulie à la cheville.
+
+## Mollets et abdos
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Mollet debout > assis ; soléaire identique. | Kinoshita et coll., 2023 (voir plus haut) | |
+
+Courbes : mollets : réaction du sol sous l'avant du pied, effort à la cheville (maximal pied à plat, au milieu). Crunchs, relevés de jambes et roue : poids du buste ou des jambes, calculé sur la pose. Gainages : exercices statiques. Pallof press, russian twist, dead bug et mountain climbers : effort décrit en texte, la courbe n'ayant pas de sens pour ces mouvements.
+
+Tous les DOI de ce fichier ont été vérifiés dans Crossref (33 sur 33).
