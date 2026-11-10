@@ -416,7 +416,7 @@ const TECHNIQUES = [
     exemple: "Abdos : crunch, relevé de jambes, gainage, russian twist.", quand: "Pour les abdos, les mollets ou une fin de séance.", attention: "Charges légères : la technique se dégrade vite." },
   { cat: "Enchaîner des exercices", nom: "Pré-fatigue", bref: "Un exercice d'isolation juste avant un exercice de base pour le même muscle.",
     comment: ["Fais d'abord l'exercice qui isole le muscle.", "Enchaîne sans repos l'exercice de base.", "Le muscle visé lâche avant les muscles qui aident."],
-    exemple: "Leg extension puis presse à cuisses.", quand: "Quand un muscle ne travaille pas assez sur les gros exercices.", attention: "Tu seras moins fort sur l'exercice de base : baisse la charge." },
+    exemple: "Leg extension puis presse à cuisses.", quand: "Quand un muscle ne travaille pas assez sur les gros exercices.", attention: "Tu seras moins fort sur l'exercice de base : baisse la charge. Sur plusieurs semaines, l'ordre classique fait un peu plus grossir le muscle : garde la pré-fatigue pour varier." },
   { cat: "Enchaîner des exercices", nom: "Post-fatigue", bref: "L'inverse : l'exercice de base d'abord, l'isolation juste après.",
     comment: ["Fais ta série lourde sur l'exercice de base.", "Enchaîne un exercice d'isolation pour le même muscle.", "Repos, puis recommence."],
     exemple: "Développé couché puis pec deck.", quand: "Pour garder ta force sur le gros exercice et finir le muscle ensuite.", attention: "Garde la charge lourde sur le premier exercice." },

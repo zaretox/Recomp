@@ -22,15 +22,17 @@ function articulations(p) {
   const cu = paire(p.cuisse ?? 0), ti = paire(p.tibia ?? 0), br = paire(p.bras ?? 0), ab = paire(p.avbras ?? 0), pi = paire(p.pied ?? 90);
   const t = p.torse ?? 180, rel = a => p.brasAbs ? a : a + t - 180;
   if (p.vue === "face" || p.vue === "bout") {
-    const m1 = (s, v) => [s * v[0], v[1]];
+    // vue de face, éventuellement pivotée (couché sur le côté : t = 270, tête à gauche, côté droit en haut)
+    const th = rad(t - 180), rot = v => [v[0] * Math.cos(th) + v[1] * Math.sin(th), -v[0] * Math.sin(th) + v[1] * Math.cos(th)];
+    const m1 = (s, v) => rot([s * v[0], v[1]]), lc = L_CORPS.cuisse * (p.lc ?? 1);
     let hanche = p.hanche;
-    if (p.ancre === "pieds") hanche = moins(moins(moins(p.cheville, m1(1, dirA(ti[0], L_CORPS.tibia))), m1(1, dirA(cu[0], L_CORPS.cuisse))), [8, 0]);
+    if (p.ancre === "pieds") hanche = moins(moins(moins(p.cheville, m1(1, dirA(ti[0], L_CORPS.tibia))), m1(1, dirA(cu[0], lc))), rot([8, 0]));
     const cou = plus(hanche, dirA(t, L_CORPS.torse));
     const cote = (s, i) => {
       const m = v => m1(s, v);
-      const ep = plus(cou, [s * 14, 4 - (p.hausse || 0)]), hp = plus(hanche, [s * 8, 0]);
+      const ep = plus(cou, rot([s * 14, 4 - (p.hausse || 0)])), hp = plus(hanche, rot([s * 8, 0]));
       const coude = plus(ep, m(dirA(br[i], L_CORPS.bras))), main = plus(coude, m(dirA(ab[i], L_CORPS.avbras)));
-      const genou = plus(hp, m(dirA(cu[i], L_CORPS.cuisse))), cheville = plus(genou, m(dirA(ti[i], L_CORPS.tibia)));
+      const genou = plus(hp, m(dirA(cu[i], lc))), cheville = plus(genou, m(dirA(ti[i], L_CORPS.tibia)));
       return { ep, hp, coude, main, genou, cheville, orteil: plus(cheville, m([7, 0])) };
     };
     return { vue: p.vue, t, hanche, cou, tete: plus(cou, dirA(t + (p.tete || 0), L_CORPS.cou)), cotes: [cote(1, 0), cote(-1, 1)] };
@@ -38,6 +40,7 @@ function articulations(p) {
   let hanche = p.hanche;
   const vBras = dirA(rel(br[0]), L_CORPS.bras), vAvb = dirA(rel(ab[0]), L_CORPS.avbras), vTorse = dirA(t, L_CORPS.torse);
   if (p.ancre === "pieds") hanche = moins(moins(p.cheville, dirA(ti[0], L_CORPS.tibia)), dirA(cu[0], L_CORPS.cuisse));
+  if (p.ancre === "orteils") hanche = moins(moins(moins(p.orteil, dirA(pi[0], L_CORPS.pied)), dirA(ti[0], L_CORPS.tibia)), dirA(cu[0], L_CORPS.cuisse));
   if (p.ancre === "genoux") hanche = moins(p.genou, dirA(cu[0], L_CORPS.cuisse));
   if (p.ancre === "mains") hanche = moins(moins(moins(p.main, vAvb), vBras), vTorse);
   const epaule = plus(hanche, vTorse), tete = plus(epaule, dirA(t + (p.tete || 0), L_CORPS.cou));
@@ -69,6 +72,7 @@ function pointSuivi(j, quoi, s) {
   if (quoi === "epaule") return c.ep;
   if (quoi === "hanche") return j.hanche;
   if (quoi === "cheville") return c.cheville;
+  if (quoi === "orteil") return c.orteil;
   if (quoi === "genou") return c.genou;
   if (quoi === "coude") return c.coude;
   if (quoi === "tete") return j.tete;
@@ -241,6 +245,7 @@ function phraseCourbe(sv, c) {
 /* Le graphique sous le schéma, avec un curseur qui suit le bonhomme */
 function Courbes({ sv, k }) {
   if (sv.statique) return h("div.courbe-effort", h("div.ce-tete", h("b", "Courbe d'effort")), h("p.ce-phrase", sv.statique === true ? "Exercice de maintien : le muscle travaille sans bouger. L'effort reste le même, il s'accumule avec la durée." : sv.statique));
+  if (sv.texteEffort) return h("div.courbe-effort", h("div.ce-tete", h("b", "Effort")), h("p.ce-phrase", sv.texteEffort));
   const cs = courbes(sv);
   if (!cs.length) return null;
   const X = p => 12 + p * 276, Y = v => 92 - v * 74;

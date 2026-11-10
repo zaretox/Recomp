@@ -86,3 +86,13 @@ Courbes : développés au-dessus de la tête lus de face, coudes sur les côtés
 | Curl incliné : pas plus de croissance. | Larsen 2026, Attarieh 2025 (voir plus haut) | |
 
 Courbes : curls et extensions calculés sur la pose (poids vertical ou câble). Développé serré et pompes diamant : référence du développé couché, coudes serrés. Dips : réaction des barres sur les mains, effort à l'épaule.
+
+## Quadriceps
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Leg extension : insister sur la partie genou plié (quadriceps étiré) le fait davantage grossir. | Pedrosa et coll., 2022, *European Journal of Sport Science*, [10.1080/17461391.2021.1927199](https://doi.org/10.1080/17461391.2021.1927199) | 45 femmes non entraînées : amplitude initiale (100°–65° de flexion) > amplitude finale, complète ou variée sur plusieurs zones du droit fémoral et du vaste latéral. |
+| Squat : le droit fémoral grossit peu ; l'effort augmente avec la profondeur. | Kubo 2019, Bryanton 2012 (voir plus haut) | |
+| Pré-fatigue : un peu moins de croissance que l'ordre classique. | Hermann et coll., 2026, *International Journal of Exercise Science*, [10.70252/IJES2026108](https://doi.org/10.70252/IJES2026108) | 48 pratiquants entraînés, 8 semaines, jambes : légère supériorité de l'ordre classique, incertitude statistique. |
+
+Courbes : squats, fentes, step-up et sissy squat : effort au genou calculé depuis la position du bassin (poids du corps et de la charge). Presse : force le long du rail à 45°. Leg extension : machine à came ronde (constante) ou lest à la cheville (calculé).

@@ -593,3 +593,109 @@ Object.assign(SCHEMAS, {
     analyse: { pourquoi: POURQUOI_TRICEPS, faisceaux: "Mains rapprochées, le triceps fait une plus grande part du travail qu'en pompe classique. Trop dur ? Fais-les sur les genoux." },
   },
 });
+
+/* ── QUADRICEPS ── */
+const POURQUOI_QUADS = "Le quadriceps tend le genou. Trois de ses chefs (les vastes) ne passent que par le genou ; le quatrième, le droit fémoral, passe aussi par la hanche et grossit surtout avec les exercices où la hanche reste ouverte, comme le leg extension.";
+// Presse inclinée à 45° : la plateforme recule vers la hanche le long du rail
+const PRESSE = { hanche: [62, 146], torse: 230, tete: -20, brasAbs: true, bras: 20, avbras: 80, pied: [225, 225] };
+const RAIL_PRESSE = { t: "cable", de: [-300, 510] };  // direction du rail : vers le bas et la gauche, à 45°
+const DECOR_PRESSE = [{ t: "bancr", x: 18, y: 112, l: 54, a: -40 }, { t: "banc", x: 54, y: 152, l: 30 }, { t: "pied", x: 70, y: 160, y2: 181 }, SOL];
+const MACHINE_RONDE = "Avec une came ronde, le bras de levier de la machine reste le même : la résistance est constante. Avec une came ovale, elle varie selon le modèle.";
+Object.assign(SCHEMAS, {
+  "Front squat": {
+    legende: "Front squat vu de profil : barre sur l'avant des épaules, coudes hauts, on descend buste droit.",
+    depart: { ancre: "pieds", cheville: [92, 178], cuisse: 0, tibia: 0, torse: 178, bras: 50, avbras: 150 }, arrivee: { cuisse: 86, tibia: -36, torse: 160 },
+    objets: [{ t: "barre", sur: "ep", decale: [8, -4] }], decor: [SOL], muscle: ["quadriceps"], fleche: { suit: "epaule", decale: [34, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "hanche" }, { art: "hanche", nom: "Hanche · fessiers", point: "barre" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Barre devant, le buste reste plus droit qu'au squat classique : le genou travaille davantage, la hanche et le dos un peu moins. Comme pour tout squat, plus tu descends, plus l'effort augmente." },
+  },
+  "Goblet squat": {
+    legende: "Goblet squat vu de profil : haltère contre la poitrine, on descend entre les jambes buste droit.",
+    depart: { ancre: "pieds", cheville: [92, 178], cuisse: 0, tibia: 0, torse: 178, bras: 26, avbras: 164 }, arrivee: { cuisse: 88, tibia: -34, torse: 158 },
+    objets: [{ t: "haltere", r: 9 }], decor: [SOL], muscle: ["quadriceps", "fessiers"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "hanche" }, { art: "hanche", nom: "Hanche · fessiers" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "L'haltère devant soi aide à garder le buste droit et à descendre bas : parfait pour apprendre le squat. L'effort augmente avec la profondeur." },
+  },
+  "Presse à cuisses": {
+    legende: "Presse à 45° vue de profil : dos calé, on descend la plateforme vers la poitrine puis on la repousse.",
+    depart: { ...PRESSE, cuisse: [134, 128], tibia: [136, 130] }, arrivee: { cuisse: [194, 188], tibia: [76, 70] },
+    objets: [{ t: "plateforme", a: 45, cote: -7 }], decor: DECOR_PRESSE, muscle: ["quadriceps", "fessiers"], fleche: { suit: "cheville", decale: [14, 14] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "cheville" }, { art: "hanche", nom: "Hanche · fessiers", point: "cheville" }], charge: RAIL_PRESSE, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Les quadriceps font l'essentiel, aidés par les fessiers et les adducteurs, sans charge sur le dos. L'effort est le plus grand genoux pliés : descends tant que le bassin reste collé au dossier." },
+  },
+  "Presse lourde": {
+    legende: "Presse lourde vue de profil : même mouvement qu'à la presse, charge lourde et amplitude complète.",
+    depart: { ...PRESSE, cuisse: [134, 128], tibia: [136, 130] }, arrivee: { cuisse: [190, 184], tibia: [80, 74] },
+    objets: [{ t: "plateforme", a: 45, cote: -7 }], decor: DECOR_PRESSE, muscle: ["quadriceps", "fessiers"], fleche: { suit: "cheville", decale: [14, 14] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "cheville" }, { art: "hanche", nom: "Hanche · fessiers", point: "cheville" }], charge: RAIL_PRESSE, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Lourd ne veut pas dire raccourci : c'est en bas, genoux pliés, que le quadriceps est le plus sollicité. Des demi-répétitions très chargées perdent justement cette partie." },
+  },
+  "Presse unilatérale": {
+    legende: "Presse à une jambe vue de profil : un seul pied sur la plateforme, on descend lentement en contrôlant le genou.",
+    depart: { ...PRESSE, cuisse: [134, 196], tibia: [136, 100] }, arrivee: { cuisse: [194, 196], tibia: [76, 100] },
+    objets: [{ t: "plateforme", a: 45, cote: -7 }], decor: DECOR_PRESSE, muscle: ["quadriceps", "fessiers"], fleche: { suit: "cheville", decale: [14, 14] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "cheville" }], charge: RAIL_PRESSE, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Une jambe à la fois : chaque côté fait sa part, ce qui corrige un écart de force entre les deux jambes. Charge réduite de plus de moitié par rapport à la presse à deux jambes." },
+  },
+  "Hack squat": {
+    legende: "Hack squat vu de profil : dos contre le dossier incliné, on descend en gardant les genoux dans l'axe des pieds.",
+    depart: { ancre: "pieds", cheville: [118, 176], cuisse: 16, tibia: 16, torse: 206, tete: -8, bras: 20, avbras: 150, pied: 96 }, arrivee: { cuisse: 96, tibia: -26, torse: 206 },
+    objets: [], decor: [{ t: "bancr", x: 60, y: 38, l: 118, a: -72, h: 6 }, { t: "bancr", x: 104, y: 180, l: 34, a: 0, h: 5 }, SOL], muscle: ["quadriceps"], fleche: { suit: "epaule", decale: [-20, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Le dossier tient le buste : tout le travail va aux jambes, surtout aux quadriceps. Pieds plus bas sur la plateforme, les genoux avancent davantage et le quadriceps travaille encore plus." },
+  },
+  "Squat pendulaire": {
+    legende: "Squat pendulaire vu de profil : épaules sous les appuis, on descend profondément en suivant l'arc de la machine.",
+    depart: { ancre: "pieds", cheville: [114, 176], cuisse: 10, tibia: 8, torse: 192, tete: -6, bras: 30, avbras: 160, pied: 92 }, arrivee: { cuisse: 104, tibia: -34, torse: 200 },
+    objets: [], decor: [{ t: "bancr", x: 100, y: 180, l: 34, a: 0, h: 5 }, SOL], muscle: ["quadriceps"], fleche: { suit: "epaule", decale: [-20, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Très grande amplitude pour les quadriceps sans charger le dos. C'est en bas, genoux très pliés, que l'effort est le plus grand." },
+  },
+  "Leg extension": {
+    legende: "Leg extension vu de profil : assis, on tend les jambes, puis on redescend lentement.",
+    depart: { hanche: [72, 120], torse: 176, cuisse: [88, 84], tibia: [2, -2], pied: 90, bras: 10, avbras: 30 }, arrivee: { tibia: [86, 82] },
+    objets: [{ t: "boudin", cote: 1 }], decor: [{ t: "bancr", x: 54, y: 126, l: 60, a: 90, h: 8 }, { t: "banc", x: 52, y: 126, l: 62 }, { t: "pied", x: 80, y: 134, y2: 181 }, SOL],
+    muscle: ["quadriceps"], fleche: { suit: "cheville", decale: [14, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }], etire: 0,
+    variantes: [
+      { nom: "Machine", effort: [{ art: "genou", nom: "Genou · quadriceps", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }] },
+      { nom: "Lest à la cheville", effort: [{ art: "genou", nom: "Genou · quadriceps", point: "cheville" }], charge: { t: "poids" } },
+    ],
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Hanche ouverte, le droit fémoral travaille bien, contrairement au squat. Insister sur la partie genou plié, quadriceps étiré, le fait davantage grossir que la partie jambe presque tendue : ne coupe pas le bas du mouvement." },
+  },
+  "Squat bulgare": {
+    legende: "Squat bulgare vu de profil : pied arrière sur un banc, on descend à la verticale jusqu'à ce que le genou arrière frôle le sol.",
+    depart: { ancre: "pieds", cheville: [118, 178], torse: 178, cuisse: [6, 314], tibia: [0, 260], pied: [90, 250], bras: 4, avbras: 2 }, arrivee: { cuisse: [72, 304], tibia: [-28, 207] },
+    objets: [{ t: "halteres" }], decor: [{ t: "banc", x: 14, y: 122, l: 40 }, { t: "pied", x: 34, y: 130, y2: 181 }, SOL], muscle: ["quadriceps", "fessiers"], fleche: { suit: "hanche", decale: [22, 0] },
+    effort: [{ art: "genou", nom: "Genou avant · quadriceps", point: "hanche" }, { art: "hanche", nom: "Hanche · fessiers", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Toute la charge passe par la jambe avant : quadriceps et fessiers travaillent dur, une jambe à la fois. Buste droit, plus de quadriceps ; buste penché, plus de fessiers." },
+  },
+  "Fentes": {
+    legende: "Fente vue de profil : un grand pas en avant, on descend jusqu'à ce que le genou arrière frôle le sol.",
+    depart: { ancre: "pieds", cheville: [126, 178], torse: 178, cuisse: [20, 340], tibia: [4, 340], pied: [90, 140], bras: 4, avbras: 2 }, arrivee: { cuisse: [80, 2], tibia: [-6, 280] },
+    objets: [{ t: "halteres" }], decor: [SOL], muscle: ["quadriceps", "fessiers"], fleche: { suit: "hanche", decale: [-18, 0] },
+    effort: [{ art: "genou", nom: "Genou avant · quadriceps", point: "hanche" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "La jambe avant fait l'essentiel. Un grand pas fait davantage travailler les fessiers, un pas court davantage les quadriceps." },
+  },
+  "Fentes marchées": {
+    legende: "Fentes marchées vues de profil : on enchaîne les fentes en avançant, buste droit.",
+    depart: { ancre: "pieds", cheville: [126, 178], torse: 178, cuisse: [20, 340], tibia: [4, 340], pied: [90, 140], bras: 4, avbras: 2 }, arrivee: { cuisse: [80, 2], tibia: [-6, 280] },
+    objets: [{ t: "halteres" }], decor: [SOL], muscle: ["quadriceps", "fessiers"], fleche: { suit: "hanche", decale: [-18, 0] },
+    effort: [{ art: "genou", nom: "Genou avant · quadriceps", point: "hanche" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Même travail que la fente, avec l'équilibre en plus. De grandes enjambées font davantage travailler les fessiers." },
+  },
+  "Step-up": {
+    legende: "Step-up vu de profil : pied entier sur la caisse, on monte en poussant dans ce pied, sans s'aider de l'autre jambe.",
+    depart: { ancre: "pieds", cheville: [112, 134], torse: 170, cuisse: [96, 340], tibia: [-24, 4], pied: [90, 90], bras: 4, avbras: 2 }, arrivee: { torse: 180, cuisse: [2, 30], tibia: [0, -40] },
+    objets: [{ t: "halteres" }], decor: [{ t: "boite", x: 96, y: 137, l: 56, h: 44 }, SOL], muscle: ["quadriceps", "fessiers"], fleche: { suit: "hanche", decale: [-18, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "hanche" }, { art: "hanche", nom: "Hanche · fessiers", point: "epaule" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "La jambe du haut fait tout le travail : quadriceps et fessiers. L'effort est le plus grand au départ, genou plié. Plus la caisse est haute, plus les fessiers travaillent." },
+  },
+  "Sissy squat": {
+    legende: "Sissy squat vu de profil : sur la pointe des pieds, on avance les genoux et on penche le corps en arrière, d'un seul bloc des genoux aux épaules.",
+    depart: { ancre: "orteils", orteil: [104, 180], torse: 180, cuisse: 0, tibia: 0, pied: 70, bras: 90, avbras: 90 }, arrivee: { torse: 206, cuisse: 26, tibia: -58, pied: 40 },
+    objets: [], decor: [{ t: "pied", x: 170, y: 70, y2: 181 }, SOL], muscle: ["quadriceps"], fleche: { suit: "genou", decale: [16, 0] },
+    effort: [{ art: "genou", nom: "Genou · quadriceps", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Hanche ouverte et genoux très pliés : le quadriceps, droit fémoral compris, travaille étiré. Exercice avancé, à éviter si le genou est douloureux." },
+  },
+});
