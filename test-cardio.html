@@ -60,7 +60,7 @@
     <div class="infos">
       <div><b id="appareil">—</b><span>appareil</span></div>
       <div><b id="nb">0</b><span>mesures reçues</span></div>
-      <div><b id="rr">—</b><span>dernier intervalle R-R</span></div>
+      <div><b id="recus">0</b><span>signaux reçus (tous)</span></div>
       <div><b id="duree">0 s</b><span>depuis la connexion</span></div>
     </div>
   </div>
@@ -141,7 +141,7 @@
         const { bpm, rr } = lireMesure(ev.target.value);
         n++;
         $("bpm").textContent = bpm; $("nb").textContent = n;
-        if (rr.length) $("rr").textContent = rr[rr.length - 1] + " ms";
+        if (rr.length && $("rr")) $("rr").textContent = rr[rr.length - 1] + " ms";
         if (n === 1) { journal("Première mesure reçue : " + bpm + " bpm" + (rr.length ? ", intervalles R-R présents" : ", sans intervalle R-R")); etat("Ça marche : ta montre envoie ta fréquence cardiaque.", "bon"); }
       });
       await mesure.startNotifications();
@@ -171,7 +171,17 @@
   const POLAR = 0x006B;
   const hex = dv => Array.from(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength)).map(b => b.toString(16).padStart(2, "0")).join(" ");
   let dernierHex = "";
+  // Diagnostic : on compte et on décrit tous les signaux reçus, même ceux qu'on ne sait pas décoder
+  let recus = 0, decrits = 0;
+  const cles = m => { const o = []; try { m && m.forEach((v, k) => o.push((typeof k === "number" ? "0x" + k.toString(16).padStart(4, "0") : k) + " = " + (v && v.byteLength != null ? hex(v) : String(v)))); } catch (e) { o.push("illisible : " + decrire(e)); } return o; };
   const recevoir = ev => {
+    recus++;
+    $("recus").textContent = recus;
+    if (decrits < 8) {
+      decrits++;
+      const fab = cles(ev.manufacturerData), serv = cles(ev.serviceData);
+      journal("Signal n°" + recus + (ev.rssi != null ? " (force " + ev.rssi + " dBm)" : "") + " · constructeur : " + (fab.join(" ; ") || "aucune donnée") + " · services : " + (serv.join(" ; ") || "aucune donnée") + (ev.uuids && ev.uuids.length ? " · uuids : " + ev.uuids.join(", ") : ""));
+    }
     const d = ev.manufacturerData && ev.manufacturerData.get(POLAR);
     if (!d || !d.byteLength) return;
     const h = hex(d), bpm = d.getUint8(d.byteLength - 1);
@@ -206,7 +216,7 @@
       debut = Date.now(); clearInterval(minuteur);
       minuteur = setInterval(() => {
         $("duree").textContent = Math.round((Date.now() - debut) / 1000) + " s";
-        if (n === 0 && Date.now() - debut > 15000) etat("Aucune fréquence reçue depuis 15 s : le sport choisi sur la montre a-t-il la fréquence cardiaque visible ?", "mauvais");
+        if (n === 0 && Date.now() - debut > 15000) etat(recus === 0 ? "Aucun signal reçu depuis 15 s : ce navigateur accepte l'écoute mais ne transmet rien." : recus + " signaux reçus, mais aucune fréquence reconnue : envoie une capture du journal.", "mauvais");
       }, 1000);
       etat("À l'écoute de la montre…");
     } catch (err) {
