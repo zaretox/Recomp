@@ -105,22 +105,36 @@ const recuperation = memo(iso => {
   swl.filter(l => l.dateISO === hier).forEach(l => hierTxt.push(entier(l.distance) + " m de natation"));
   if (hierTxt.length) det.charge.push(["Hier : " + hierTxt.join(", "), "c"]);
 
-  // Fatigue par région : baisse de force estimée face au meilleur des 4 semaines, séance récente, douleurs
+  const mediane = v => { const s = [...v].sort((x, y) => x - y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+  // Fatigue par région : performance de la dernière séance face à ton niveau des 4 semaines, séance récente, douleurs.
+  // Une séance en dessous du niveau habituel est un indice de fatigue, pas une mesure : on prend la médiane des exercices
+  // (un seul exercice ne fait pas tout basculer), seulement ceux qui ont au moins 2 séances de référence, avec une pénalité
+  // plafonnée, plus faible si la séance d'avant était normale, et qui s'efface en quelques jours.
+  const baisseDe = (log, r) => {
+    const ref = sl.filter(l => !l.deload && l.dateISO < log.dateISO && ecart(l.dateISO, log.dateISO) <= 28);
+    const exos = (log.exercices || []).filter(x => regionDe(x.nom) === r && x.weight > 0 && x.reps > 0).map(x => {
+      const seances = ref.filter(l => (l.exercices || []).some(z => z.nom === x.nom && z.weight > 0 && z.reps > 0));
+      if (seances.length < 2) return null;
+      const best = Math.max(...seances.flatMap(l => l.exercices.filter(z => z.nom === x.nom && z.weight > 0 && z.reps > 0).map(meilleurMax)));
+      return best > 0 ? { nom: x.nom, pct: Math.max(-30, Math.min(0, (meilleurMax(x) - best) / best * 100)) } : null;
+    }).filter(Boolean);
+    return exos.length ? { mediane: mediane(exos.map(e => e.pct)), exos } : null;
+  };
   const region = r => {
     const hist = sl.filter(l => !l.deload && l.dateISO < iso && (l.exercices || []).some(x => regionDe(x.nom) === r && seriesDe(x) > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO));
     const der = hist[0];
-    let baisse = null, depuis = null, recent = 0;
+    let baisse = null, exosBaisse = [], depuis = null, recent = 0, penalite = 0;
     if (der) {
       depuis = ecart(der.dateISO, iso);
       const mes = der.exercices.filter(x => regionDe(x.nom) === r);
-      if (depuis <= 7) {
-        const ref = sl.filter(l => !l.deload && l.dateISO < der.dateISO && ecart(l.dateISO, der.dateISO) <= 28);
-        const b = mes.filter(x => x.weight > 0 && x.reps > 0).map(x => {
-          const v = ref.flatMap(l => (l.exercices || []).filter(z => z.nom === x.nom && z.weight > 0 && z.reps > 0).map(meilleurMax));
-          const best = v.length ? Math.max(...v) : 0;
-          return best > 0 ? Math.min(0, (meilleurMax(x) - best) / best * 100) : null;
-        }).filter(v => v != null);
-        if (b.length) baisse = moyenne(b);
+      if (depuis <= 4) {
+        const b1 = baisseDe(der, r), b2 = hist[1] ? baisseDe(hist[1], r) : null;
+        if (b1) {
+          baisse = b1.mediane; exosBaisse = b1.exos.filter(e => e.pct <= -3).sort((a, b) => a.pct - b.pct);
+          const confirme = b2 && b2.mediane <= -3 ? 1 : .6;          // deux séances de suite en dessous : indice plus solide
+          const efface = Math.max(0, 1 - (depuis - 1) * .25);        // s'efface en 4 jours
+          penalite = Math.min(40, -baisse * 3) * confirme * efface;
+        }
       }
       const dur = mes.reduce((a, x) => a + seriesDe(x) * ((x.rpe || 7) / 8), 0);
       recent = depuis === 1 ? Math.min(25, dur * 1.2) : depuis === 2 ? Math.min(12, dur * .6) : 0;
@@ -128,7 +142,7 @@ const recuperation = memo(iso => {
     if (ml.some(l => l.dateISO === hier && (REGION_MAISON[l.seance] || []).includes(r))) { recent = Math.max(recent, 8); depuis = 1; }
     const mal = dl.filter(l => l.dateISO <= iso && ecart(l.dateISO, iso) <= 3 && (REGION_DOULEUR[l.zone] || []).includes(r) && l.intensite > 0);
     const pire = mal.length ? mal.reduce((a, l) => l.intensite > a.i ? { i: l.intensite, z: l.zone } : a, { i: 0, z: "" }) : null;
-    return { score: borne(95 + (baisse || 0) * 6 - (pire ? pire.i * 5 : 0) - recent), drop: baisse, since: depuis, pain: pire, has: !!der || !!pire || recent > 0 };
+    return { score: borne(95 - penalite - (pire ? pire.i * 5 : 0) - recent), drop: baisse, exosBaisse, since: depuis, pain: pire, has: !!der || !!pire || recent > 0 };
   };
   const legs = region("legs"), upper = region("upper");
   const prog = programmeEnCours(), sess = seanceDuJour(iso, prog), sReg = regionSeance(sess);
@@ -137,10 +151,11 @@ const recuperation = memo(iso => {
     [["Jambes", legs], ["Haut du corps", upper]].forEach(([nom, st]) => {
       if (!st.has) return;
       const bouts = [];
-      if (st.drop != null) bouts.push(st.drop > -.5 ? "force stable face à ton meilleur des 4 semaines" : "force estimée " + signe(st.drop) + " % face à ton meilleur des 4 semaines");
+      if (st.drop != null) bouts.push(st.drop > -3 ? "dernière séance à ton niveau habituel" : "dernière séance en dessous de ton niveau habituel (" + signe(st.drop) + " % en médiane)");
       if (st.since != null && st.since <= 2) bouts.push("séance il y a " + pluriel(st.since, "jour"));
       if (st.pain) bouts.push("douleur " + st.pain.z.toLowerCase() + " " + st.pain.i + "/10");
       det.muscle.push([nom + " " + Math.round(st.score) + "/100" + (bouts.length ? " : " + bouts.join(", ") : ""), "e"]);
+      if (st.drop != null && st.drop <= -3 && st.exosBaisse.length) det.muscle.push(["En dessous : " + st.exosBaisse.slice(0, 3).map(e => e.nom + " " + signe(e.pct, 0) + " %").join(", ") + ". Une machine différente ou une série cochée sans corriger la charge suffit à fausser ce chiffre.", "e"]);
     });
   }
   Object.assign(info, { legs, upper, sess, sReg, prog });
@@ -202,7 +217,9 @@ function conseilForme(r) {
         const o = seanceDuJour(decale(r.iso, d), prog), oR = regionSeance(o);
         if (o && oR && oR !== reg && oR !== "both") alt = { o, d };
       }
-      a = (reg === "legs" ? "Tes jambes sont encore fatiguées" : "Ton haut du corps est encore fatigué") + " (" + Math.round(st.score) + "/100). " +
+      const zone = reg === "legs" ? "tes jambes" : "ton haut du corps", Zone = reg === "legs" ? "Tes jambes" : "Ton haut du corps";
+      const cause = st.pain ? Zone + " te fait mal" : st.drop != null && st.drop <= -3 ? "Ta dernière séance pour " + zone + " était en dessous de ton niveau habituel" : Zone + " a travaillé il y a peu";
+      a = cause + " (" + Math.round(st.score) + "/100). " +
         (alt ? "Si ton planning le permet, inverse : " + alt.o.label + " aujourd'hui, " + s.label + " " + (alt.d === 1 ? "demain" : dateLongue(decale(r.iso, alt.d)).split(" ")[0]) + ". Sinon, fais " : "Fais ") +
         s.label + " avec " + leger + (st.pain ? ", et surveille ton " + st.pain.z.toLowerCase() : "") + ".";
     } else if (sc < 65) a = s.label + " allégée : " + leger + ", charges du coach inchangées.";
