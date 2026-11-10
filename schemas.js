@@ -1,47 +1,52 @@
 "use strict";
-/* SCHÉMAS — un bonhomme animé par exercice : le corps, le matériel, le muscle en couleur, et une flèche pour le sens de la charge.
+/* SCHÉMAS — le moteur : un bonhomme animé, le matériel, le muscle en couleur, une flèche pour le sens de la charge,
+ * et la courbe d'effort. Les exercices eux-mêmes sont décrits dans mouvements.js.
  * Tout est dessiné en SVG, sans image : léger, hors ligne, et aux couleurs du thème.
  *
  * Une pose donne des angles en degrés : 0 = vers le bas, 90 = vers l'avant (la droite), 180 = vers le haut.
- *   torse  : de la hanche vers l'épaule (180 = droit).
- *   bras, avbras : relatifs au torse (0 = le long du corps quand le torse est droit). [près, loin]
+ *   torse  : de la hanche vers l'épaule (180 = debout ; 270 = allongé sur le dos, tête à gauche ; 90 = à plat ventre, tête à droite).
+ *   bras, avbras : relatifs au torse (0 = le long du corps quand le torse est droit), ou absolus si brasAbs. [près, loin]
  *   cuisse, tibia : absolus. [près, loin]
- *   ancre  : « pieds » (chevilles fixes, au sol) ou « hanche » (assis, allongé).
+ *   ancre  : ce qui reste fixe — « pieds » (cheville), « mains » (main), « genoux » (genou) ou, par défaut, la hanche.
  * Vue « face » : 90 = vers l'extérieur ; le côté gauche est le miroir du droit. */
 
 const L_CORPS = { torse: 48, cou: 15, tete: 10, bras: 27, avbras: 25, cuisse: 42, tibia: 40, pied: 13 };
 const rad = a => a * Math.PI / 180;
 const dirA = (a, l) => [Math.sin(rad(a)) * l, Math.cos(rad(a)) * l];
 const plus = (p, v) => [p[0] + v[0], p[1] + v[1]];
+const moins = (p, v) => [p[0] - v[0], p[1] - v[1]];
 const paire = v => Array.isArray(v) ? v : [v, v];
 
 /* Les positions des articulations pour une pose */
 function articulations(p) {
   const cu = paire(p.cuisse ?? 0), ti = paire(p.tibia ?? 0), br = paire(p.bras ?? 0), ab = paire(p.avbras ?? 0), pi = paire(p.pied ?? 90);
-  const t = p.torse ?? 180, rel = a => a + t - 180;
-  if (p.vue === "face") {
-    const hanche = p.hanche, cou = plus(hanche, [0, -L_CORPS.torse]);
-    const cote = s => {
+  const t = p.torse ?? 180, rel = a => p.brasAbs ? a : a + t - 180;
+  if (p.vue === "face" || p.vue === "bout") {
+    const m1 = (s, v) => [s * v[0], v[1]];
+    let hanche = p.hanche;
+    if (p.ancre === "pieds") hanche = moins(moins(moins(p.cheville, m1(1, dirA(ti[0], L_CORPS.tibia))), m1(1, dirA(cu[0], L_CORPS.cuisse))), [8, 0]);
+    const cou = plus(hanche, dirA(t, L_CORPS.torse));
+    const cote = (s, i) => {
+      const m = v => m1(s, v);
       const ep = plus(cou, [s * 14, 4]), hp = plus(hanche, [s * 8, 0]);
-      const m = v => [s * v[0], v[1]];
-      const coude = plus(ep, m(dirA(br[0], L_CORPS.bras))), main = plus(coude, m(dirA(ab[0], L_CORPS.avbras)));
-      const genou = plus(hp, m(dirA(cu[0], L_CORPS.cuisse))), cheville = plus(genou, m(dirA(ti[0], L_CORPS.tibia)));
+      const coude = plus(ep, m(dirA(br[i], L_CORPS.bras))), main = plus(coude, m(dirA(ab[i], L_CORPS.avbras)));
+      const genou = plus(hp, m(dirA(cu[i], L_CORPS.cuisse))), cheville = plus(genou, m(dirA(ti[i], L_CORPS.tibia)));
       return { ep, hp, coude, main, genou, cheville, orteil: plus(cheville, m([7, 0])) };
     };
-    return { vue: "face", hanche, cou, tete: plus(cou, [0, -L_CORPS.cou]), cotes: [cote(1), cote(-1)] };
+    return { vue: p.vue, t, hanche, cou, tete: plus(cou, dirA(t + (p.tete || 0), L_CORPS.cou)), cotes: [cote(1, 0), cote(-1, 1)] };
   }
   let hanche = p.hanche;
-  if (p.ancre === "pieds") {
-    const v1 = dirA(cu[0], L_CORPS.cuisse), v2 = dirA(ti[0], L_CORPS.tibia);
-    hanche = [p.cheville[0] - v1[0] - v2[0], p.cheville[1] - v1[1] - v2[1]];
-  }
-  const epaule = plus(hanche, dirA(t, L_CORPS.torse)), tete = plus(epaule, dirA(t + (p.tete || 0), L_CORPS.cou));
+  const vBras = dirA(rel(br[0]), L_CORPS.bras), vAvb = dirA(rel(ab[0]), L_CORPS.avbras), vTorse = dirA(t, L_CORPS.torse);
+  if (p.ancre === "pieds") hanche = moins(moins(p.cheville, dirA(ti[0], L_CORPS.tibia)), dirA(cu[0], L_CORPS.cuisse));
+  if (p.ancre === "genoux") hanche = moins(p.genou, dirA(cu[0], L_CORPS.cuisse));
+  if (p.ancre === "mains") hanche = moins(moins(moins(p.main, vAvb), vBras), vTorse);
+  const epaule = plus(hanche, vTorse), tete = plus(epaule, dirA(t + (p.tete || 0), L_CORPS.cou));
   const cote = i => {
     const coude = plus(epaule, dirA(rel(br[i]), L_CORPS.bras)), main = plus(coude, dirA(rel(ab[i]), L_CORPS.avbras));
     const genou = plus(hanche, dirA(cu[i], L_CORPS.cuisse)), cheville = plus(genou, dirA(ti[i], L_CORPS.tibia));
     return { ep: epaule, hp: hanche, coude, main, genou, cheville, orteil: plus(cheville, dirA(pi[i], L_CORPS.pied)) };
   };
-  return { vue: "profil", hanche, cou: epaule, tete, cotes: [cote(0), cote(1)] };
+  return { vue: "profil", t, hanche, cou: epaule, tete, cotes: [cote(0), cote(1)] };
 }
 
 /* Mélange de deux poses, nombre par nombre */
@@ -51,8 +56,68 @@ const melange = (a, b, k) => {
   if (a && typeof a === "object") { const o = {}; Object.keys(a).forEach(c => { o[c] = melange(a[c], b?.[c], k); }); return o; }
   return a;
 };
-const poseA = (s, k) => melange({ ...s.depart, vue: s.vue }, s.arrivee, k);
-const pointSuivi = (j, quoi) => quoi === "epaule" ? j.cotes[0].ep : quoi === "hanche" ? j.hanche : j.cotes[0].main;
+const poseA = (s, k) => melange({ ...s.depart, vue: s.vue }, s.arrivee || {}, k);
+
+/* Où se trouve la barre, l'haltère ou le point suivi */
+function pointBarre(j, objets) {
+  const o = (objets || []).find(x => x.t === "barre" || x.t === "disque") || {}, c = j.cotes[0];
+  const base = o.sur === "dos" || o.sur === "ep" ? c.ep : o.sur === "hanche" ? j.hanche : o.sur === "genou" ? c.genou : c.main;
+  return plus(base, o.decale || (o.sur === "dos" ? [-7, -2] : [0, 0]));
+}
+function pointSuivi(j, quoi, s) {
+  const c = j.cotes[0];
+  if (quoi === "epaule") return c.ep;
+  if (quoi === "hanche") return j.hanche;
+  if (quoi === "cheville") return c.cheville;
+  if (quoi === "genou") return c.genou;
+  if (quoi === "coude") return c.coude;
+  if (quoi === "tete") return j.tete;
+  if (quoi === "barre" || quoi === "dos") return pointBarre(j, s?.objets);
+  return c.main;
+}
+
+/* Les zones de muscle : un trait de couleur le long d'un segment, côté avant ou arrière */
+const ZONES = {
+  pecs: ["torse", 1, .55, .95], abdos: ["torse", 1, .08, .58], dos: ["torse", -1, .35, .95], lombaires: ["torse", -1, .05, .42],
+  quadriceps: ["cuisse", 1, .1, .9], ischios: ["cuisse", -1, .1, .9], adducteurs: ["cuisse", 0, .1, .8],
+  mollet: ["tibia", -1, .1, .6], biceps: ["bras", 1, .12, .88], triceps: ["bras", -1, .12, .88], avbras: ["avbras", 1, .1, .85],
+};
+function Zones({ j, muscle }) {
+  const out = [], face = j.vue === "face" || j.vue === "bout";
+  const ligne = (a, b, k, plein) => out.push(h("line", { key: k, x1: a[0], y1: a[1], x2: b[0], y2: b[1], className: "sq-zone" + (plein ? " plein" : "") }));
+  const rond = (p, k, r) => out.push(h("circle", { key: k, cx: p[0], cy: p[1], r: r || 7, className: "sq-zone-p" }));
+  const segDe = (n, c) => n === "torse" ? [j.hanche, j.cou] : n === "cuisse" ? [c.hp, c.genou] : n === "tibia" ? [c.genou, c.cheville] : n === "bras" ? [c.ep, c.coude] : [c.coude, c.main];
+  (muscle || []).forEach((m, i) => {
+    if (j.vue === "bout") {
+      const [p, l] = j.cotes;
+      if (m === "pecs") return [p, l].forEach((c, k) => ligne(plus(c.ep, [0, 5]), [j.cou[0], j.cou[1] + 5], i + "p" + k, true));
+      if (m === "epaule-arriere" || m === "dos") return [p, l].forEach((c, k) => rond(c.ep, i + "e" + k, 6.5));
+      if (m === "biceps" || m === "triceps") return [p, l].forEach((c, k) => ligne(c.ep, c.coude, i + "b" + k, true));
+      return;
+    }
+    if (face) {
+      const [p, l] = j.cotes, mil = (a, b, f) => [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+      if (m === "fessiers") return j.cotes.forEach((c, k) => rond(plus(c.hp, [0, 4]), i + "f" + k));
+      if (m === "trapezes") return j.cotes.forEach((c, k) => ligne([j.cou[0], j.cou[1] - 7], c.ep, i + "t" + k, true));
+      if (m === "pecs") return j.cotes.forEach((c, k) => ligne(plus(c.ep, [0, 8]), [j.cou[0], j.cou[1] + 12], i + "p" + k, true));
+      if (m === "abdos") return ligne(mil(j.hanche, j.cou, .1), mil(j.hanche, j.cou, .55), i, true);
+      if (m === "dos") return j.cotes.forEach((c, k) => ligne(plus(c.ep, [0, 7]), plus(c.hp, [(c.ep[0] - j.cou[0]) * .5, -8]), i + "d" + k, true));
+      if (m === "adducteurs") return j.cotes.forEach((c, k) => ligne(mil(c.hp, c.genou, .15), mil(c.hp, c.genou, .8), i + "a" + k, true));
+      const z = ZONES[m]; if (!z) return;
+      return j.cotes.forEach((c, k) => { const [a, b] = segDe(z[0], c); ligne(mil(a, b, z[2]), mil(a, b, z[3]), i + "z" + k, true); });
+    }
+    const c = j.cotes[0];
+    if (m === "fessiers") return rond(plus(j.hanche, dirA(j.t + 90, 6)), i, 7.5);
+    if (m === "trapezes") return ligne(plus(j.cou, dirA(j.t + 90, 4)), plus(j.tete, dirA(j.t + 180, 9)), i);
+    if (m === "epaule-avant" || m === "epaule-arriere") return rond(plus(c.ep, dirA(j.t - 90, m === "epaule-avant" ? 5 : -5)), i, 6.5);
+    const z = ZONES[m]; if (!z) return;
+    const [a, b] = segDe(z[0], c), d = moins(b, a), ang = Math.atan2(d[0], d[1]) * 180 / Math.PI;
+    // l'avant d'un membre : le segment tourné de +90° (comme une cuisse ou un bras pendant) ; pour le torse, qui monte, de −90°
+    const avant = dirA(z[0] === "torse" ? ang - 90 : ang + 90, (z[0] === "torse" ? 6.5 : 5) * (z[1] || 0));
+    ligne(plus(plus(a, [d[0] * z[2], d[1] * z[2]]), avant), plus(plus(a, [d[0] * z[3], d[1] * z[3]]), avant), i);
+  });
+  return out;
+}
 
 /* Le dessin d'une pose */
 function Bonhomme({ j, muscle, fantome }) {
@@ -62,42 +127,57 @@ function Bonhomme({ j, muscle, fantome }) {
     trait(c.hp, c.genou, "cuisse", loin), trait(c.genou, c.cheville, "tibia", loin), trait(c.cheville, c.orteil, "pied", loin),
     trait(c.ep, c.coude, "bras", loin), trait(c.coude, c.main, "avbras", loin)];
   const face = j.vue === "face", [p, l] = j.cotes;
+  if (j.vue === "bout") return h("g", { className: fantome ? "sq-fantome" : "" },
+    h("circle", { cx: j.cou[0], cy: j.cou[1] - 4, r: L_CORPS.tete, className: "sq-tete" }),
+    h("line", { x1: p.ep[0], y1: p.ep[1], x2: l.ep[0], y2: l.ep[1], className: "sq-m tronc" + (m.has("torse") && !fantome ? " actif" : "") }),
+    [l, p].map((c, k) => [h("line", { key: "b" + k, x1: c.ep[0], y1: c.ep[1], x2: c.coude[0], y2: c.coude[1], className: "sq-m" }), h("line", { key: "a" + k, x1: c.coude[0], y1: c.coude[1], x2: c.main[0], y2: c.main[1], className: "sq-m" })]),
+    !fantome && h(Zones, { j, muscle }),
+    m.has("epaules") && !fantome && [p, l].map((c, i) => h("circle", { key: "ep" + i, cx: c.ep[0], cy: c.ep[1], r: 7, className: "sq-epaule" })));
   return h("g", { className: fantome ? "sq-fantome" : "" },
     !face && membre(l, true),
     face && h("line", { x1: p.ep[0], y1: p.ep[1], x2: l.ep[0], y2: l.ep[1], className: "sq-m tronc" + (m.has("torse") && !fantome ? " actif" : "") }),
     face && h("line", { x1: p.hp[0], y1: p.hp[1], x2: l.hp[0], y2: l.hp[1], className: "sq-m" }),
     h("line", { x1: j.hanche[0], y1: j.hanche[1], x2: j.cou[0], y2: j.cou[1], className: "sq-m tronc" + (m.has("torse") && !fantome ? " actif" : "") }),
     face ? [membre(l, false), membre(p, false)] : membre(p, false),
+    !fantome && h(Zones, { j, muscle }),
     m.has("epaules") && !fantome && (face ? [p, l] : [p]).map((c, i) => h("circle", { key: "ep" + i, cx: c.ep[0], cy: c.ep[1], r: 7, className: "sq-epaule" })),
     h("circle", { cx: j.tete[0], cy: j.tete[1], r: L_CORPS.tete, className: "sq-tete" }));
 }
 
 /* Le matériel tenu ou porté, qui suit le corps */
+const Disque = ({ p, r, loin, k }) => h("g", { key: k, className: loin ? "loin" : "" }, h("circle", { cx: p[0], cy: p[1], r, className: "sq-disque" }), h("circle", { cx: p[0], cy: p[1], r: Math.max(2.5, r / 5), className: "sq-axe" }));
 function Objets({ j, objets }) {
   return (objets || []).map((o, i) => {
-    const mains = j.vue === "face" ? j.cotes : [j.cotes[1], j.cotes[0]];
-    if (o.t === "halteres") return h("g", { key: i }, mains.map((c, k) => h("g", { key: k, className: j.vue !== "face" && k === 0 ? "loin" : "" },
-      h("circle", { cx: c.main[0], cy: c.main[1], r: 8, className: "sq-disque" }), h("circle", { cx: c.main[0], cy: c.main[1], r: 2.5, className: "sq-axe" }))));
-    if (o.t === "barre") {
-      const c = o.sur === "dos" ? plus(j.cotes[0].ep, o.decale || [-7, -2]) : j.cotes[0].main;
-      return h("g", { key: i }, h("circle", { cx: c[0], cy: c[1], r: 15, className: "sq-disque" }), h("circle", { cx: c[0], cy: c[1], r: 3, className: "sq-axe" }));
-    }
+    const face = j.vue === "face" || j.vue === "bout", [p, l] = j.cotes;
+    if (o.t === "halteres") return h("g", { key: i }, face ? [Disque({ p: p.main, r: 8, k: 0 }), Disque({ p: l.main, r: 8, k: 1 })] : [Disque({ p: l.main, r: 8, loin: true, k: 0 }), Disque({ p: p.main, r: 8, k: 1 })]);
+    if (o.t === "haltere") return h("g", { key: i }, Disque({ p: plus(p.main, o.decale || [0, 0]), r: o.r || 8, k: 0 }));
+    if (o.t === "barre" || o.t === "disque") return h("g", { key: i }, Disque({ p: pointBarre(j, [o]), r: o.r || (o.t === "disque" ? 12 : 15), k: 0 }));
+    if (o.t === "roue") return h("g", { key: i }, h("circle", { cx: p.main[0], cy: p.main[1] + 4, r: 10, className: "sq-disque" }));
+    if (o.t === "boudin") { const c = o.sur === "genou" ? p.genou : o.sur === "cuisse" ? plus(p.hp, [(p.genou[0] - p.hp[0]) * .75, (p.genou[1] - p.hp[1]) * .75]) : plus(p.cheville, [(p.genou[0] - p.cheville[0]) * .15, (p.genou[1] - p.cheville[1]) * .15]); const off = o.cote ? dirA(Math.atan2(p.cheville[0] - p.genou[0], p.cheville[1] - p.genou[1]) * 180 / Math.PI + 90 * o.cote, 8) : [0, 0]; return h("circle", { key: i, cx: c[0] + off[0], cy: c[1] + off[1], r: 6.5, className: "sq-appui" }); }
+    if (o.t === "plateforme") { const c = plus(p.cheville, [(p.orteil[0] - p.cheville[0]) * .5, (p.orteil[1] - p.cheville[1]) * .5]), a = o.a ?? 90, d = dirA(a, 16), n = dirA(a - 90, o.cote ?? 6); const q = plus(c, n); return h("line", { key: i, x1: q[0] - d[0], y1: q[1] - d[1], x2: q[0] + d[0], y2: q[1] + d[1], className: "sq-plateau" }); }
+    if (o.t === "elastique") { const a = o.sur === "chevilles" ? [p.cheville, l.cheville] : [p.genou, l.genou]; return h("line", { key: i, x1: a[0][0], y1: a[0][1], x2: a[1][0], y2: a[1][1], className: "sq-elastique" }); }
     if (o.t === "cable") {
-      const c = j.cotes[0].main;
-      return h("g", { key: i }, h("line", { x1: o.de[0], y1: o.de[1], x2: c[0], y2: c[1], className: "sq-cable" }), h("rect", { x: c[0] - 9, y: c[1] - 3, width: 18, height: 6, rx: 3, className: "sq-poignee" }));
+      const c = o.vers === "cheville" ? p.cheville : o.vers === "genou" ? p.genou : p.main;
+      if (o.deux) return h("g", { key: i }, [[p.main, o.de], [l.main, [200 - o.de[0], o.de[1]]]].map(([m, d], k) => h("g", { key: k }, h("line", { x1: d[0], y1: d[1], x2: m[0], y2: m[1], className: "sq-cable" }), h("circle", { cx: m[0], cy: m[1], r: 4, className: "sq-poignee" }))));
+      return h("g", { key: i }, h("line", { x1: o.de[0], y1: o.de[1], x2: c[0], y2: c[1], className: "sq-cable" }), o.vers ? h("circle", { cx: c[0], cy: c[1], r: 4, className: "sq-poignee" }) : h("rect", { x: c[0] - 9, y: c[1] - 3, width: 18, height: 6, rx: 3, className: "sq-poignee" }));
     }
+    if (o.t === "poignee") return h("rect", { key: i, x: p.main[0] - 7, y: p.main[1] - 3, width: 14, height: 6, rx: 3, className: "sq-poignee" });
     return null;
   });
 }
 
-/* Le décor fixe : sol, banc, poulie, appuis */
+/* Le décor fixe : sol, bancs, poulies, barres, appuis */
 function Decor({ decor }) {
   return (decor || []).map((d, i) => {
-    if (d.t === "sol") return h("line", { key: i, x1: 10, y1: d.y || 184, x2: 190, y2: d.y || 184, className: "sq-sol" });
-    if (d.t === "banc" || d.t === "appui") return h("rect", { key: i, x: d.x, y: d.y, width: d.l, height: d.h || 8, rx: 3, className: d.t === "appui" ? "sq-appui" : "sq-banc" });
-    if (d.t === "pied") return h("line", { key: i, x1: d.x, y1: d.y, x2: d.x, y2: d.y2, className: "sq-banc-p" });
+    if (d.t === "sol") return h("line", { key: i, x1: 6, y1: d.y || 181, x2: 194, y2: d.y || 181, className: "sq-sol" });
+    if (d.t === "banc" || d.t === "appui" || d.t === "boite") return h("rect", { key: i, x: d.x, y: d.y, width: d.l, height: d.h || 8, rx: 3, className: d.t === "appui" ? "sq-appui" : "sq-banc" });
+    if (d.t === "bancr") return h("rect", { key: i, x: d.x, y: d.y, width: d.l, height: d.h || 8, rx: 3, className: d.app ? "sq-appui" : "sq-banc", transform: `rotate(${-d.a} ${d.x} ${d.y})` });
+    if (d.t === "pied") return h("line", { key: i, x1: d.x, y1: d.y, x2: d.x2 ?? d.x, y2: d.y2, className: "sq-banc-p" });
     if (d.t === "poulieb") return h("g", { key: i }, h("line", { x1: d.x, y1: d.y, x2: d.x, y2: d.sol || 181, className: "sq-banc-p" }), h("circle", { cx: d.x, cy: d.y, r: 6, className: "sq-poulie" }));
     if (d.t === "poulie") return h("g", { key: i }, h("line", { x1: d.x, y1: 0, x2: d.x, y2: d.y, className: "sq-banc-p" }), h("circle", { cx: d.x, cy: d.y, r: 6, className: "sq-poulie" }));
+    if (d.t === "barrefixe") return h("g", { key: i }, h("line", { x1: d.x, y1: 0, x2: d.x, y2: d.y, className: "sq-banc-p fin" }), h("circle", { cx: d.x, cy: d.y, r: 4.5, className: "sq-axe" }));
+    if (d.t === "barres") return h("rect", { key: i, x: d.x - 8, y: d.y, width: 16, height: 6, rx: 3, className: "sq-appui" });
+    if (d.t === "mur") return h("line", { key: i, x1: d.x, y1: d.y || 0, x2: d.x, y2: d.y2 || 181, className: "sq-banc-p" });
     return null;
   });
 }
@@ -105,29 +185,37 @@ function Decor({ decor }) {
 /* Flèche double qui suit le trajet de la charge entre le départ et l'arrivée */
 function Fleche({ s, id }) {
   const f = s.fleche || {}, pts = [];
-  for (let i = 0; i <= 16; i++) pts.push(plus(pointSuivi(articulations(poseA(s, i / 16)), f.suit), f.decale || [16, 0]));
+  if (s.statique) return null;
+  for (let i = 0; i <= 16; i++) pts.push(plus(pointSuivi(articulations(poseA(s, i / 16)), f.suit, s), f.decale || [16, 0]));
   return h("path", { d: "M" + pts.map(p => p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" L"), className: "sq-fleche", markerStart: `url(#${id}d)`, markerEnd: `url(#${id}a)` });
 }
 
 /* ── LA COURBE D'EFFORT ──
  * Effort que la charge demande à une articulation = force × distance perpendiculaire entre l'articulation et la ligne de la force.
  * Haltère ou barre : la force tombe à la verticale. Poulie : elle suit le câble. Calculé sur la pose même du schéma.
+ * Quand le calcul plan ne représente pas l'exercice (machine à came, poids du corps), le profil est donné : `profil`.
  * C'est la résistance extérieure seulement, pas la force que ton muscle peut produire à chaque angle. */
 const variante = (s, v) => ({ ...s, ...((s.variantes || [])[v] || {}) });
-function couple(j, art, point, charge, s) {
-  const c = j.cotes[0];
-  const J = art === "coude" ? c.coude : art === "epaule" ? c.ep : art === "hanche" ? j.hanche : c.genou;
-  const P = point === "dos" ? plus(c.ep, (s.objets || []).find(o => o.sur === "dos")?.decale || [-7, -2]) : c.main;
+function couple(j, e, s) {
+  const c = j.cotes[0], art = e.art;
+  const J = art === "coude" ? c.coude : art === "epaule" ? c.ep : art === "hanche" ? j.hanche : art === "cheville" ? c.cheville : c.genou;
+  const P = pointSuivi(j, e.point || s.point || "main", s), charge = e.charge || s.charge;
   let F = [0, 1];
-  if (charge?.t === "cable") { const d = [charge.de[0] - P[0], charge.de[1] - P[1]], n = Math.hypot(...d) || 1; F = [d[0] / n, d[1] / n]; }
+  if (charge?.t === "cable") { const d = moins(charge.de, P), n = Math.hypot(...d) || 1; F = [d[0] / n, d[1] / n]; }
   if (charge?.t === "haut") F = [0, -1];
   return (P[0] - J[0]) * F[1] - (P[1] - J[1]) * F[0];  // signé : le sens compte
 }
 const N_COURBE = 40;
 function courbes(sv) {
   return (sv.effort || []).map(e => {
+    if (e.profil) {  // profil donné : points régulièrement espacés, interpolés
+      const p = e.profil, n = p.length - 1;
+      const v = Array.from({ length: N_COURBE + 1 }, (_, i) => { const x = i / N_COURBE * n, a = Math.floor(x), b = Math.min(n, a + 1); return p[a] + (p[b] - p[a]) * (x - a); });
+      const max = Math.max(...v) || 1;
+      return { ...e, v: v.map(x => x / max) };
+    }
     const base = e.plan ? { ...e.plan, objets: [] } : sv;
-    const v = Array.from({ length: N_COURBE + 1 }, (_, i) => couple(articulations(poseA(base, i / N_COURBE)), e.art, e.point || sv.point || "main", sv.charge, sv));
+    const v = Array.from({ length: N_COURBE + 1 }, (_, i) => couple(articulations(poseA(base, i / N_COURBE)), e, sv));
     // Quand la charge pousse dans le sens du mouvement, elle ne résiste plus : on compte zéro
     const fort = v.reduce((a, x) => Math.abs(x) > Math.abs(a) ? x : a, 0), sens = Math.sign(fort) || 1;
     const r = v.map(x => Math.max(0, x * sens)), max = Math.max(...r) || 1;
@@ -138,24 +226,27 @@ const longueurA = (sv, k) => sv.etire === 1 ? k : 1 - k;  // 1 = muscle étiré,
 const ouDans = p => p < 1 / 3 ? "au départ" : p > 2 / 3 ? "à l'arrivée" : "au milieu";
 const etatMuscle = l => l > 2 / 3 ? "étiré" : l < 1 / 3 ? "contracté" : "à mi-longueur";
 function phraseCourbe(sv, c) {
-  const v = c.v, iMax = v.indexOf(Math.max(...v)), iMin = v.indexOf(Math.min(...v)), pM = iMax / N_COURBE, pm = iMin / N_COURBE;
-  return "La charge pèse le plus " + ouDans(pM) + " du mouvement, quand le muscle est " + etatMuscle(longueurA(sv, pM)) + ". Elle est la plus légère " + ouDans(pm) + ", muscle " + etatMuscle(longueurA(sv, pm)) + ".";
+  const v = c.v, max = Math.max(...v), min = Math.min(...v);
+  if (max - min < .12) return "La charge pèse à peu près autant tout au long du mouvement." + (c.note ? " " + c.note : "");
+  const iMax = v.indexOf(max), iMin = v.indexOf(min), pM = iMax / N_COURBE, pm = iMin / N_COURBE;
+  return "La charge pèse le plus " + ouDans(pM) + " du mouvement, quand le muscle est " + etatMuscle(longueurA(sv, pM)) + ". Elle est la plus légère " + ouDans(pm) + ", muscle " + etatMuscle(longueurA(sv, pm)) + "." + (c.note ? " " + c.note : "");
 }
 
 /* Le graphique sous le schéma, avec un curseur qui suit le bonhomme */
 function Courbes({ sv, k }) {
+  if (sv.statique) return h("div.courbe-effort", h("div.ce-tete", h("b", "Courbe d'effort")), h("p.ce-phrase", sv.statique === true ? "Exercice de maintien : le muscle travaille sans bouger. L'effort reste le même, il s'accumule avec la durée." : sv.statique));
   const cs = courbes(sv);
   if (!cs.length) return null;
   const X = p => 12 + p * 276, Y = v => 92 - v * 74;
   const chemin = v => v.map((y, i) => (i ? "L" : "M") + X(i / N_COURBE).toFixed(1) + " " + Y(y).toFixed(1)).join(" ");
-  const iK = Math.round(k * N_COURBE), c0 = cs[0], iMax = c0.v.indexOf(1);
+  const iK = Math.round(k * N_COURBE), c0 = cs[0], iMax = c0.v.indexOf(Math.max(...c0.v));
   return h("div.courbe-effort",
     h("div.ce-tete", h("b", "Courbe d'effort"), h("span", cs.map((c, i) => h("em", { key: i, className: i ? "second" : "" }, c.nom)))),
     h("svg", { viewBox: "0 0 300 104", role: "img", "aria-label": "Courbe d'effort : " + phraseCourbe(sv, c0) },
       h("line", { x1: 12, y1: 92, x2: 288, y2: 92, className: "ce-axe" }),
       h("path", { d: chemin(c0.v) + ` L${X(1)} 92 L${X(0)} 92 Z`, className: "ce-aire" }),
       cs.map((c, i) => h("path", { key: i, d: chemin(c.v), className: "ce-ligne" + (i ? " second" : "") })),
-      h("text", { x: Math.min(Math.max(X(iMax / N_COURBE), 40), 260), y: Y(1) - 6, className: "ce-txt", textAnchor: "middle" }, "le plus dur"),
+      h("text", { x: Math.min(Math.max(X(iMax / N_COURBE), 40), 260), y: Y(c0.v[iMax]) - 6, className: "ce-txt", textAnchor: "middle" }, "le plus dur"),
       h("line", { x1: X(k), y1: 10, x2: X(k), y2: 92, className: "ce-curseur" }),
       cs.map((c, i) => h("circle", { key: i, cx: X(k), cy: Y(c.v[iK]), r: 5, className: "ce-point" + (i ? " second" : "") }))),
     h("div.ce-muscle", { "aria-hidden": true },
@@ -173,7 +264,7 @@ function Schema({ s, fixe, sansCourbe }) {
   const [pause, setPause] = useState(calme), [kAnim, setK] = useState(calme ? 1 : 0), [v, setV] = useState(0);
   const k = fixe ?? kAnim;  // fixe : une image arrêtée (0 = départ, 1 = arrivée)
   useEffect(() => {
-    if (pause || fixe != null) return;
+    if (pause || fixe != null || s.statique) return;
     let raf, debut = performance.now() - k * 1500;
     const boucle = now => {
       const t = ((now - debut) / 1000) % 3.8;  // 1,5 s aller, 0,4 s arrêt, 1,5 s retour, 0,4 s arrêt
@@ -182,7 +273,7 @@ function Schema({ s, fixe, sansCourbe }) {
     };
     raf = requestAnimationFrame(boucle);
     return () => cancelAnimationFrame(raf);
-  }, [pause]);
+  }, [pause, s]);
   const sv = variante(s, v), j = articulations(poseA(sv, k));
   return h("figure.schema", null,
     s.variantes && fixe == null && h("div.onglets-b.sq-var", { role: "tablist" }, s.variantes.map((x, i) => h("button", { key: i, role: "tab", "aria-selected": v === i, className: v === i ? "actif" : "", onClick: () => { vibre(); setV(i); } }, x.nom))),
@@ -191,81 +282,17 @@ function Schema({ s, fixe, sansCourbe }) {
         h("marker", { id: id + "a", viewBox: "0 0 10 10", refX: 5, refY: 5, markerWidth: 4, markerHeight: 4, orient: "auto" }, h("path", { d: "M0 0 L10 5 L0 10 z", className: "sq-pointe" })),
         h("marker", { id: id + "d", viewBox: "0 0 10 10", refX: 5, refY: 5, markerWidth: 4, markerHeight: 4, orient: "auto-start-reverse" }, h("path", { d: "M0 0 L10 5 L0 10 z", className: "sq-pointe" }))),
       h(Decor, { decor: [...(sv.decor || []), ...(sv.decorEnPlus || [])] }),
-      pause && h(Bonhomme, { j: articulations(poseA(sv, k > .5 ? 0 : 1)), fantome: true }),
+      pause && !sv.statique && h(Bonhomme, { j: articulations(poseA(sv, k > .5 ? 0 : 1)), fantome: true }),
       h(Fleche, { s: sv, id }),
-      h(Objets, { j, objets: sv.objets }),
-      h(Bonhomme, { j, muscle: sv.muscle })),
-    fixe == null && h("figcaption",
+      h(Objets, { j, objets: (sv.objets || []).filter(o => !o.devant) }),
+      h(Bonhomme, { j, muscle: sv.muscle }),
+      h(Objets, { j, objets: (sv.objets || []).filter(o => o.devant) })),
+    fixe == null && !sv.statique && h("figcaption",
       h("span", { className: k < .5 ? "actif" : "" }, "Départ"), h("i", { "aria-hidden": true }), h("span", { className: k >= .5 ? "actif" : "" }, "Arrivée"),
       h("button.rond.petit", { onClick: () => { vibre(); setPause(!pause); }, "aria-label": pause ? "Lancer l'animation" : "Mettre en pause" }, h(Icone, { n: pause ? "fleche" : "chrono", t: 16 }))),
     !sansCourbe && h(Courbes, { sv, k }));
 }
 
-/* ── Les schémas. Prototype : 4 exercices ──
- * effort : les articulations dont on trace la courbe. etire : 0 si le muscle est étiré au départ, 1 à l'arrivée.
- * variantes : même mouvement avec un autre matériel (haltère, poulie…). analyse : pourquoi ce mouvement, quels faisceaux. */
-const SCHEMAS = {
-  "Squat": {
-    legende: "Squat vu de profil : la barre sur le haut du dos, on descend cuisses parallèles puis on remonte.",
-    depart: { ancre: "pieds", cheville: [90, 178], cuisse: 0, tibia: 0, torse: 176, bras: -16, avbras: 172 },
-    arrivee: { cuisse: 82, tibia: -32, torse: 145 },
-    objets: [{ t: "barre", sur: "dos", decale: [-3, -3] }], muscle: ["cuisse"], fleche: { suit: "epaule", decale: [-34, 0] },
-    decor: [{ t: "sol", y: 181 }],
-    effort: [{ art: "genou", nom: "Genou · quadriceps" }, { art: "hanche", nom: "Hanche · fessiers" }], point: "dos", charge: { t: "poids" }, etire: 1,
-    analyse: {
-      pourquoi: "Le squat tend le genou et la hanche en même temps : les quadriceps redressent le genou, les fessiers redressent la hanche. C'est l'exercice de base du bas du corps.",
-      faisceaux: "Les trois vastes du quadriceps font l'essentiel. Le droit fémoral, qui passe aussi par la hanche, grossit peu avec le squat. Plus tu descends, plus les fessiers et les adducteurs travaillent.",
-    },
-  },
-  "Curl biceps": {
-    legende: "Curl haltère vu de profil : le coude reste collé au corps, seul l'avant-bras monte.",
-    depart: { ancre: "pieds", cheville: [94, 178], torse: 180, bras: [4, -4], avbras: [6, 2] },
-    arrivee: { avbras: [148, 140] },
-    objets: [{ t: "halteres" }], muscle: ["bras"], fleche: { suit: "main", decale: [18, 0] },
-    decor: [{ t: "sol", y: 181 }],
-    effort: [{ art: "coude", nom: "Coude · biceps" }], etire: 0,
-    variantes: [
-      { nom: "Haltère", objets: [{ t: "halteres" }], charge: { t: "poids" } },
-      { nom: "Poulie devant", objets: [{ t: "cable", de: [128, 174] }], charge: { t: "cable", de: [128, 174] }, decorEnPlus: [{ t: "poulieb", x: 128, y: 174 }] },
-      { nom: "Poulie derrière", objets: [{ t: "cable", de: [44, 150] }], charge: { t: "cable", de: [44, 150] }, decorEnPlus: [{ t: "poulieb", x: 44, y: 150 }],
-        depart: { ancre: "pieds", cheville: [94, 178], torse: 180, bras: [-14, -18], avbras: [-10, -14] }, arrivee: { avbras: [130, 124] } },
-    ],
-    analyse: {
-      pourquoi: "Le biceps plie le coude et tourne la main paume vers le haut. Le curl isole ce travail, sans que le dos ou les épaules aident.",
-      faisceaux: "Les deux portions du biceps et le brachial, situé dessous, travaillent ensemble. Bras derrière le corps (poulie derrière, curl incliné), la longue portion est plus étirée et la charge pèse plus tôt dans le mouvement. Placer le bras ainsi ne fait pourtant pas grossir le biceps davantage : choisis la version que tu préfères.",
-    },
-  },
-  "Élévations lat.": {
-    vue: "face",
-    legende: "Élévations latérales vues de face : bras sur les côtés jusqu'à l'horizontale, coudes légèrement fléchis.",
-    depart: { hanche: [100, 100], bras: 12, avbras: 8, cuisse: 4, tibia: 2 },
-    arrivee: { bras: 86, avbras: 80 },
-    objets: [{ t: "halteres" }], muscle: ["epaules"], fleche: { suit: "main", decale: [10, 16] },
-    decor: [{ t: "sol", y: 181 }],
-    effort: [{ art: "epaule", nom: "Épaule · deltoïde moyen" }], etire: 0,
-    variantes: [
-      { nom: "Haltère", objets: [{ t: "halteres" }], charge: { t: "poids" } },
-      { nom: "Poulie", objets: [{ t: "cable", de: [44, 152] }], charge: { t: "cable", de: [44, 152] }, decorEnPlus: [{ t: "poulieb", x: 44, y: 152 }] },
-    ],
-    analyse: {
-      pourquoi: "Le faisceau moyen du deltoïde écarte le bras du corps : c'est lui qui donne la largeur des épaules. Aucun exercice de développé ne le cible aussi bien.",
-      faisceaux: "Surtout le faisceau moyen. À l'haltère, la charge pèse le plus en haut ; à la poulie réglée à hauteur de la main, elle pèse davantage bras le long du corps, quand le muscle est étiré. Malgré cette différence, les deux font grossir l'épaule autant : choisis celle que tu sens le mieux.",
-    },
-  },
-  "Tirage vertical": {
-    legende: "Tirage vertical vu de profil : assis, cuisses calées, on tire la barre vers le haut de la poitrine.",
-    depart: { hanche: [92, 128], torse: 195, tete: -10, cuisse: 92, tibia: 4, pied: 90, bras: 163, avbras: 163 },
-    arrivee: { bras: -25, avbras: 138 },
-    objets: [{ t: "cable", de: [84, 6] }], muscle: ["torse"], fleche: { suit: "main", decale: [22, 0] },
-    decor: [{ t: "banc", x: 70, y: 134, l: 46 }, { t: "pied", x: 93, y: 142, y2: 181 }, { t: "appui", x: 118, y: 116, l: 26, h: 8 }, { t: "poulie", x: 84, y: 6 }, { t: "sol", y: 181 }],
-    // L'effort de l'épaule se lit de face : avec une prise large, c'est l'écart latéral entre la main et l'épaule qui compte.
-    effort: [{ art: "epaule", nom: "Épaule · grand dorsal", plan: { vue: "face", depart: { hanche: [100, 100], bras: 160, avbras: 165 }, arrivee: { bras: 35, avbras: 170 } } }],
-    charge: { t: "haut" }, etire: 0,
-    analyse: {
-      pourquoi: "Le grand dorsal ramène le bras le long du corps. Le tirage le fait travailler de l'étirement complet, bras en haut, jusqu'à la contraction, barre à la poitrine.",
-      faisceaux: "Grand dorsal et grand rond surtout, avec le bas des trapèzes et les rhomboïdes ; le biceps aide. La largeur et le type de prise changent peu l'activité du grand dorsal : prends la prise où tu sens le mieux ton dos.",
-    },
-  },
-};
+/* SCHEMAS est rempli par mouvements.js */
+const SCHEMAS = {};
 const schemaDe = nom => SCHEMAS[nom] || SCHEMAS[nomDeFiche(nom)] || null;
-

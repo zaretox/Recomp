@@ -25,6 +25,7 @@ const FICHIERS = [
   "./pave.js",
   "./graphiques.js",
   "./schemas.js",
+  "./mouvements.js",
   "./repos.js",
   "./jour.js",
   "./seance.js",

@@ -41,3 +41,15 @@ La courbe est calculée sur la pose du schéma : effort à l'articulation = forc
 
 - « Au-dessus de l'horizontale, le trapèze prend le relais » (élévations latérales) : aucune étude trouvée.
 - « Le petit doigt plus haut » (élévations latérales) : consigne non soutenue, souvent déconseillée pour l'épaule.
+
+## Pectoraux
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Pompes = développé couché pour la croissance, à charge comparable. | Kikuchi et Nakazato, 2017, *Journal of Exercise Science & Fitness*, [10.1016/j.jesf.2017.06.003](https://doi.org/10.1016/j.jesf.2017.06.003) | 18 hommes, 8 semaines, développé à 40 % 1RM contre pompes ajustées à la même charge. Pecs 17,0 → 20,8 mm dans les deux groupes. |
+| Idem, pour la force. | Calatayud et coll., 2015, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0000000000000589](https://doi.org/10.1519/JSC.0000000000000589) | 30 étudiants entraînés, 5 semaines, 6RM développé contre pompes avec élastique. Gains de force semblables. |
+| Dips : pecs et triceps fortement sollicités. | McKenzie et coll., 2022, *IJERPH*, [10.3390/ijerph192114390](https://doi.org/10.3390/ijerph192114390) | 15 hommes, EMG et capture 3D : pecs et triceps sont les muscles moteurs, leur activité monte avec la fatigue. |
+| Aux haltères, environ 15 % de moins qu'à la barre. | van den Tillaar et Sæterbakken, 2012, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0b013e3182443430](https://doi.org/10.1519/JSC.0b013e3182443430) | 1RM : barre 106,4 kg, Smith 103,6 kg, haltères 89,5 kg. |
+| Inclinaison 30° pour le haut des pecs. | Rodríguez-Ridao et coll., 2020 (voir plus haut) | |
+
+Courbes : développés et pull-over calculés sur la pose (poids vertical). Pompes et machine : même géométrie qu'un développé couché par rapport à la force, la courbe du développé sert de référence. Dips : réaction des barres sur les mains, effort à l'épaule. Écartés haltères : vue de bout, poids vertical. Écarté poulie : câble. Pec deck : bras de levier fixe autour de l'épaule, résistance constante.

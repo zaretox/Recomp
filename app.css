@@ -568,6 +568,12 @@ h1, h2, h3, p { margin: 0; }
 .sq-sol { stroke: var(--trait); stroke-width: 2; }
 .sq-fleche { fill: none; stroke: var(--sport); stroke-width: 2.5; stroke-dasharray: 5 4; }
 .sq-pointe { fill: var(--sport); }
+.sq-zone { stroke: var(--sport); stroke-width: 5; stroke-linecap: round; }
+.sq-zone.plein { stroke-width: 9; }
+.sq-zone-p { fill: var(--sport); }
+.sq-plateau { stroke: var(--mou); stroke-width: 5; stroke-linecap: round; }
+.sq-elastique { stroke: var(--sport); stroke-width: 2.5; stroke-dasharray: 3 3; }
+.sq-banc-p.fin { stroke-width: 2; }
 .sq-var { margin-bottom: 4px; grid-template-columns: repeat(auto-fit, minmax(0, 1fr)); }
 .sq-var button { padding: 9px 4px; font-size: 13.5px; }
 .courbe-effort { display: grid; gap: 6px; padding-top: 8px; border-top: 1px solid var(--trait); }
