@@ -50,7 +50,7 @@ Object.assign(SCHEMAS, {
     ],
     analyse: {
       pourquoi: "Le faisceau moyen du deltoïde écarte le bras du corps : c'est lui qui donne la largeur des épaules. Aucun exercice de développé ne le cible aussi bien.",
-      faisceaux: "Surtout le faisceau moyen. À l'haltère, la charge pèse le plus en haut ; à la poulie réglée à hauteur de la main, elle pèse davantage bras le long du corps, quand le muscle est étiré. Malgré cette différence, les deux font grossir l'épaule autant : choisis celle que tu sens le mieux.",
+      faisceaux: "Surtout le faisceau moyen, qui travaille le plus bras en position neutre, pouces vers l'avant ; « petit doigt plus haut », c'est l'arrière de l'épaule et le trapèze qui prennent le relais. À l'haltère, la charge pèse le plus en haut ; à la poulie réglée à hauteur de la main, elle pèse davantage bras le long du corps, quand le muscle est étiré. Malgré cette différence, les deux font grossir l'épaule autant : choisis celle que tu sens le mieux.",
     },
   },
   "Tirage vertical": {
@@ -338,5 +338,112 @@ Object.assign(SCHEMAS, {
     muscle: ["lombaires", "fessiers", "ischios"], fleche: { suit: "tete", decale: [16, 0] },
     effort: [{ art: "hanche", nom: "Hanche · fessiers et lombaires", point: "epaule" }], charge: { t: "poids" }, etire: 0,
     analyse: { pourquoi: "L'hyperextension redresse le buste depuis la hanche : fessiers, ischios et muscles du bas du dos travaillent ensemble.", faisceaux: "Les fessiers et les ischios y sont très actifs. L'effort est le plus grand en haut, buste aligné avec les jambes : inutile d'aller au-delà en se cambrant." },
+  },
+});
+
+/* ── ÉPAULES ── */
+const POURQUOI_EPAULES = "Le deltoïde a trois faisceaux : l'avant lève le bras devant soi, le milieu l'écarte sur le côté, l'arrière le tire en arrière. Les développés travaillent surtout l'avant ; le milieu et l'arrière ont besoin d'exercices à eux.";
+// Développés au-dessus de la tête : l'effort de l'épaule se lit de face, coudes sur les côtés
+const PLAN_DEV_EPAULES = { vue: "face", depart: { hanche: [100, 100], bras: 82, avbras: 172 }, arrivee: { bras: 166, avbras: 176 } };
+const ASSIS_DOSSIER = [{ t: "bancr", x: 64, y: 134, l: 66, a: 90, h: 8 }, { t: "banc", x: 60, y: 136, l: 40 }, { t: "pied", x: 80, y: 144, y2: 181 }, SOL];
+const ASSIS = { hanche: [78, 130], torse: 180, cuisse: [86, 82], tibia: [2, -2], pied: 90 };
+Object.assign(SCHEMAS, {
+  "Développé militaire barre": {
+    legende: "Développé militaire vu de profil : debout, la barre part du haut de la poitrine et monte au-dessus de la tête.",
+    depart: { ancre: "pieds", cheville: [96, 178], torse: 180, tete: 6, bras: 40, avbras: 176 }, arrivee: { tete: 0, bras: 178, avbras: 180 },
+    objets: [{ t: "barre" }], decor: [SOL], muscle: ["epaule-avant", "triceps"], fleche: { suit: "main", decale: [26, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde avant" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Surtout l'avant de l'épaule et le triceps. L'effort est le plus grand dans la première moitié, quand la barre passe devant le visage, puis diminue une fois la barre au-dessus de la tête." },
+  },
+  "DM haltères": {
+    legende: "Développé haltères assis vu de profil : dos contre le dossier, les haltères montent des oreilles au-dessus de la tête.",
+    depart: { ...ASSIS, bras: 30, avbras: 178 }, arrivee: { bras: 178, avbras: 180 },
+    objets: [{ t: "halteres" }], decor: ASSIS_DOSSIER, muscle: ["epaules", "triceps"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde", plan: PLAN_DEV_EPAULES }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Les haltères demandent plus de stabilité qu'une barre : le deltoïde est plus actif, mais on soulève un peu moins. Assis, on soulève environ 10 % de plus que debout." },
+  },
+  "Développé haltères assis": {
+    legende: "Développé haltères assis vu de profil : dos calé, coudes légèrement devant le corps, on pousse au-dessus de la tête.",
+    depart: { ...ASSIS, bras: 36, avbras: 176 }, arrivee: { bras: 176, avbras: 180 },
+    objets: [{ t: "halteres" }], decor: ASSIS_DOSSIER, muscle: ["epaules", "triceps"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde", plan: PLAN_DEV_EPAULES }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Coudes un peu devant le corps, l'épaule est plus à l'aise qu'avec les coudes complètement sur les côtés. L'effort est le plus grand en bas, haltères au niveau des oreilles." },
+  },
+  "Développé épaules machine": {
+    legende: "Développé épaules à la machine vu de profil : assis, on pousse les poignées au-dessus de la tête.",
+    depart: { ...ASSIS, bras: 34, avbras: 176 }, arrivee: { bras: 176, avbras: 180 },
+    objets: [{ t: "poignee" }], decor: ASSIS_DOSSIER, muscle: ["epaules", "triceps"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde", plan: PLAN_DEV_EPAULES, note: "Si la machine résiste à la verticale ; certains modèles allègent le bas du mouvement." }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Même travail qu'aux haltères, sans avoir à stabiliser : on peut aller près de l'échec en sécurité. Le deltoïde y est un peu moins actif qu'aux haltères debout." },
+  },
+  "Développé Arnold": {
+    legende: "Développé Arnold vu de profil : haltères devant le visage paumes vers soi, on les tourne en poussant pour finir paumes vers l'avant.",
+    depart: { ...ASSIS, bras: 48, avbras: 168 }, arrivee: { bras: 178, avbras: 180 },
+    objets: [{ t: "halteres" }], decor: ASSIS_DOSSIER, muscle: ["epaule-avant", "epaules"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde", plan: { vue: "face", depart: { hanche: [100, 100], bras: 30, avbras: 176 }, arrivee: { bras: 166, avbras: 176 } } }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "La rotation fait passer le travail de l'avant de l'épaule (haltères devant le visage) au faisceau moyen (coudes sur les côtés). La rotation se fait pendant la montée, pas après." },
+  },
+  "Élévations latérales poulie": {
+    vue: "face",
+    legende: "Élévation latérale à la poulie vue de face : le câble passe devant le corps, on monte le bras sur le côté jusqu'à l'horizontale.",
+    depart: { hanche: [100, 100], bras: [12, 6], avbras: [8, 4], cuisse: 4, tibia: 2 }, arrivee: { bras: [86, 6], avbras: [80, 4] },
+    objets: [{ t: "cable", de: [44, 152] }], decor: [{ t: "poulieb", x: 44, y: 152 }, SOL], muscle: ["epaules"], fleche: { suit: "main", decale: [10, 16] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde moyen" }], charge: { t: "cable", de: [44, 152] }, etire: 0,
+    analyse: { pourquoi: "Le faisceau moyen du deltoïde écarte le bras du corps : c'est lui qui donne la largeur des épaules.", faisceaux: "Poulie réglée à hauteur de la main, la charge pèse dès le départ, bras le long du corps, là où l'haltère ne pèse presque rien. Les deux versions font grossir l'épaule autant : alterne-les ou garde celle que tu sens le mieux." },
+  },
+  "Élévations frontales": {
+    legende: "Élévation frontale vue de profil : bras devant les cuisses, on les monte devant soi jusqu'à hauteur des yeux.",
+    depart: { ancre: "pieds", cheville: [92, 178], torse: 180, bras: [8, 4], avbras: [6, 2] }, arrivee: { bras: [100, 96], avbras: [98, 94] },
+    objets: [{ t: "halteres" }], decor: [SOL], muscle: ["epaule-avant", "pecs"], fleche: { suit: "main", decale: [18, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde avant" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Surtout l'avant de l'épaule, avec le haut des pecs. Comme l'avant de l'épaule travaille déjà beaucoup dans tous les développés, un petit volume suffit." },
+  },
+  "Oiseau haltères": {
+    vue: "bout",
+    legende: "Oiseau vu de face : buste penché presque à l'horizontale, bras pendants, on les ouvre sur les côtés.",
+    depart: { ...BOUT, bras: 8, avbras: 4 }, arrivee: { bras: 86, avbras: 90 },
+    objets: [{ t: "halteres" }], decor: [], muscle: ["epaule-arriere"], fleche: { suit: "main", decale: [10, 14] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde arrière" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Surtout l'arrière de l'épaule. La charge pèse le plus bras écartés, en haut. Garde les omoplates relâchées : si tu les serres, c'est le milieu du dos qui travaille." },
+  },
+  "Oiseau machine": {
+    vue: "bout",
+    legende: "Oiseau à la machine vu du dessus : face à la machine, on ouvre les bras vers l'arrière.",
+    depart: { ...BOUT, bras: 182, avbras: 178 }, arrivee: { bras: 92, avbras: 90 },
+    objets: [{ t: "poignee" }], decor: [], muscle: ["epaule-arriere"], fleche: { suit: "main", decale: [12, -14] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde arrière", profil: [1, 1, 1, 1, 1], note: "La machine tourne autour de l'épaule avec un bras de levier fixe : la résistance reste la même d'un bout à l'autre." }], etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "La machine garde la même résistance sur tout le trajet, et le buste calé empêche de tricher. Pense « écarter les mains » plutôt que « reculer les coudes »." },
+  },
+  "Écarté inversé poulie": {
+    vue: "bout",
+    legende: "Écarté inversé à la poulie vu du dessus : câbles croisés devant soi, on ouvre les bras vers l'arrière.",
+    depart: { ...BOUT, bras: 194, avbras: 186 }, arrivee: { bras: 94, avbras: 92 },
+    objets: [{ t: "cable", de: [40, 8], deux: true }], decor: [], muscle: ["epaule-arriere"], fleche: { suit: "main", decale: [12, -14] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde arrière" }], charge: { t: "cable", de: [40, 8] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Les câbles croisés tirent depuis le côté opposé : la tension commence dès les bras croisés, quand l'arrière de l'épaule est étiré." },
+  },
+  "Face pull": {
+    vue: "bout",
+    legende: "Face pull vu du dessus : corde à hauteur du visage, on tire en écartant les mains jusqu'à côté des oreilles.",
+    depart: { ...BOUT, bras: 182, avbras: 178 }, arrivee: { bras: 96, avbras: 178 },
+    objets: [{ t: "cable", de: [100, 6], deux: true }], decor: [{ t: "poulie", x: 100, y: 6 }], muscle: ["epaule-arriere"], fleche: { suit: "main", decale: [14, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde arrière" }], charge: { t: "cable", de: [100, 6] }, etire: 0,
+    analyse: { pourquoi: "Le face pull combine deux gestes : tirer les coudes en arrière (arrière de l'épaule, milieu du dos) et tourner les bras vers l'extérieur (muscles de la coiffe).", faisceaux: "Arrière de l'épaule, trapèzes et coiffe des rotateurs. Léger et souvent : c'est un exercice d'équilibre pour des épaules qui font beaucoup de développés." },
+  },
+  "Tirage araignée": {
+    vue: "bout",
+    legende: "Tirage araignée vu de face : à plat ventre sur un banc incliné, bras pendants, on les ouvre sur les côtés.",
+    depart: { ...BOUT, bras: 6, avbras: 4 }, arrivee: { bras: 84, avbras: 90 },
+    objets: [{ t: "halteres" }], decor: [{ t: "banc", x: 86, y: 128, l: 28, h: 10 }, { t: "pied", x: 100, y: 138, y2: 181 }, SOL], muscle: ["epaule-arriere"], fleche: { suit: "main", decale: [10, 14] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde arrière" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Le banc empêche le buste de bouger : tout le travail va à l'arrière des épaules. Petits poids, mouvement lent, épaules relâchées." },
+  },
+  "Tirage menton": {
+    vue: "face",
+    legende: "Tirage menton vu de face : barre devant les cuisses, on monte les coudes sur les côtés jusqu'à amener la barre au bas de la poitrine.",
+    depart: { hanche: [100, 104], bras: 8, avbras: -6, cuisse: 4, tibia: 2 }, arrivee: { bras: 92, avbras: -36 },
+    objets: [{ t: "barreface", ext: 28 }], decor: [SOL], muscle: ["epaules", "trapezes"], fleche: { suit: "coude", decale: [14, 0] },
+    effort: [{ art: "epaule", nom: "Épaule · deltoïde moyen", point: "coude" }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_EPAULES, faisceaux: "Plus la prise est large, plus le deltoïde et les trapèzes travaillent, et moins le biceps aide. Monte jusqu'au bas de la poitrine, coudes en premier : inutile d'aller jusqu'au menton." },
   },
 });

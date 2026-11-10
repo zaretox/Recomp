@@ -63,3 +63,14 @@ Courbes : développés et pull-over calculés sur la pose (poids vertical). Pomp
 | Hyperextension : fessiers et ischios très actifs. | Lawrence et coll., 2019, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0000000000003146](https://doi.org/10.1519/JSC.0000000000003146) | 20 personnes actives : activité intégrée du biceps fémoral et du grand fessier plus élevée en hyperextension qu'en hyperextension inversée. |
 
 Courbes : rowings, rack pull, soulevé de terre et hyperextension calculés sur la pose (poids vertical ; pour l'hyperextension, le poids du buste agit à l'épaule). Tirages à la poulie : câble. Tractions et tirages verticaux : réaction de la barre, lue de face (prise large). Rowing inversé : réaction de la barre sur les mains. Shrugs : la charge monte à la verticale, son levier ne change pas.
+
+## Épaules
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Développé haltères : deltoïde plus actif qu'à la barre ; assis, environ 10 % plus fort que debout. | Saeterbakken et Fimland, 2013, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0b013e318276b873](https://doi.org/10.1519/JSC.0b013e318276b873) | 15 hommes, EMG à 80 % 1RM : activité la plus élevée debout aux haltères ; 1RM debout haltères ~10 % plus bas qu'assis haltères. |
+| Les développés font peu grossir le faisceau moyen. | Lanza et coll., 2024, *Journal of Bodywork and Movement Therapies*, [10.1016/j.jbmt.2024.07.054](https://doi.org/10.1016/j.jbmt.2024.07.054) | 24 hommes, 10 semaines de développé couché, IRM : pecs, avant d'épaule et triceps grossissent ; le deltoïde moyen grossit le moins. |
+| Élévations latérales : position neutre = plus de faisceau moyen ; rotation interne (« petit doigt plus haut ») = plus d'arrière d'épaule et de trapèze. Élévation frontale : avant d'épaule et pecs. | Coratella et coll., 2020, *IJERPH*, [10.3390/ijerph17176015](https://doi.org/10.3390/ijerph17176015) | 10 culturistes de compétition, EMG de 5 variantes. |
+| Tirage menton : prise large = plus de deltoïde et de trapèzes, moins de biceps. | McAllister et coll., 2013, *Journal of Strength and Conditioning Research*, [10.1519/JSC.0b013e31824f23ad](https://doi.org/10.1519/JSC.0b013e31824f23ad) | 16 hommes entraînés, prises à 50, 100 et 200 % de la largeur des épaules. |
+
+Courbes : développés au-dessus de la tête lus de face, coudes sur les côtés (poids vertical). Élévations, oiseau, tirage araignée : poids vertical. Écarté inversé et face pull : câble, vus du dessus. Oiseau machine : bras de levier fixe. Tirage menton : effort au coude, qui porte la barre.
