@@ -14,7 +14,8 @@ const vitesseSortie = s => {
   if (f === "nage") return { v: chrono(s.duree / (km * 10)), l: "allure aux 100 m" };
   return { v: allureDe(s.duree, km), l: "allure au km" };
 };
-const resumeSortie = s => [s.distance > 0 && kmDe(s.distance) + " km", chrono(s.duree), s.fcMoy && s.fcMoy + " bpm"].filter(Boolean).join(" · ");
+const distanceSortie = s => familleSortie(s) === "nage" ? entier(s.distance) + " m" : kmDe(s.distance) + " km";
+const resumeSortie = s => [s.distance > 0 && distanceSortie(s), chrono(s.duree), s.fcMoy && s.fcMoy + " bpm"].filter(Boolean).join(" · ");
 
 /* Carte : tuiles OpenStreetMap à l'échelle qui fait tenir tout le parcours, tracé par-dessus */
 const TUILE_OSM = 256;
@@ -84,13 +85,13 @@ function ZonesFC({ zones }) {
     h("b", chrono(x.s)))));
 }
 
-/* Tours au km : la barre est d'autant plus longue que le km est rapide */
+/* Tours au km (aux 100 m en natation) : la barre est d'autant plus longue que le tour est rapide */
 function ToursKm({ tours, famille }) {
-  const vit = t => (t.m || 1000) / t.s, vmax = Math.max(...tours.map(vit));
-  return h("div.tours", h("div.tours-t", h("span", "Km"), h("span", famille === "velo" ? "Vitesse" : "Allure"), h("span"), h("span", "FC")),
-    tours.map(t => h("div", { key: t.km },
-      h("span", t.m ? nb(t.km, 2) : t.km),
-      h("b", famille === "velo" ? nb(vit(t) * 3.6) : chrono(t.s / ((t.m || 1000) / 1000))),
+  const nage = famille === "nage", u = nage ? 100 : 1000, vit = t => t.d / t.s, vmax = Math.max(...tours.map(vit));
+  return h("div.tours", h("div.tours-t", h("span", nage ? "M" : "Km"), h("span", famille === "velo" ? "Vitesse" : "Allure"), h("span"), h("span", "FC")),
+    tours.map(t => h("div", { key: t.n },
+      h("span", nage ? entier(t.n) : t.n % 1000 ? nb(t.n / 1000, 2) : t.n / 1000),
+      h("b", famille === "velo" ? nb(vit(t) * 3.6) : chrono(t.s / (t.d / u))),
       h("div.zone-b", h("i", { style: { width: vit(t) / vmax * 100 + "%" } })),
       h("span", t.fc || "—"))));
 }
@@ -140,19 +141,16 @@ function FeuilleSorties() {
     imp.relie && h(Bouton, { cl: "contour" + (imp.charge ? " occupe" : ""), ico: "trace", disabled: imp.charge, onClick: () => imp.lancer(false) }, imp.charge ? "Lecture de ta montre…" : "Récupérer mes séances Polar"));
 }
 
-function FeuilleSortie({ id }) {
-  useDB();
-  const s = sortiesPolar().find(x => x.id === id);
-  if (!s) return h(Feuille, { titre: "Sortie" }, h(Vide, null, "Séance retirée."));
+/* Tout ce que la montre a mesuré : chiffres clés, courbes, zones, tours. Sert aussi dans le détail d'une séance de muscu ou de natation. */
+function BlocMontre({ s }) {
   const f = familleSortie(s), v = vitesseSortie(s), allure = f === "course" || f === "marche";
-  const muscu = DB.get("sport-logs").find(l => l.dateISO === s.dateISO);
-  // Allure en min/km : on ignore les arrêts (moins de 3 km/h) et on plafonne pour garder une courbe lisible
+  // Allure en min/km : on ignore les arrêts et on plafonne pour garder une courbe lisible.
+  // En natation, pas de courbe : les pauses au mur la hachent ; le tableau aux 100 m est plus clair.
   const serieAllure = s.vit && allure ? { pas: s.vit.pas, v: s.vit.v.map(x => x > 3 ? Math.min(60 / x, f === "marche" ? 20 : 12) : null) } : null;
-  return h(Feuille, { titre: nomSortie(s), ton: "sport" },
-    h("p.sous-t", dateLongue(s.dateISO) + (s.debut ? " à " + s.debut.slice(11, 16) : "") + (s.appareil ? " · " + s.appareil : "")),
+  return h(Fragment, null,
     s.trace?.length > 1 && h(CarteTrace, { trace: s.trace }),
     h("div.tuiles",
-      s.distance > 0 && h(Tuile, { v: kmDe(s.distance), l: "km" }),
+      s.distance > 0 && (f === "nage" ? h(Tuile, { v: entier(s.distance), l: "mètres" }) : h(Tuile, { v: kmDe(s.distance), l: "km" })),
       h(Tuile, { v: chrono(s.duree), l: "durée" }),
       v && h(Tuile, { v: v.v, l: v.l }),
       s.fcMoy && h(Tuile, { v: s.fcMoy, l: "FC moyenne" }),
@@ -165,8 +163,29 @@ function FeuilleSortie({ id }) {
     serieAllure && h(Section, { titre: "Allure" }, h(CourbeTemps, { serie: serieAllure, ton: "sport", unite: "/km", inverse: true, format: x => chrono(x * 60) })),
     s.vit && f === "velo" && h(Section, { titre: "Vitesse" }, h(CourbeTemps, { serie: s.vit, ton: "sport", unite: "km/h", format: x => nb(x, 0) })),
     s.alt && s.deniv > 0 && f !== "nage" && h(Section, { titre: "Altitude" }, h(CourbeTemps, { serie: s.alt, ton: "sport", unite: "m", haut: 110 })),
-    s.tours?.length > 1 && h(Section, { titre: "Tours au km" }, h(ToursKm, { tours: s.tours, famille: f })),
-    muscu && f === "autre" && h(Rangee, { ico: "sport", titre: "Ta séance " + muscu.seance + " du même jour", sous: "Charges et séries notées dans RECOMP", onClick: () => Nav.sheet("seanceDetail", { id: muscu.id }) }),
+    s.tours?.length > 1 && h(Section, { titre: f === "nage" ? "Temps aux 100 m" : "Tours au km" }, h(ToursKm, { tours: s.tours, famille: f })));
+}
+
+/* Une nage de la montre devient une séance de natation RECOMP (records, calories du jour) */
+async function ajouterANatation(s) {
+  const rpe = await saisir({ titre: "Difficulté ressentie", court: "Effort", valeur: 6, mode: "ent", unite: "/10", pas: [1], min: 1, max: 10 });
+  if (rpe == null) return;
+  const kg = moyenneRecente(pesees(), 7) || 100, dist = Math.round(s.distance || 0);
+  await DB.set("natation-logs", [...DB.get("natation-logs"), { id: Date.now(), dateISO: s.dateISO, date: dateCourte(s.dateISO), modele: "Nage de la montre", distance: dist, duree: s.duree, rpe: rpe || 6, nage: "Crawl", pool: 25, note: "", kcal: nageKcal(dist, s.duree, rpe || 6, kg), polarId: s.id }]);
+  toast(entier(dist) + " m ajoutés à ta natation");
+}
+
+function FeuilleSortie({ id }) {
+  useDB();
+  const s = sortiesPolar().find(x => x.id === id);
+  if (!s) return h(Feuille, { titre: "Sortie" }, h(Vide, null, "Séance retirée."));
+  const f = familleSortie(s), lie = logDeSortie(s);
+  return h(Feuille, { titre: nomSortie(s), ton: "sport" },
+    h("p.sous-t", dateLongue(s.dateISO) + (s.debut ? " à " + s.debut.slice(11, 16) : "") + (s.appareil ? " · " + s.appareil : "")),
+    lie?.t === "s" && h(Rangee, { ico: "sport", titre: "Ta séance " + lie.log.seance, sous: "Charges et séries notées dans RECOMP", onClick: () => Nav.sheet("seanceDetail", { id: lie.log.id }) }),
+    lie?.t === "n" && h(Rangee, { ico: "nage", titre: "Dans ta natation", sous: entier(lie.log.distance) + " m notés le " + dateMini(lie.log.dateISO), onClick: () => Nav.sheet("natation") }),
+    h(BlocMontre, { s }),
+    f === "nage" && !lie && s.distance > 0 && h(Bouton, { cl: "plein", ico: "nage", onClick: () => ajouterANatation(s) }, "Ajouter à ma natation"),
     h("p.note", "Les calories et la charge sont celles calculées par ta montre. Ces séances ne changent pas ton score de forme."),
     h(Bouton, { cl: "contour danger-t", onClick: () => { Nav.fermer(); retirerSortie(s.id); } }, "Retirer de RECOMP"));
 }

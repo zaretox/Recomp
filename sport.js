@@ -74,7 +74,7 @@ function EcranSport() {
   const vol = n => Math.round(logs.filter(l => { const e = ecart(l.dateISO, auj); return e >= n * 7 && e < (n + 1) * 7; }).reduce((a, l) => a + volumeSeance(l), 0));
   const v0 = vol(0), v1 = vol(1), rec = recordsDe(logs.filter(l => dansLes(l.dateISO, 30)));
   const barres = Array.from({ length: 8 }, (_, i) => { const n = 7 - i; return { l: n === 0 ? "Cette" : "S−" + n, v: Math.round(vol(n) / 1000 * 10) / 10 }; });
-  const hist = [...logs.map(l => ({ ...l, _t: "s" })), ...DB.get("maison-logs").map(l => ({ ...l, _t: "m" })), ...DB.get("natation-logs").map(l => ({ ...l, _t: "n" })), ...sortiesPolar().map(l => ({ ...l, _t: "p" }))].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || (b.id - a.id) || 0);
+  const hist = [...logs.map(l => ({ ...l, _t: "s" })), ...DB.get("maison-logs").map(l => ({ ...l, _t: "m" })), ...DB.get("natation-logs").map(l => ({ ...l, _t: "n" })), ...sortiesPolar().filter(s => !logDeSortie(s)).map(l => ({ ...l, _t: "p" }))].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || (b.id - a.id) || 0);
   return h("div.page", { "data-t": "sport" },
     h(HeroSport),
     h("div.corps-p",
@@ -97,9 +97,10 @@ function EcranSport() {
           h(Interrupteur, { actif: cfg.recovery, titre: "Mode récup", sous: "Aucune hausse de charge. Automatique si ta forme passe sous 50", onClick: () => DB.set("science-config", { ...cfg, recovery: !cfg.recovery }) }))),
       h(Section, { titre: "Historique" }, hist.length ? hist.slice(0, 12).map(l => h("button.ligne", { key: l._t + l.id, onClick: () => l._t === "s" ? Nav.sheet("seanceDetail", { id: l.id }) : l._t === "n" ? Nav.sheet("natation") : l._t === "p" ? Nav.sheet("sortie", { id: l.id }) : ouvrirSeance(l.dateISO, { prog: "maison", code: l.seance }) },
         h("span", h("b", l._t === "s" ? l.seance : l._t === "m" ? "Maison " + l.seance : l._t === "p" ? nomSortie(l) : "Natation"), h("small", dateMini(l.dateISO))),
-        h("b", l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" : l._t === "n" ? entier(l.distance) + " m" : l._t === "p" ? (l.distance > 0 ? kmDe(l.distance) + " km" : chrono(l.duree)) : "")
+        h("b", l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" + fcDe(sortieDeMuscu(l)) : l._t === "n" ? entier(l.distance) + " m" + fcDe(sortieDeNage(l)) : l._t === "p" ? (l.distance > 0 ? distanceSortie(l) : chrono(l.duree)) : "")
       )) : h(Vide, null, "Aucune séance pour l'instant."))));
 }
+const fcDe = s => s?.fcMoy ? " · " + s.fcMoy + " bpm" : "";
 const Interrupteur = ({ actif, titre, sous, onClick }) => h("button.inter", { className: actif ? "actif" : "", role: "switch", "aria-checked": !!actif, onClick: () => { vibre(); onClick(); } },
   h("span", h("b", titre), sous && h("small", sous)), h("i"));
 
@@ -118,10 +119,12 @@ function FeuilleSeanceDetail({ id }) {
   const log = DB.get("sport-logs").find(l => l.id === id);
   if (!log) return h(Feuille, { titre: "Séance" }, h(Vide, null, "Séance supprimée."));
   const suppr = async () => { Nav.fermer(); await avecAnnuler("sport-logs", DB.get("sport-logs").filter(l => l.id !== id), "Séance supprimée"); };
+  const montre = sortieDeMuscu(log);
   return h(Feuille, { titre: log.seance, ton: "sport" },
     h("p.sous-t", dateLongue(log.dateISO) + (log.deload ? ", semaine légère" : "")),
     h("div.tuiles", h(Tuile, { v: nb(volumeSeance(log) / 1000) + " t", l: "soulevées" }), h(Tuile, { v: (log.exercices || []).reduce((a, e) => a + seriesDe(e), 0), l: "séries" })),
     h("div.liste", (log.exercices || []).filter(e => e.weight > 0).map(e => h("button.ligne", { key: e.nom, onClick: () => Nav.sheet("exercice", { nom: e.nom }) }, h("span", e.nom), h("b", fmtSeries(e))))),
+    montre && h(Section, { titre: "Ta montre" }, h("p.note", "Enregistrée à " + (montre.debut || "").slice(11, 16) + " sur ta Polar."), h(BlocMontre, { s: montre })),
     h("div.deux-b",
       h(Bouton, { cl: "contour", onClick: () => { Nav.fermer(); ouvrirSeance(log.dateISO, { prog: "salle", code: log.seance }); } }, "Modifier"),
       h(Bouton, { cl: "contour danger-t", onClick: suppr }, "Supprimer")));
@@ -146,6 +149,7 @@ function FeuilleNatation({ iso }) {
     toast("Séance de " + entier(r[0]) + " m enregistrée" + (jour === auj ? ", ta cible du jour suit" : " le " + dateMini(jour)));
   };
   const faire = m => setVoir(m);
+  const aAjouter = sortiesPolar().filter(s => familleSortie(s) === "nage" && !logDeSortie(s));
   return h(Feuille, { titre: "Natation", ton: "sport" },
     jour !== auj && h("p.sous-t", "Pour le " + dateLongue(jour).toLowerCase()),
     h("div.tuiles", h(Tuile, { v: entier(sem), l: "mètres cette semaine" }), h(Tuile, { v: logs.length, l: "séances en tout" })),
@@ -162,7 +166,8 @@ function FeuilleNatation({ iso }) {
       logs.length > 0 && h(Section, { titre: "Records" }, h("div.tuiles",
         h(Tuile, { v: entier(Math.max(...logs.map(l => l.distance))) + " m", l: "plus longue" }),
         [[400, "≥ 400 m"], [1000, "≥ 1 000 m"]].map(([mn, l]) => { const b = meilleur(mn); return h(Tuile, { key: mn, v: b ? mmss(Math.round(allure(b.distance, b.duree))) : "—", l: "allure " + l }); }))),
-      logs.length > 0 && h(Section, { titre: "Dernières séances" }, [...logs].sort((a, b) => b.dateISO.localeCompare(a.dateISO)).slice(0, 8).map(l => h("div.histo", { key: l.id }, h("span", dateMini(l.dateISO)), h("b", entier(l.distance) + " m en " + dureeS(l.duree)), h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("natation-logs", DB.get("natation-logs").filter(x => x.id !== l.id), "Séance supprimée") }, h(Icone, { n: "fermer", t: 16 })))))));
+      aAjouter.length > 0 && h(Section, { titre: "Nages de ta montre" }, h("div.liste", aAjouter.slice(0, 5).map(s => h(LigneSortie, { key: s.id, s }))), h("p.note", "Touche une nage pour voir son détail et l'ajouter à ta natation.")),
+      logs.length > 0 && h(Section, { titre: "Dernières séances" }, [...logs].sort((a, b) => b.dateISO.localeCompare(a.dateISO)).slice(0, 8).map(l => h("div.histo", { key: l.id }, h("span", dateMini(l.dateISO)), h("b", entier(l.distance) + " m en " + dureeS(l.duree)), sortieDeNage(l) && h("button.mini-x", { "aria-label": "Données de la montre", onClick: () => Nav.sheet("sortie", { id: sortieDeNage(l).id }) }, h(Icone, { n: "coeur", t: 16 })), h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("natation-logs", DB.get("natation-logs").filter(x => x.id !== l.id), "Séance supprimée") }, h(Icone, { n: "fermer", t: 16 })))))));
 }
 
 /* DOULEURS */

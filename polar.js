@@ -84,8 +84,11 @@ const NOMS_SPORT = {
 };
 const nomSortie = s => NOMS_SPORT[s.detail] || NOMS_SPORT[s.sport] || (x => x.charAt(0) + x.slice(1).toLowerCase())(String(s.detail || s.sport || "Activité").replace(/_/g, " "));
 // Famille : décide de l'affichage (allure au km, vitesse, allure aux 100 m)
-const familleSortie = s => { const t = (s.sport || "") + " " + (s.detail || ""); return /SWIM/.test(t) ? "nage" : /RUN/.test(t) ? "course" : /WALK|HIK/.test(t) ? "marche" : /CYCL|BIK/.test(t) ? "velo" : "autre"; };
-const COURT_SORTIE = { course: "Course", marche: "Marche", velo: "Vélo", nage: "Nage", autre: "Polar" };
+const familleSortie = s => {
+  const t = (s.sport || "") + " " + (s.detail || "");
+  return /SWIM/.test(t) ? "nage" : /RUN/.test(t) ? "course" : /WALK|HIK/.test(t) ? "marche" : /CYCL|BIK/.test(t) ? "velo" : /STRENGTH|CIRCUIT|FUNCTIONAL|CORE|CROSSFIT|BODY|GYM/.test(t) ? "muscu" : "autre";
+};
+const COURT_SORTIE = { course: "Course", marche: "Marche", velo: "Vélo", nage: "Nage", muscu: "Muscu", autre: "Polar" };
 
 /* Échantillons : « 0,100,102,… » enregistrés toutes les r secondes */
 const lireEchantillons = l => {
@@ -112,8 +115,9 @@ function denivele(v) {
   }
   return Math.round(total);
 }
-// Tours au km : temps et FC moyenne de chaque kilomètre, d'après la distance cumulée
-function toursAuKm(dist, fc) {
+// Tours : temps et FC moyenne de chaque km (de chaque 100 m en natation), d'après la distance cumulée.
+// Un tour = { n: distance à la fin (m), d: longueur du tour (m), s: secondes, fc }
+function toursAuKm(dist, fc, pas = 1000) {
   const tps = [], tours = [], d = dist.v;
   const temps = m => {
     for (let i = 1; i < d.length; i++) if (d[i] != null && d[i] >= m) {
@@ -123,12 +127,12 @@ function toursAuKm(dist, fc) {
     return null;
   };
   const fin = d.filter(x => x != null).pop() || 0;
-  for (let k = 1; k * 1000 <= fin; k++) tps.push(temps(k * 1000));
+  for (let k = 1; k * pas <= fin; k++) tps.push(temps(k * pas));
   const fcEntre = (a, b) => { if (!fc) return null; const p = fc.v.slice(Math.floor(a / fc.r), Math.ceil(b / fc.r)).filter(x => x > 0); return p.length ? Math.round(p.reduce((s, x) => s + x, 0) / p.length) : null; };
   let avant = 0;
-  tps.forEach((t, i) => { if (t == null) return; tours.push({ km: i + 1, s: Math.round(t - avant), fc: fcEntre(avant, t) }); avant = t; });
-  const reste = fin - tps.length * 1000, total = (d.length - 1) * dist.r;
-  if (reste >= 100 && total > avant) tours.push({ km: arrondi(fin / 1000, 2), m: Math.round(reste), s: Math.round(total - avant), fc: fcEntre(avant, total) });
+  tps.forEach((t, i) => { if (t == null) return; tours.push({ n: (i + 1) * pas, d: pas, s: Math.round(t - avant), fc: fcEntre(avant, t) }); avant = t; });
+  const reste = fin - tps.length * pas, total = (d.length - 1) * dist.r;
+  if (reste >= pas / 10 && total > avant) tours.push({ n: Math.round(fin), d: Math.round(reste), s: Math.round(total - avant), fc: fcEntre(avant, total) });
   return tours;
 }
 // Parcours allégé (Douglas-Peucker, environ 4 m de précision) : [[lat, lon], …]
@@ -155,7 +159,7 @@ function sortieDepuisPolar(d) {
     duree: Math.round(dureeIso(d.duration)), distance: d.distance ?? distFin ?? null, kcal: d.calories ?? null,
     fcMoy: d.heart_rate?.average ?? null, fcMax: d.heart_rate?.maximum ?? null, charge: d.training_load != null ? Math.round(d.training_load) : null,
     appareil: d.device || null, deniv: alt ? denivele(alt.v) : null, trace: alleger(d.route),
-    fc: fc ? reduire(fc) : null, vit: vit ? reduire(vit) : null, alt: alt ? reduire(alt) : null, tours: dist ? toursAuKm(dist, fc) : [],
+    fc: fc ? reduire(fc) : null, vit: vit ? reduire(vit) : null, alt: alt ? reduire(alt) : null, tours: dist ? toursAuKm(dist, fc, /SWIM/.test((d.sport || "") + (d.detailed_sport_info || "")) ? 100 : 1000) : [],
     zones: (d.heart_rate_zones || []).map(z => ({ i: z.index, bas: z["lower-limit"], haut: z["upper-limit"], s: Math.round(dureeIso(z["in-zone"])) })),
     importe: aujourdhui(),
   };
@@ -176,3 +180,23 @@ async function importerSortiesPolar() {
 }
 // Retirer de RECOMP : on garde l'identifiant pour ne pas la réimporter
 const retirerSortie = id => avecAnnuler("polar-seances", DB.get("polar-seances").map(s => s.id === id ? { id, supprime: true } : s), "Séance retirée");
+
+/* Lien avec les séances notées dans RECOMP (muscu de la salle, natation) : même jour, même famille.
+ * En muscu, on prend la séance de la montre qui a commencé le plus près du début noté dans RECOMP. */
+const debutMs = s => s.debut ? new Date(s.debut).getTime() : 0;
+function sortieDeMuscu(log) {
+  const c = sortiesPolar().filter(s => s.dateISO === log.dateISO && familleSortie(s) === "muscu");
+  if (c.length < 2 || !log.startedAt) return c[0] || null;
+  return c.reduce((a, s) => Math.abs(debutMs(s) - log.startedAt) < Math.abs(debutMs(a) - log.startedAt) ? s : a);
+}
+function sortieDeNage(log) {
+  const c = sortiesPolar().filter(s => familleSortie(s) === "nage");
+  return (log.polarId && c.find(s => s.id === log.polarId)) || c.find(s => s.dateISO === log.dateISO && !DB.get("natation-logs").some(l => l.polarId === s.id && l.id !== log.id)) || null;
+}
+// La séance RECOMP qui correspond à une séance de la montre, s'il y en a une
+function logDeSortie(s) {
+  const f = familleSortie(s);
+  if (f === "muscu") { const l = DB.get("sport-logs").find(x => x.dateISO === s.dateISO && sortieDeMuscu(x)?.id === s.id); return l ? { t: "s", log: l } : null; }
+  if (f === "nage") { const l = DB.get("natation-logs").find(x => sortieDeNage(x)?.id === s.id); return l ? { t: "n", log: l } : null; }
+  return null;
+}
