@@ -5,9 +5,19 @@
 const DIFFICULTES = [[7, "Facile"], [8, "Bien"], [9, "Dur"], [10, "Limite"]];
 const ouvrirSeance = (iso, s) => Nav.sheet("seance", { iso, prog: s.prog === "maison" ? "maison" : "salle", code: s.code });
 
+/* Exercices ajoutés en cours de séance, avant la première série cochée : gardés ici tant que la séance n'est pas écrite,
+ * pour ne pas marquer la séance comme faite. Ensuite, ils vivent dans le champ « ajouts » de la séance (sport-logs). */
+const AJOUTS_EN_ATTENTE = {};
+const cleAjouts = (iso, code) => iso + "|" + code;
 function versLog(iso, code, cfg, log) {
   // Une séance notée après coup n'a pas d'heure de début : sa durée n'aurait pas de sens
-  return log || { id: Date.now(), date: dateCourte(iso), dateISO: iso, seance: code, deload: !!cfg.deload, ...(iso === aujourdhui() ? { startedAt: Date.now() } : {}), exercices: [] };
+  const attente = AJOUTS_EN_ATTENTE[cleAjouts(iso, code)];
+  return log || { id: Date.now(), date: dateCourte(iso), dateISO: iso, seance: code, deload: !!cfg.deload, ...(iso === aujourdhui() ? { startedAt: Date.now() } : {}), ...(attente?.length ? { ajouts: [...attente] } : {}), exercices: [] };
+}
+/* Dernière fois qu'un exercice a été fait, toutes séances confondues */
+function dernierPartout(logs, nom) {
+  const l = (logs || []).filter(x => !x.deload && (x.exercices || []).some(e => e.nom === nom && e.weight > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
+  return l ? l.exercices.find(e => e.nom === nom) : null;
 }
 function majSeance(iso, code, fn) {
   const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), cfg = reglages();
@@ -16,7 +26,7 @@ function majSeance(iso, code, fn) {
   return DB.set("sport-logs", suivant ? [...reste, suivant] : reste);
 }
 
-function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, douleurs, record, suivant }) {
+function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, douleurs, record, suivant, retirer }) {
   const e = log?.exercices?.find(x => x.nom === ex.nom);
   const faites = e?.setsDetail?.length ? e.setsDetail : e?.sets ? Array.from({ length: e.sets }, () => ({ w: e.weight, r: e.reps })) : [];
   const prevues = Math.max(prop.sets || 3, faites.length);
@@ -58,17 +68,18 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
 
   if (!ouvert) return h("button.exo.ferme", { onClick: () => setOuvert(i), className: complet ? "fait" : "" },
     complet ? h("i.ok", h(Icone, { n: "check", t: 16 })) : h("i.num", faites.length + "/" + total),
-    h("span", h("b", ex.nom), h("small", faites.length ? fmtSeries({ setsDetail: faites }) : (prop.weight ? nb(prop.weight) + " kg × " : "") + (prop.reps || ""))),
+    h("span", h("b", ex.nom, ex.ajoute && h("em.exo-ajout", "ajouté")), h("small", faites.length ? fmtSeries({ setsDetail: faites }) : (prop.weight ? nb(prop.weight) + " kg × " : "") + (prop.reps || ""))),
     mal.length > 0 && h("em.alerte", mal[0].zone));
 
   const coach = prop.src === "coach" ? prop.txt : prop.src === "science" ? "objectif réglé : " + nb(prop.weight) + " kg" : prop.src === "phase" && prop.weight ? "charge de départ : " + nb(prop.weight) + " kg" : null;
   return h("article.exo.ouvert",
     h("header",
-      h("div", h("h3", ex.nom), coach && h("p.coach-l", { "data-a": prop.action }, coach)),
+      h("div", h("h3", ex.nom, ex.ajoute && h("em.exo-ajout", "ajouté")), coach && h("p.coach-l", { "data-a": prop.action }, coach)),
       h("button.rond", { onClick: () => Nav.sheet("exercice", { nom: ex.nom, orig: ex.orig, iso, code, kg: ligne(0).w }), "aria-label": "Plus sur cet exercice" }, h(Icone, { n: "points", t: 20 }))),
     der && h("p.dernier", "Dernière fois : " + fmtSeries(der) + (der.rpe ? ", " + (DIFFICULTES.find(d => d[0] >= der.rpe)?.[1] || "").toLowerCase() : "")),
     mal.length > 0 && h("button.alerte-b", { onClick: () => Nav.sheet("exercice", { nom: ex.nom, orig: ex.orig, iso, code, kg: ligne(0).w }) }, mal.map(m => m.zone + " " + m.i + "/10").join(", ") + " : baisse la charge ou remplace"),
     ex.note && h("p.dernier", ex.note),
+    ex.ajoute && !faites.length && retirer && h("button.mini.exo-retirer", { onClick: () => retirer(ex.orig || ex.nom) }, "Retirer de la séance"),
     h("div.series", Array.from({ length: total }, (_, k) => {
       const v = ligne(k), fait = k < faites.length;
       return h("div.serie", { key: k, className: fait ? "fait" : k === faites.length ? "courante" : "" },
@@ -124,15 +135,33 @@ function FeuilleSeance({ iso, prog, code }) {
   useDB();
   useEcranAllume(true);
   const repos = useRepos();
-  const [ouvert, setOuvert] = useState(null), [fini, setFini] = useState(false);
+  const [ouvert, setOuvert] = useState(null), [fini, setFini] = useState(false), [, redessine] = useState(0);
   if (prog === "maison") return h(FeuilleCircuit, { iso, code });
   const se = seanceParId(code);
   if (!se) return h(Feuille, { titre: "Séance introuvable" }, h(Vide, null, "Cette séance n'existe plus dans ton programme."));
   const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), avant = logs.filter(l => l.dateISO < iso);
   const cfg = reglages(), phase = +DB.get("sport-phase") || 0, douleurs = douleursRecentes(10);
   const swaps = log?.swaps || {};
-  const exos = se.exercices.map(ex => swaps[ex.nom] ? { ...ex, nom: swaps[ex.nom], orig: ex.nom, charges: [], note: "" } : ex);
-  const props = exos.map(ex => proposition(avant, code, ex, phase, cfg));
+  // Exercices ajoutés en cours de séance : 3 séries de 10-12 par défaut, et la dernière charge connue, toutes séances confondues
+  const ajouts = log?.ajouts || AJOUTS_EN_ATTENTE[cleAjouts(iso, code)] || [];
+  const enPlus = ajouts.map(n => ({ nom: n, detail: "3×10-12", charges: [], note: "", ajoute: true }));
+  const exos = [...se.exercices, ...enPlus].map(ex => swaps[ex.nom] ? { ...ex, nom: swaps[ex.nom], orig: ex.nom, charges: [], note: "" } : ex);
+  const props = exos.map(ex => {
+    const p = proposition(avant, code, ex, phase, cfg), d = ex.ajoute && !p.weight ? dernierPartout(avant, ex.nom) : null;
+    return d ? { ...p, weight: cfg.deload ? Math.round(d.weight * .6 * 2) / 2 : d.weight, reps: d.reps || p.reps, src: "phase" } : p;
+  });
+  const ajouter = nom => {
+    if (exos.some(ex => ex.nom === nom || ex.orig === nom)) return toast(nom + " est déjà dans la séance");
+    if (log) majSeance(iso, code, l => ({ ...l, ajouts: [...(l.ajouts || []), nom] }));
+    else { const k = cleAjouts(iso, code); AJOUTS_EN_ATTENTE[k] = [...(AJOUTS_EN_ATTENTE[k] || []), nom]; redessine(x => x + 1); }
+    setOuvert(exos.length);
+    toast(nom + " ajouté à la séance");
+  };
+  const retirer = nom => {
+    if (log) majSeance(iso, code, l => ({ ...l, ajouts: (l.ajouts || []).filter(x => x !== nom) }));
+    const k = cleAjouts(iso, code); if (AJOUTS_EN_ATTENTE[k]) AJOUTS_EN_ATTENTE[k] = AJOUTS_EN_ATTENTE[k].filter(x => x !== nom);
+    setOuvert(null); redessine(x => x + 1);
+  };
   const fait = ex => { const e = log?.exercices?.find(x => x.nom === ex.nom); return e ? seriesDe(e) : 0; };
   const total = props.reduce((a, p) => a + (p.sets || 3), 0), faites = exos.reduce((a, ex, i) => a + Math.min(fait(ex), props[i].sets || 3), 0);
   const courant = ouvert ?? exos.findIndex((ex, i) => fait(ex) < (props[i].sets || 3));
@@ -150,7 +179,8 @@ function FeuilleSeance({ iso, prog, code }) {
       iso !== aujourdhui() && h("p.bandeau", h("b", "Séance du " + dateLongue(iso).toLowerCase() + ". "), "Coche ce que tu as fait ce jour-là."),
       cfg.deload && h("p.bandeau", "Semaine légère : charges −40 %, les records ne comptent pas."),
       r?.score != null && iso === aujourdhui() && h("button.bandeau", { onClick: () => Nav.sheet("forme") }, h("b", "Forme " + r.score + ". "), r.conseil),
-      exos.map((ex, i) => h(CarteExo, { key: ex.nom + i, ex, i, ouvert: courant === i, setOuvert, iso, code, log, prop: props[i], avant, douleurs, record: cfg.deload ? Infinity : meilleureCharge(avant, ex.nom) || Infinity, suivant: k => setOuvert(k + 1 < exos.length ? k + 1 : null) })),
+      exos.map((ex, i) => h(CarteExo, { key: ex.nom + i, ex, i, ouvert: courant === i, setOuvert, iso, code, log, prop: props[i], avant, douleurs, record: cfg.deload ? Infinity : meilleureCharge(avant, ex.nom) || Infinity, suivant: k => setOuvert(k + 1 < exos.length ? k + 1 : null), retirer })),
+      h(Bouton, { cl: "contour", ico: "plus", onClick: () => { vibre(); Nav.sheet("bibliotheque", { choisir: nom => ajouter(nom) }); } }, "Ajouter un exercice"),
       se.finisher && h("button.finisher", { className: log?.finisher ? "fait" : "", onClick: () => majSeance(iso, code, l => ({ ...l, finisher: !l.finisher })) }, h("i", h(Icone, { n: "check", t: 16 })), h("span", h("small", "Pour finir"), h("b", se.finisher))),
       h(Bouton, { cl: "plein grand", onClick: terminer }, faites >= total ? "Terminer la séance" : "Terminer maintenant")));
 }
