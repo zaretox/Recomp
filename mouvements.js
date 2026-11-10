@@ -699,3 +699,153 @@ Object.assign(SCHEMAS, {
     analyse: { pourquoi: POURQUOI_QUADS, faisceaux: "Hanche ouverte et genoux très pliés : le quadriceps, droit fémoral compris, travaille étiré. Exercice avancé, à éviter si le genou est douloureux." },
   },
 });
+
+/* ── ISCHIOS ── */
+const POURQUOI_ISCHIOS = "Les ischios plient le genou et, pour la plupart, redressent aussi la hanche. Les exercices de hanche (soulevé de terre jambes tendues, good morning) les étirent depuis le bassin ; les leg curls les font travailler depuis le genou. Les deux se complètent.";
+const LEG_CURL_VARIANTES = (effortLest) => [
+  { nom: "Machine", effort: [{ art: "genou", nom: "Genou · ischios", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }] },
+  { nom: "Lest à la cheville", effort: [{ art: "genou", nom: "Genou · ischios", point: "cheville" }], charge: { t: "poids" } },
+];
+const ALLONGE_VENTRE = { hanche: [92, 118], torse: 90, tete: -6, brasAbs: true, bras: 40, avbras: 90, pied: [180, 180] };
+const BANC_VENTRE = [{ t: "banc", x: 28, y: 125, l: 136 }, { t: "pied", x: 50, y: 133, y2: 181 }, { t: "pied", x: 142, y: 133, y2: 181 }, SOL];
+const HINGE = { ancre: "pieds", cheville: [96, 178], torse: 180, brasAbs: true, bras: 0, avbras: 0 };
+Object.assign(SCHEMAS, {
+  "RDL": {
+    legende: "Soulevé de terre roumain vu de profil : genoux légèrement fléchis, on recule les fesses en faisant glisser la barre le long des jambes, dos plat.",
+    depart: { ...HINGE, cuisse: 4, tibia: -4 }, arrivee: { torse: 100, cuisse: 24, tibia: -6 },
+    objets: [{ t: "barre" }], decor: [SOL], muscle: ["ischios", "fessiers"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · ischios et fessiers" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "C'est un mouvement de hanche : les ischios travaillent étirés depuis le bassin, avec les fessiers. La charge pèse le plus en bas, buste penché, barre loin des hanches." },
+  },
+  "RDL haltères": {
+    legende: "Soulevé de terre roumain aux haltères vu de profil : fesses vers l'arrière, haltères le long des jambes, dos plat.",
+    depart: { ...HINGE, cuisse: 4, tibia: -4 }, arrivee: { torse: 102, cuisse: 24, tibia: -6 },
+    objets: [{ t: "halteres" }], decor: [SOL], muscle: ["ischios", "fessiers"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · ischios et fessiers" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "Même travail qu'à la barre, plus facile à apprendre. La charge pèse le plus en bas, quand les ischios sont étirés." },
+  },
+  "Soulevé de terre jambes tendues": {
+    legende: "Soulevé de terre jambes tendues vu de profil : jambes presque tendues, on descend le buste dos plat jusqu'à l'étirement.",
+    depart: { ...HINGE, cuisse: 2, tibia: 0 }, arrivee: { torse: 94, cuisse: 12, tibia: -2 },
+    objets: [{ t: "barre" }], decor: [SOL], muscle: ["ischios", "lombaires"], fleche: { suit: "main", decale: [24, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · ischios" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "Jambes tendues, les ischios s'étirent davantage qu'au roumain. N'ajoute de la charge que si le dos reste plat jusqu'en bas." },
+  },
+  "Good morning": {
+    legende: "Good morning vu de profil : barre sur le haut du dos, genoux légèrement fléchis, on penche le buste en reculant les fesses.",
+    depart: { ancre: "pieds", cheville: [96, 178], torse: 180, cuisse: 4, tibia: -4, bras: -16, avbras: 172 }, arrivee: { torse: 98, cuisse: 22, tibia: -6 },
+    objets: [{ t: "barre", sur: "dos" }], decor: [SOL], muscle: ["ischios", "lombaires"], fleche: { suit: "dos", decale: [-20, -10] },
+    effort: [{ art: "hanche", nom: "Hanche · ischios", point: "dos" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "La barre sur le dos, loin des hanches, fait un long levier : charge légère, et l'effort est le plus grand buste penché. Ischios et muscles du bas du dos travaillent ensemble." },
+  },
+  "Leg curl": {
+    legende: "Leg curl allongé vu de profil : à plat ventre, on ramène les talons vers les fesses sans décoller les hanches.",
+    depart: { ...ALLONGE_VENTRE, cuisse: [270, 272], tibia: [268, 270] }, arrivee: { tibia: [158, 162] },
+    objets: [{ t: "boudin", cote: -1 }], decor: BANC_VENTRE, muscle: ["ischios"], fleche: { suit: "cheville", decale: [0, -16] },
+    variantes: LEG_CURL_VARIANTES(), effort: [{ art: "genou", nom: "Genou · ischios", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "Allongé, la hanche est tendue : les ischios travaillent plus raccourcis qu'assis. Le leg curl assis les fait davantage grossir ; garde l'allongé pour varier." },
+  },
+  "Leg curl allongé": {
+    legende: "Leg curl allongé vu de profil : bassin collé au banc, on ramène les talons vers les fesses.",
+    depart: { ...ALLONGE_VENTRE, cuisse: [270, 272], tibia: [268, 270] }, arrivee: { tibia: [158, 162] },
+    objets: [{ t: "boudin", cote: -1 }], decor: BANC_VENTRE, muscle: ["ischios"], fleche: { suit: "cheville", decale: [0, -16] },
+    variantes: LEG_CURL_VARIANTES(), effort: [{ art: "genou", nom: "Genou · ischios", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "Allongé, la hanche est tendue : les ischios travaillent plus raccourcis qu'assis. Avec un lest à la cheville, l'effort est le plus grand jambe tendue et disparaît talons aux fesses." },
+  },
+  "Leg curl assis": {
+    legende: "Leg curl assis vu de profil : cuisses bloquées, on ramène les talons sous le siège.",
+    depart: { hanche: [70, 124], torse: 166, tete: 6, cuisse: [88, 86], tibia: [86, 84], pied: [10, 10], bras: 30, avbras: 60 }, arrivee: { tibia: [-26, -28] },
+    objets: [{ t: "boudin", cote: -1 }], decor: [{ t: "banc", x: 40, y: 130, l: 70 }, { t: "pied", x: 70, y: 138, y2: 181 }, { t: "appui", x: 84, y: 108, l: 28, h: 7 }, SOL],
+    muscle: ["ischios"], fleche: { suit: "cheville", decale: [16, 0] },
+    variantes: LEG_CURL_VARIANTES(), effort: [{ art: "genou", nom: "Genou · ischios", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "Assis, la hanche est pliée : les ischios sont étirés depuis le bassin. C'est la version qui les fait le plus grossir, nettement plus que le leg curl allongé. Penche un peu le buste en avant pour accentuer l'étirement." },
+  },
+  "Leg curl debout": {
+    legende: "Leg curl debout vu de profil : une jambe à la fois, buste calé, on ramène le talon vers la fesse.",
+    depart: { hanche: [96, 96], torse: 172, cuisse: [8, 2], tibia: [6, 0], pied: [90, 90], bras: 50, avbras: 80 }, arrivee: { tibia: [-138, 0] },
+    objets: [{ t: "boudin", cote: -1 }], decor: [{ t: "appui", x: 108, y: 70, l: 10, h: 40 }, SOL], muscle: ["ischios"], fleche: { suit: "cheville", decale: [-16, 0] },
+    variantes: LEG_CURL_VARIANTES(), effort: [{ art: "genou", nom: "Genou · ischios", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "Une jambe à la fois : utile pour corriger un écart entre les deux côtés. Hanche tendue, les ischios travaillent comme au leg curl allongé." },
+  },
+  "Nordic curl": {
+    legende: "Nordic curl vu de profil : à genoux, chevilles bloquées, on descend le corps vers l'avant le plus lentement possible, d'un seul bloc.",
+    depart: { ancre: "genoux", genou: [108, 170], cuisse: [0, 0], tibia: [270, 270], pied: [180, 180], torse: 180, bras: 50, avbras: 80 }, arrivee: { cuisse: [-62, -62], torse: 118 },
+    objets: [], decor: [{ t: "appui", x: 58, y: 162, l: 12, h: 9 }, SOL], muscle: ["ischios"], fleche: { suit: "epaule", decale: [0, -18] },
+    effort: [{ art: "genou", nom: "Genou · ischios", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_ISCHIOS, faisceaux: "La descente est l'exercice : plus le corps s'approche du sol, plus le levier est long. Le nordic fait surtout grossir les ischios qui ne passent que par le genou ; pour ceux qui redressent aussi la hanche, le leg curl assis fait mieux. Garde les deux." },
+  },
+});
+
+/* ── FESSIERS ── */
+const POURQUOI_FESSIERS = "Le grand fessier redresse la hanche et l'ouvre vers l'arrière ; le moyen fessier, sur le côté, écarte la jambe et stabilise le bassin à chaque pas.";
+const ELASTIQUE = "Un élastique résiste de plus en plus à mesure qu'il s'étire : l'effort est le plus grand jambes écartées.";
+Object.assign(SCHEMAS, {
+  "Hip thrust": {
+    legende: "Hip thrust vu de profil : haut du dos contre un banc, barre sur les hanches, on monte le bassin jusqu'à l'alignement.",
+    depart: { ancre: "pieds", cheville: [132, 178], cuisse: [122, 118], tibia: [0, -4], pied: 90, torse: 250, brasAbs: true, bras: 92, avbras: 86 }, arrivee: { cuisse: [90, 86], torse: 268 },
+    objets: [{ t: "barre", sur: "hanche", decale: [0, -12] }], decor: [{ t: "banc", x: 4, y: 146, l: 46 }, { t: "pied", x: 26, y: 154, y2: 181 }, SOL], muscle: ["fessiers"], fleche: { suit: "hanche", decale: [0, -26] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers", point: "cheville" }], charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Le hip thrust active fortement les fessiers. Sur plusieurs semaines, il les fait pourtant grossir autant qu'un squat, qui fait en plus travailler quadriceps et adducteurs : choisis selon ton programme et tes sensations." },
+  },
+  "Pont fessier": {
+    legende: "Pont fessier vu de profil : allongé, genoux pliés, on monte les hanches en serrant les fesses.",
+    depart: { ancre: "pieds", cheville: [120, 178], cuisse: [130, 126], tibia: [10, 6], pied: 90, torse: 270, brasAbs: true, bras: 90, avbras: 90 }, arrivee: { cuisse: [100, 96], torse: 297 },
+    objets: [], decor: [SOL], muscle: ["fessiers"], fleche: { suit: "hanche", decale: [0, -22] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers", point: "cheville" }], charge: { t: "haut" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Une version simple du hip thrust, sans matériel. Tiens 2 secondes en haut ; une charge sur les hanches ou une jambe à la fois la rendent plus difficile." },
+  },
+  "Soulevé de terre sumo": {
+    vue: "face",
+    legende: "Soulevé de terre sumo vu de face : pieds très écartés, genoux vers l'extérieur, mains entre les jambes, on se relève en poussant dans le sol.",
+    depart: { ancre: "pieds", cheville: [150, 176], cuisse: [50, 50], tibia: [16, 16], torse: 180, bras: -6, avbras: 0 }, arrivee: { cuisse: [18, 18], tibia: [12, 12] },
+    objets: [{ t: "barreface", ext: 40 }], decor: [SOL], muscle: ["fessiers", "adducteurs", "quadriceps"], fleche: { suit: "main", decale: [16, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers et adducteurs", plan: { depart: { ancre: "pieds", cheville: [92, 178], torse: 146, cuisse: 46, tibia: -12, brasAbs: true, bras: 0, avbras: 0 }, arrivee: { torse: 180, cuisse: 0, tibia: 0 } } }], charge: { t: "poids" }, etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Pieds écartés, le buste reste plus droit qu'au soulevé classique : les fessiers, les adducteurs et les quadriceps font davantage le travail, le bas du dos un peu moins." },
+  },
+  "Fentes arrière": {
+    legende: "Fente arrière vue de profil : on recule une jambe et on descend jusqu'à ce que le genou arrière frôle le sol.",
+    depart: { ancre: "pieds", cheville: [126, 178], torse: 178, cuisse: [20, 340], tibia: [4, 340], pied: [90, 140], bras: 4, avbras: 2 }, arrivee: { torse: 168, cuisse: [80, 2], tibia: [-6, 280] },
+    objets: [{ t: "halteres" }], decor: [SOL], muscle: ["fessiers", "quadriceps"], fleche: { suit: "hanche", decale: [-18, 0] },
+    effort: [{ art: "genou", nom: "Genou avant · quadriceps", point: "hanche" }, { art: "hanche", nom: "Hanche · fessiers", point: "epaule" }], charge: { t: "poids" }, etire: 1,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "En reculant, le poids reste sur le talon avant et le buste se penche un peu : les fessiers travaillent davantage, et le genou est moins sollicité qu'en fente avant." },
+  },
+  "Kickback poulie": {
+    legende: "Kickback à la poulie vu de profil : sangle à la cheville, buste penché, on pousse la jambe vers l'arrière et vers le haut.",
+    depart: { hanche: [92, 98], torse: 156, tete: -10, cuisse: [16, 4], tibia: [8, 0], pied: [90, 90], bras: 66, avbras: 80 }, arrivee: { cuisse: [-62, 4], tibia: [-52, 0] },
+    objets: [{ t: "cable", de: [156, 174], vers: "cheville" }], decor: [{ t: "poulieb", x: 156, y: 174 }, { t: "appui", x: 132, y: 70, l: 10, h: 40 }, SOL], muscle: ["fessiers"], fleche: { suit: "cheville", decale: [-16, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · fessiers", point: "cheville" }], charge: { t: "cable", de: [156, 174] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "La poulie, devant toi, garde la tension dès le départ, jambe sous la hanche, quand le fessier est étiré. Une petite amplitude bien contractée vaut mieux qu'un grand balancier qui cambre le dos." },
+  },
+  "Abduction hanche": {
+    vue: "face",
+    legende: "Abduction à la machine vue de face : assis, genoux contre les appuis, on écarte les jambes.",
+    depart: { hanche: [100, 124], lc: .38, cuisse: [14, 14], tibia: [0, 0], bras: 12, avbras: 4 }, arrivee: { cuisse: [62, 62] },
+    objets: [], decor: [{ t: "banc", x: 72, y: 128, l: 56 }, SOL], muscle: ["fessiers"], fleche: { suit: "genou", decale: [12, -10] },
+    effort: [{ art: "hanche", nom: "Hanche · moyen fessier", profil: [1, 1, 1, 1, 1], note: MACHINE_RONDE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Surtout le moyen fessier, sur le côté de la hanche. Buste penché en avant, le grand fessier participe davantage." },
+  },
+  "Abduction élastique": {
+    vue: "face",
+    legende: "Abduction à l'élastique vue de face : élastique au-dessus des genoux, en demi-squat, on écarte les genoux.",
+    depart: { hanche: [100, 108], cuisse: [8, 8], tibia: [-2, -2], bras: 20, avbras: 60 }, arrivee: { cuisse: [24, 24], tibia: [-16, -16] },
+    objets: [{ t: "elastique" }], decor: [SOL], muscle: ["fessiers"], fleche: { suit: "genou", decale: [12, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · moyen fessier", profil: [.4, .55, .7, .85, 1], note: ELASTIQUE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Surtout le moyen fessier. Charge légère : c'est un bon échauffement des fessiers avant le bas du corps." },
+  },
+  "Abduction poulie": {
+    vue: "face",
+    legende: "Abduction à la poulie vue de face : sangle à la cheville, on écarte la jambe sur le côté, buste droit.",
+    depart: { hanche: [100, 100], cuisse: [4, 4], tibia: [2, 2], bras: 30, avbras: 20 }, arrivee: { cuisse: [40, 4], tibia: [40, 2] },
+    objets: [{ t: "cable", de: [34, 176], vers: "cheville" }], decor: [{ t: "poulieb", x: 34, y: 176 }, SOL], muscle: ["fessiers"], fleche: { suit: "cheville", decale: [14, 0] },
+    effort: [{ art: "hanche", nom: "Hanche · moyen fessier", point: "cheville" }], charge: { t: "cable", de: [34, 176] }, etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Surtout le moyen fessier. Le câble qui passe devant la jambe d'appui garde la tension dès le départ. Garde le buste droit : se pencher fait monter la jambe sans travailler davantage." },
+  },
+  "Clamshell": {
+    vue: "face",
+    legende: "Clamshell vu de face : couché sur le côté, élastique au-dessus des genoux, on ouvre le genou du dessus.",
+    depart: { hanche: [116, 150], torse: 270, tete: 0, cuisse: [6, 6], tibia: [4, 4], bras: [160, 20], avbras: [170, 100] }, arrivee: { cuisse: [44, 6], tibia: [30, 4] },
+    objets: [{ t: "elastique" }], decor: [SOL], muscle: ["fessiers"], fleche: { suit: "genou", decale: [0, -14] },
+    effort: [{ art: "hanche", nom: "Hanche · moyen fessier", profil: [.4, .55, .7, .85, 1], note: ELASTIQUE }], etire: 0,
+    analyse: { pourquoi: POURQUOI_FESSIERS, faisceaux: "Un exercice doux pour le moyen fessier, utile en échauffement ou si la hanche est sensible. Garde le bassin immobile : s'il bascule en arrière, ce sont d'autres muscles qui ouvrent la jambe." },
+  },
+});

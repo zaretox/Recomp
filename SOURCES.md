@@ -96,3 +96,13 @@ Courbes : curls et extensions calculés sur la pose (poids vertical ou câble). 
 | Pré-fatigue : un peu moins de croissance que l'ordre classique. | Hermann et coll., 2026, *International Journal of Exercise Science*, [10.70252/IJES2026108](https://doi.org/10.70252/IJES2026108) | 48 pratiquants entraînés, 8 semaines, jambes : légère supériorité de l'ordre classique, incertitude statistique. |
 
 Courbes : squats, fentes, step-up et sissy squat : effort au genou calculé depuis la position du bassin (poids du corps et de la charge). Presse : force le long du rail à 45°. Leg extension : machine à came ronde (constante) ou lest à la cheville (calculé).
+
+## Ischios et fessiers
+
+| Ce que dit l'app | Étude | Chiffres clés |
+| --- | --- | --- |
+| Leg curl assis > allongé. | Maeo et coll., 2021 (voir plus haut) | |
+| Nordic : fait surtout grossir les ischios qui ne passent que par le genou ; hanche fléchie (leg curl assis) = plus de croissance globale. | Maeo et coll., 2024, *Medicine & Science in Sports & Exercise*, [10.1249/mss.0000000000003490](https://doi.org/10.1249/mss.0000000000003490) | 42 hommes, 12 semaines : leg curl excentrique hanche fléchie +18 % (ischios) contre +11 % au nordic ; biceps fémoral long +19 % contre +5 %. |
+| Hip thrust = squat pour les fessiers ; le squat fait en plus grossir quadriceps et adducteurs ; l'EMG plus élevée au hip thrust ne prédit pas la croissance. | Plotkin et coll., 2023, *Frontiers in Physiology*, [10.3389/fphys.2023.1279170](https://doi.org/10.3389/fphys.2023.1279170) | Débutants, 9 semaines, IRM : croissance des fessiers semblable ; quadriceps et adducteurs davantage avec le squat. |
+
+Courbes : soulevés et good morning calculés sur la pose (poids vertical). Leg curls : machine à came ronde (constante) ou lest à la cheville (calculé). Nordic : poids du corps à l'épaule. Hip thrust et pont : réaction du sol sous les pieds. Abductions : machine constante, élastique de plus en plus tendu, poulie à la cheville.
