@@ -163,11 +163,38 @@ function FeuilleNatation({ iso }) {
       h(Section, { titre: "Séances types" },
         modeles.length ? modeles.map(m => h(Rangee, { key: m.id, titre: m.name, sous: entier(nageDistance(m)) + " m" + (m.days?.length ? ", " + m.days.map(d => JOURS[d]).join(" ") : ""), onClick: () => faire(m) })) : h(Vide, null, "Aucune séance type."),
         h("div.deux-b", h(Bouton, { cl: "plein", onClick: () => noter(null) }, "Noter une séance"), h(Bouton, { cl: "contour", onClick: () => Nav.sheet("nageModele", { neuf: nageExemple() }) }, "Nouvelle séance type"))),
+      (logs.length > 0 || nagesToutes().length > 0) && h(Rangee, { ico: "chrono", titre: "Records et progrès", sous: "Meilleurs temps, mètres par semaine, allure", onClick: () => Nav.sheet("nageProgres") }),
       logs.length > 0 && h(Section, { titre: "Records" }, h("div.tuiles",
         h(Tuile, { v: entier(Math.max(...logs.map(l => l.distance))) + " m", l: "plus longue" }),
         [[400, "≥ 400 m"], [1000, "≥ 1 000 m"]].map(([mn, l]) => { const b = meilleur(mn); return h(Tuile, { key: mn, v: b ? mmss(Math.round(allure(b.distance, b.duree))) : "—", l: "allure " + l }); }))),
       aAjouter.length > 0 && h(Section, { titre: "Nages de ta montre" }, h("div.liste", aAjouter.slice(0, 5).map(s => h(LigneSortie, { key: s.id, s }))), h("p.note", "Touche une nage pour voir son détail et l'ajouter à ta natation.")),
       logs.length > 0 && h(Section, { titre: "Dernières séances" }, [...logs].sort((a, b) => b.dateISO.localeCompare(a.dateISO)).slice(0, 8).map(l => h("div.histo", { key: l.id }, h("span", dateMini(l.dateISO)), h("b", entier(l.distance) + " m en " + dureeS(l.duree)), sortieDeNage(l) && h("button.mini-x", { "aria-label": "Données de la montre", onClick: () => Nav.sheet("sortie", { id: sortieDeNage(l).id }) }, h(Icone, { n: "coeur", t: 16 })), h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("natation-logs", DB.get("natation-logs").filter(x => x.id !== l.id), "Séance supprimée") }, h(Icone, { n: "fermer", t: 16 })))))));
+}
+
+/* PROGRÈS EN NATATION : meilleurs temps, volume, allure au fil des semaines */
+function FeuilleNageProgres() {
+  useDB();
+  const n = nagesToutes(), auj = aujourdhui(), lundi = lundiDe(auj), mois = auj.slice(0, 7), moisAvant = isoDe(new Date(+auj.slice(0, 4), +auj.slice(5, 7) - 2, 1)).slice(0, 7);
+  const somme = l => l.reduce((a, x) => a + x.distance, 0);
+  const semaines = Array.from({ length: 12 }, (_, i) => { const k = 11 - i, d = decale(lundi, -7 * k), f = decale(d, 7); return { l: k === 0 ? "Cette" : "S−" + k, v: somme(n.filter(x => x.dateISO >= d && x.dateISO < f)) }; });
+  const pts = n.filter(x => x.distance >= 200 && x.duree > 0).slice(-24).map(x => ({ x: x.dateISO, y: Math.round(allure(x.distance, x.duree)) }));
+  const t = tendanceNage(28, n), rec = recordsNage(n), longue = n.reduce((a, x) => x.distance > (a?.distance || 0) ? x : a, null);
+  const ouvrir = r => r.sortie ? Nav.sheet("sortie", { id: r.sortie }) : null;
+  return h(Feuille, { titre: "Progrès en natation", ton: "sport" },
+    h("div.tuiles",
+      h(Tuile, { v: entier(somme(n.filter(x => x.dateISO >= lundi))), l: "mètres cette semaine" }),
+      h(Tuile, { v: entier(somme(n.filter(x => x.dateISO.startsWith(mois)))), l: "mètres ce mois-ci" }),
+      h(Tuile, { v: entier(somme(n.filter(x => x.dateISO.startsWith(moisAvant)))), l: "le mois dernier" })),
+    h(Section, { titre: "Mètres par semaine" }, h(Barres, { pts: semaines, ton: "sport", unite: " m" })),
+    h(Section, { titre: "Allure aux 100 m" },
+      pts.length >= 2 ? h(Courbe, { pts, ton: "sport", inverse: true, unite: "/100 m", format: v => mmss(Math.round(v)) }) : h(Vide, null, "Il faut au moins deux nages de 200 m ou plus pour tracer ta courbe."),
+      t.allure && h("p.note", "Ces 4 dernières semaines : " + mmss(Math.round(t.allure)) + " aux 100 m en moyenne" + (t.ecart == null ? "." : t.ecart < 0 ? ", " + Math.abs(t.ecart) + "\u00a0s plus vite que les 4 semaines d'avant." : t.ecart > 0 ? ", " + t.ecart + "\u00a0s plus lent que les 4 semaines d'avant." : ", comme les 4 semaines d'avant."))),
+    h(Section, { titre: "Meilleurs temps" },
+      h("div.liste", rec.map(r => h(r.sortie ? "button.ligne" : "div.ligne", { key: r.d, onClick: () => ouvrir(r) },
+        h("span", h("b", entier(r.d) + " m"), h("small", r.s ? dateMini(r.dateISO) + (r.sortie ? " · montre" : "") : "pas encore")),
+        h("b", r.s ? chrono(r.s) + "  ·  " + mmss(Math.round(r.s / r.d * 100)) + "/100 m" : "—")))),
+      h("p.note", "Avec la montre, je prends ton meilleur passage sur chaque distance pendant une nage, repos compris. Une nage notée à la main compte si sa distance est exactement celle-là.")),
+    longue && h(Section, { titre: "Plus longue nage" }, h(Rangee, { ico: "nage", titre: entier(longue.distance) + " m", sous: dateLongue(longue.dateISO) + (longue.duree ? ", en " + chrono(longue.duree) : ""), onClick: () => longue.sortie ? Nav.sheet("sortie", { id: longue.sortie.id }) : null })));
 }
 
 /* DOULEURS */

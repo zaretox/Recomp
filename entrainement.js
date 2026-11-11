@@ -202,4 +202,37 @@ function nageKcal(dist, sec, rpe, kg) {
 const nageKcalDu = iso => DB.get("natation-logs").filter(l => l.dateISO === iso).reduce((a, l) => a + (l.kcal || 0), 0);
 const nagePrevue = iso => { const d = jourSem(iso); return DB.get("natation-modeles").find(m => (m.days || []).includes(d)) || null; };
 const nageJours = () => new Set(DB.get("natation-modeles").flatMap(m => m.days || [])).size;
+/* Toutes les nages : notées dans RECOMP (reliées ou non à la montre) et celles restées seulement sur la montre */
+function nagesToutes() {
+  const logs = DB.get("natation-logs").map(l => ({ dateISO: l.dateISO, distance: +l.distance || 0, duree: +l.duree || 0, sortie: sortieDeNage(l), log: l }));
+  const prises = new Set(logs.map(x => x.sortie?.id).filter(Boolean));
+  const seules = sortiesPolar().filter(s => familleSortie(s) === "nage" && !prises.has(s.id)).map(s => ({ dateISO: s.dateISO, distance: s.distance || 0, duree: s.duree || 0, sortie: s }));
+  return [...logs, ...seules].sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+}
+/* Meilleurs temps : la meilleure suite de 100 m consécutifs d'une nage de la montre (repos compris),
+ * ou une nage notée à la main dont la distance est exactement celle-là */
+const DISTANCES_NAGE = [100, 200, 400, 800, 1000, 1500];
+function recordsNage(nages = nagesToutes()) {
+  return DISTANCES_NAGE.map(D => {
+    let best = null;
+    const garder = (s, x) => { if (s > 0 && (!best || s < best.s)) best = { s, dateISO: x.dateISO, sortie: x.sortie?.id || null }; };
+    for (const x of nages) {
+      if (x.distance === D && x.duree) garder(x.duree, x);
+      const t = x.sortie?.tours || [], k = D / 100;
+      for (let i = 0; i + k <= t.length; i++) {
+        const bout = t.slice(i, i + k);
+        if (bout.every(y => y.d === 100)) garder(bout.reduce((a, y) => a + y.s, 0), x);
+      }
+    }
+    return { d: D, ...(best || {}) };
+  });
+}
+// Allure moyenne aux 100 m sur une période, et l'écart avec la période d'avant (en secondes, négatif = plus rapide)
+function tendanceNage(jours = 28, nages = nagesToutes()) {
+  const auj = aujourdhui(), moy = l => { const d = l.reduce((a, x) => a + x.distance, 0); return d ? l.reduce((a, x) => a + x.duree, 0) / d * 100 : null; };
+  const ok = nages.filter(x => x.distance >= 200 && x.duree > 0);
+  const recent = ok.filter(x => ecart(x.dateISO, auj) < jours), avant = ok.filter(x => { const e = ecart(x.dateISO, auj); return e >= jours && e < 2 * jours; });
+  const a = moy(recent), b = moy(avant);
+  return { allure: a, avant: b, ecart: a && b ? Math.round(a - b) : null };
+}
 const ligneBloc = b => (b.reps > 1 ? b.reps + " × " : "") + b.d + " m " + String(b.nage).toLowerCase() + (b.mat && b.mat !== "—" ? ", " + b.mat.toLowerCase() : "") + (b.mode === "dep" && b.dep ? ", départ toutes les " + mmss(b.dep) : b.rest ? ", " + b.rest + " s de repos" : "") + (b.note ? ", " + b.note : "");

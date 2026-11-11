@@ -2,8 +2,9 @@
 /* GRAPHIQUES — SVG natifs, sans bibliothèque. Toucher et glisser sur une courbe affiche la valeur du jour. */
 const LARG = 340;
 
-/* Courbe : `pts` = [{ x (iso), y, brut? }]. Trait épais = la tendance, points pâles = les pesées brutes. */
-function Courbe({ pts, unite, haut, ton, format, repere }) {
+/* Courbe : `pts` = [{ x (iso), y, brut? }]. Trait épais = la tendance, points pâles = les pesées brutes.
+ * `inverse` : les petites valeurs en haut (une allure qui baisse est un progrès). */
+function Courbe({ pts, unite, haut, ton, format, repere, inverse }) {
   const H = haut || 170, mh = 12, mb = 22, ml = 4, mr = 34;
   const [survol, setSurvol] = useState(null);
   const svg = useRef(null);
@@ -13,7 +14,7 @@ function Courbe({ pts, unite, haut, ton, format, repere }) {
   let max = Math.max(...toutes), min = Math.min(...toutes);
   if (max === min) { max += 1; min -= 1; }
   const marge = (max - min) * .08; max += marge; min -= marge;
-  const n = v.length, X = i => ml + i * (LARG - ml - mr) / (n - 1), Y = y => mh + (max - y) / (max - min) * (H - mh - mb);
+  const n = v.length, X = i => ml + i * (LARG - ml - mr) / (n - 1), Y = y => mh + (inverse ? y - min : max - y) / (max - min) * (H - mh - mb);
   const ligne = v.map((p, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(p.y).toFixed(1)).join(" ");
   const aire = ligne + ` L${X(n - 1).toFixed(1)} ${H - mb} L${X(0).toFixed(1)} ${H - mb} Z`;
   const fmt = format || (x => nb(x));
