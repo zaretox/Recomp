@@ -163,7 +163,44 @@ function BlocMontre({ s }) {
     serieAllure && h(Section, { titre: "Allure" }, h(CourbeTemps, { serie: serieAllure, ton: "sport", unite: "/km", inverse: true, format: x => chrono(x * 60) })),
     s.vit && f === "velo" && h(Section, { titre: "Vitesse" }, h(CourbeTemps, { serie: s.vit, ton: "sport", unite: "km/h", format: x => nb(x, 0) })),
     s.alt && s.deniv > 0 && f !== "nage" && h(Section, { titre: "Altitude" }, h(CourbeTemps, { serie: s.alt, ton: "sport", unite: "m", haut: 110 })),
-    s.tours?.length > 1 && h(Section, { titre: f === "nage" ? "Temps aux 100 m" : "Tours au km" }, h(ToursKm, { tours: s.tours, famille: f })));
+    s.tours?.length > 1 && h(Section, { titre: f === "nage" ? "Temps aux 100 m" : "Tours au km" }, h(ToursKm, { tours: s.tours, famille: f })),
+    f === "nage" && h(DetailNage, { s }));
+}
+
+/* Natation : longueurs, séries, et comparaison avec une séance type */
+const LigneSerie = ({ a, sous, temps, allure, repos }) => h("div", null, h("span", a, sous && h("small", sous)), h("b", temps), h("span", allure), h("span", repos));
+function DetailNage({ s }) {
+  useDB();
+  const r = resumeLongueurs(s), series = r ? seriesNage(s) : [], lie = logDeSortie(s), modeles = DB.get("natation-modeles");
+  const parDefaut = (lie?.log && modeles.find(m => m.name === lie.log.modele)) || nagePrevue(s.dateISO);
+  const [choix, setChoix] = useState(parDefaut?.id || null);
+  const modele = modeles.find(m => m.id === choix), cmp = modele && series.length ? comparerNage(modele, series) : null;
+  const a100 = (d, t) => d > 0 ? mmss(Math.round(t / d * 100)) : "—";
+  // Ce que Polar a vraiment envoyé : à me dire après la première nage
+  const recu = [s.distance > 0 && "distance", s.fc && "fréquence cardiaque", s.tours?.length > 1 && "temps aux 100 m", r && r.longueurs + " longueurs",
+    r?.coups && "coups de bras", series.some(x => x.nage) && "type de nage", s.bassin && "bassin de " + nb(s.bassin) + " m"].filter(Boolean);
+  return h(Fragment, null,
+    r && h(Section, { titre: "Longueurs" },
+      h("div.tuiles",
+        h(Tuile, { v: r.longueurs, l: "longueurs" + (s.bassin ? " de " + nb(s.bassin) + " m" : "") }),
+        r.swolf && h(Tuile, { v: r.swolf, l: "SWOLF moyen" }),
+        r.coups && h(Tuile, { v: nb(r.coups), l: "coups de bras par longueur" }),
+        s.bassin && h(Tuile, { v: a100(r.longueurs * s.bassin, r.nage), l: "aux 100 m en nageant, sans les repos" }),
+        r.repos && h(Tuile, { v: chrono(r.repos), l: "de repos" })),
+      r.swolf && h("p.note", "Le SWOLF additionne le temps et les coups de bras d'une longueur. Plus il baisse, plus tu nages efficacement.")),
+    series.length > 0 && !cmp && h(Section, { titre: "Séries nagées" },
+      h("div.series-n",
+        h("div.tours-t", h("span", "Série"), h("span", "Temps"), h("span", "/100 m"), h("span", "Repos")),
+        series.map((x, i) => h(LigneSerie, { key: i, a: entier(x.distance) + " m" + (x.nage ? " " + x.nage.toLowerCase() : ""), sous: x.swolf ? "SWOLF " + x.swolf : null, temps: chrono(x.s), allure: a100(x.distance, x.s), repos: x.repos ? x.repos + " s" : "—" })))),
+    series.length > 0 && modeles.length > 0 && h(Section, { titre: "Prévu / fait" },
+      h(Puces, null, modeles.map(m => h(Puce, { key: m.id, actif: choix === m.id, onClick: () => setChoix(choix === m.id ? null : m.id) }, m.name))),
+      cmp ? h("div.series-n",
+        h("div.tours-t", h("span", "Prévu"), h("span", "Temps"), h("span", "/100 m"), h("span", "Repos")),
+        cmp.lignes.map((l, i) => h(LigneSerie, { key: i, a: l.d + " m " + String(l.nage || "").toLowerCase(), sous: l.t + (l.dep ? " · départ " + mmss(l.dep) : l.repos ? " · " + l.repos + " s prévus" : ""),
+          temps: l.fait ? chrono(l.fait.s) : "—", allure: l.fait ? a100(l.fait.d, l.fait.s) : "", repos: l.fait?.repos ? l.fait.repos + " s" : "—" })),
+        cmp.enPlus.length > 0 && h("p.note", "Nagé en plus du prévu : " + entier(cmp.enPlus.reduce((a, x) => a + x.distance, 0)) + " m."))
+      : h("p.note", "Choisis la séance type que tu as nagée pour la comparer à ce que tu as fait.")),
+    h("p.note", "Reçu de ta montre : " + (recu.length ? recu.join(", ") : "seulement le résumé") + "." + (s.fit === false ? " Le fichier détaillé n'a pas pu être lu." : "")));
 }
 
 /* Une nage de la montre devient une séance de natation RECOMP (records, calories du jour) */

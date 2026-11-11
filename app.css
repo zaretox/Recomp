@@ -450,7 +450,13 @@ h1, h2, h3, p { margin: 0; }
 .zones-fc [data-z="4"] { --c: var(--jaune); } .zones-fc [data-z="5"] { --c: var(--rouge); }
 .tours > div { display: grid; grid-template-columns: 44px 52px minmax(0, 1fr) 36px; align-items: center; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
 .tours > div > span:last-child { text-align: right; color: var(--mou); }
-.tours .tours-t { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--pale); }
+.series-n { display: grid; gap: 6px; }
+.series-n > div { display: grid; grid-template-columns: minmax(0, 1fr) 54px 50px 44px; align-items: center; gap: 8px; font-size: 14px; font-variant-numeric: tabular-nums; }
+.series-n > div > span:first-child { font-weight: 700; min-width: 0; }
+.series-n small { display: block; font-size: 11.5px; font-weight: 600; color: var(--mou); }
+.series-n > div > b { text-align: right; }
+.series-n > div > span:nth-child(3), .series-n > div > span:nth-child(4) { text-align: right; color: var(--mou); }
+.series-n .tours-t, .tours .tours-t { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--pale); }
 .polar-matin { width: 100%; min-height: 44px; margin-bottom: 10px; }
 .clavier { display: grid; grid-template-columns: repeat(3, 1fr) 1.15fr; gap: 5px; }
 .tch { height: 56px; display: grid; place-items: center; border-radius: var(--r); background: var(--fond3); color: var(--encre); font-family: var(--an); font-size: 28px; text-align: center; transition: transform .08s, background .08s; }

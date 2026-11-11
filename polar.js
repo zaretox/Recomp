@@ -177,7 +177,14 @@ async function importerSortiesPolar1() {
     const d = await polarLire("/v3/exercises/" + x.id, "GET", { samples: true, zones: true, route: true });
     if (d) neuves.push(sortieDepuisPolar({ ...x, ...d }));
   }
+  // Natation : le détail des longueurs vient du fichier complet de la séance
+  for (const s of neuves) if (familleSortie(s) === "nage") {
+    let res = null;
+    try { const b = await polarFit(s.id); res = b ? longueursDeFit(b) : null; } catch (e) { res = null; }
+    Object.assign(s, { fit: !!res, bassin: res?.bassin ?? null, longueurs: res?.longueurs || [] });
+  }
   try { localStorage.setItem("recomp_polar_import", String(Date.now())); } catch (e) { /* facultatif */ }
+  await completerNages().catch(() => {});
   const dedans = new Set(DB.get("polar-seances").map(s => s.id)), vraies = neuves.filter(s => !dedans.has(s.id));
   if (vraies.length) await DB.set("polar-seances", [...DB.get("polar-seances"), ...vraies].sort((a, b) => (b.debut || "").localeCompare(a.debut || "")));
   return vraies.length;
@@ -248,4 +255,117 @@ function ouvrirDepuisNotif(o) {
     Nav.tab("sport");
     importerSortiesPolar().catch(() => 0).then(() => sortiesPolar().some(s => s.id === id) ? Nav.sheet("sortie", { id }) : toast("La séance n'est pas encore disponible chez Polar : réessaie dans une minute."));
   }
+}
+
+/* LONGUEURS DE NATATION — lues dans le fichier complet de la séance (format FIT de Garmin, utilisé par Polar).
+ * On n'en garde que l'essentiel : la longueur du bassin et, pour chaque longueur, [début (s), durée (s), coups de bras, nage, active]. */
+const NAGES_FIT = { 0: "Crawl", 1: "Dos", 2: "Brasse", 3: "Papillon", 4: "Éducatif", 5: "Mixte", 6: "4 nages" };
+function lireFit(buf) {
+  const v = new DataView(buf), n = v.byteLength;
+  if (n < 14 || String.fromCharCode(v.getUint8(8), v.getUint8(9), v.getUint8(10), v.getUint8(11)) !== ".FIT") return null;
+  const tete = v.getUint8(0), fin = Math.min(n, tete + v.getUint32(4, true)), defs = {}, msgs = [];
+  // Lecture d'un champ selon son type de base ; les valeurs « invalides » du format deviennent null
+  const lire = (o, type, taille, le) => {
+    const t = type & 0x1F;
+    const T = { 0: [1, "Uint8", 0xFF], 1: [1, "Int8", 0x7F], 2: [1, "Uint8", 0xFF], 3: [2, "Int16", 0x7FFF], 4: [2, "Uint16", 0xFFFF], 5: [4, "Int32", 0x7FFFFFFF], 6: [4, "Uint32", 0xFFFFFFFF], 8: [4, "Float32", null], 9: [8, "Float64", null], 10: [1, "Uint8", 0], 11: [2, "Uint16", 0], 12: [4, "Uint32", 0], 13: [1, "Uint8", 0xFF] }[t];
+    if (!T || taille !== T[0]) return null;
+    const x = v["get" + T[1]](o, le);
+    return x === T[2] ? null : x;
+  };
+  let o = tete;
+  while (o < fin) {
+    const h = v.getUint8(o++);
+    if (!(h & 0x80) && (h & 0x40)) { // définition
+      const loc = h & 0x0F, le = v.getUint8(o + 1) === 0, glob = v.getUint16(o + 2, le), nf = v.getUint8(o + 4);
+      o += 5;
+      const champs = [];
+      for (let i = 0; i < nf; i++, o += 3) champs.push([v.getUint8(o), v.getUint8(o + 1), v.getUint8(o + 2)]);
+      let dev = 0;
+      if (h & 0x20) { const nd = v.getUint8(o++); for (let i = 0; i < nd; i++, o += 3) dev += v.getUint8(o + 1); }
+      defs[loc] = { glob, le, champs, dev };
+    } else { // données (en-tête normal ou horodatage compressé)
+      const d = defs[h & 0x80 ? (h >> 5) & 0x03 : h & 0x0F];
+      if (!d) return msgs.length ? msgs : null;
+      const m = { _: d.glob };
+      for (const [num, taille, type] of d.champs) { if (o + taille > n) return msgs; m[num] = lire(o, type, taille, d.le); o += taille; }
+      o += d.dev;
+      if (d.glob === 18 || d.glob === 101) msgs.push(m);
+    }
+  }
+  return msgs;
+}
+// Message 18 = séance (champ 44 : bassin en cm), 101 = longueur (2 début, 3 durée en ms, 5 coups, 7 nage, 12 type : 1 = active)
+function longueursDeFit(buf) {
+  const msgs = lireFit(buf);
+  if (!msgs) return null;
+  const se = msgs.find(m => m._ === 18), lg = msgs.filter(m => m._ === 101 && m[3] != null);
+  if (!lg.length) return { bassin: se?.[44] ? se[44] / 100 : null, longueurs: [] };
+  const t0 = lg[0][2] ?? 0;
+  return {
+    bassin: se?.[44] ? arrondi(se[44] / 100, 1) : null,
+    longueurs: lg.map(m => [m[2] != null ? m[2] - t0 : null, arrondi(m[3] / 1000, 1), m[5], m[7], m[12] === 0 ? 0 : 1]),
+  };
+}
+async function polarFit(id) {
+  const l = lienPolar();
+  const r = await fetch(POLAR_FN + "?action=api&chemin=" + encodeURIComponent("/v3/exercises/" + id + "/fit"), { cache: "no-store", headers: { Authorization: "Bearer " + l.jeton } });
+  return r.ok ? r.arrayBuffer() : null;
+}
+// Complète les nages déjà importées (une seule tentative par nage)
+async function completerNages() {
+  const a = DB.get("polar-seances").filter(s => !s.supprime && familleSortie(s) === "nage" && s.fit === undefined);
+  for (const s of a) {
+    let res = null;
+    try { const b = await polarFit(s.id); res = b ? longueursDeFit(b) : null; } catch (e) { res = null; }
+    await DB.set("polar-seances", DB.get("polar-seances").map(x => x.id === s.id ? { ...x, fit: !!res, bassin: res?.bassin ?? null, longueurs: res?.longueurs || [] } : x));
+  }
+}
+
+/* Séries d'une nage : les longueurs actives qui se suivent, coupées par un repos (longueur de repos ou pause de plus de 5 s) */
+function seriesNage(s) {
+  const L = s.longueurs || [], b = s.bassin || 25, out = [];
+  let cur = null;
+  // Un repos ferme la série en cours, ou s'ajoute au repos de la précédente (plusieurs longueurs de repos de suite)
+  const fermer = repos => { if (cur) { cur.repos = repos; out.push(cur); cur = null; } else if (out.length) out[out.length - 1].repos += repos; };
+  L.forEach((x, i) => {
+    const [debut, duree, coups, nage, actif] = x;
+    if (!actif) { fermer(duree); return; }
+    const prec = L[i - 1], pause = prec && prec[4] && debut != null && prec[0] != null ? debut - prec[0] - prec[1] : 0;
+    if (pause > 5) fermer(pause);
+    if (!cur) cur = { n: 0, distance: 0, s: 0, coups: 0, avecCoups: 0, nages: {}, repos: 0 };
+    cur.n++; cur.distance += b; cur.s += duree;
+    if (coups > 0) { cur.coups += coups; cur.avecCoups++; }
+    if (nage != null) cur.nages[nage] = (cur.nages[nage] || 0) + 1;
+  });
+  fermer(0);
+  return out.map(x => {
+    const nage = Object.entries(x.nages).sort((a, c) => c[1] - a[1])[0]?.[0];
+    return { n: x.n, distance: x.distance, s: arrondi(x.s, 1), repos: Math.round(x.repos), nage: nage != null ? NAGES_FIT[nage] || null : null,
+      coups: x.avecCoups ? arrondi(x.coups / x.avecCoups, 1) : null, swolf: x.avecCoups ? Math.round((x.s + x.coups) / x.avecCoups) : null };
+  });
+}
+// Le résumé : longueurs, SWOLF moyen (temps + coups de bras par longueur, plus bas = plus efficace), temps nagé et temps de repos
+function resumeLongueurs(s) {
+  const L = s.longueurs || [], act = L.filter(x => x[4]), avec = act.filter(x => x[2] > 0);
+  if (!act.length) return null;
+  const nage = act.reduce((a, x) => a + x[1], 0), total = s.duree || 0;
+  return { longueurs: act.length, swolf: avec.length ? Math.round(avec.reduce((a, x) => a + x[1] + x[2], 0) / avec.length) : null,
+    coups: avec.length ? arrondi(avec.reduce((a, x) => a + x[2], 0) / avec.length, 1) : null, nage: Math.round(nage), repos: total > nage ? Math.round(total - nage) : null };
+}
+/* Prévu / fait : chaque répétition de la séance type face aux séries nagées, dans l'ordre.
+ * Si une série nagée est plus longue que prévu (repos non détecté), elle couvre plusieurs répétitions. */
+function comparerNage(modele, series) {
+  const prevu = [];
+  (modele?.blocks || []).forEach(b => { for (let i = 0; i < (parseInt(b.reps) || 0); i++) prevu.push({ t: b.t, d: parseInt(b.d) || 0, nage: b.nage, repos: b.mode === "dep" ? null : parseInt(b.rest) || 0, dep: b.mode === "dep" ? b.dep : null }); });
+  const lignes = [], reste = series.map(x => ({ ...x }));
+  for (const p of prevu) {
+    let d = 0, s = 0, repos = null;
+    while (reste.length && d < p.d - 1) {
+      const x = reste[0], besoin = p.d - d;
+      if (x.distance <= besoin + 1) { d += x.distance; s += x.s; repos = x.repos; reste.shift(); }
+      else { const part = besoin / x.distance; d += besoin; s += x.s * part; x.distance -= besoin; x.s -= x.s * part; repos = 0; }
+    }
+    lignes.push({ ...p, fait: d ? { d: Math.round(d), s: Math.round(s), repos } : null });
+  }
+  return { lignes, enPlus: reste };
 }

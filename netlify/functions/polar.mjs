@@ -99,9 +99,11 @@ export default async (req) => {
     if (!auth.startsWith("Bearer ")) return reponse({ erreur: "jeton manquant" }, 401);
     const suite = new URLSearchParams(url.searchParams);
     suite.delete("action"); suite.delete("chemin");
-    const r = await fetch(API + chemin + (suite.toString() ? "?" + suite : ""), { method: req.method, headers: { Authorization: auth, Accept: "application/json" } });
-    const texte = await r.text();
-    return new Response(texte || "null", { status: r.status, headers: { "Content-Type": r.headers.get("content-type") || "application/json", "Cache-Control": "no-store" } });
+    // Le fichier complet d'une séance (FIT) est binaire : on le relaie tel quel
+    const fit = /\/fit$/.test(chemin);
+    const r = await fetch(API + chemin + (suite.toString() ? "?" + suite : ""), { method: req.method, headers: { Authorization: auth, Accept: fit ? "*/*" : "application/json" } });
+    const corps = await r.arrayBuffer();
+    return new Response(corps.byteLength ? corps : "null", { status: r.status, headers: { "Content-Type": r.headers.get("content-type") || (fit ? "application/octet-stream" : "application/json"), "Cache-Control": "no-store" } });
   }
 
   const cles = clesPush(secret), origine = url.origin, basic = { Authorization: "Basic " + Buffer.from(id + ":" + secret).toString("base64"), Accept: "application/json" };
