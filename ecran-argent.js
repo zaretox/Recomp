@@ -8,7 +8,10 @@ function EcranArgent() {
   const [dec, setDec] = useState(0), liste = periodes(), k = Math.max(0, liste.length - 1 - dec), p = liste[k], b = bilanPeriode(p.debut, p.fin), cour = b.cour;
   const ops = [...DB.get("fin-income").map(e => ({ ...e, _t: "rev" })), ...DB.get("fin-expenses").map(e => ({ ...e, _t: "dep" }))].filter(e => dansPeriode(e, p)).sort((a, c) => c.dateISO.localeCompare(a.dateISO) || c.id - a.id);
   const cats = CATEGORIES.filter(c => (b.parCat[c] || 0) > 0 || b.caps[c] > 0).sort((a, c) => (b.parCat[c] || 0) - (b.parCat[a] || 0));
-  const plafond = async c => { const v = await saisir({ titre: "Enveloppe " + c, valeur: b.caps[c] || null, mode: "ent", unite: "€", pas: [10, 50], min: 0, indice: "0 pour retirer l'enveloppe" }); if (v != null) DB.set("fin-caps", { ...b.caps, [c]: v }); };
+  // Plafond proposé : ce que tu dépenses d'habitude dans la catégorie, arrondi à la dizaine au-dessus
+  const hab = habituelParCat(), propose = c => hab[c] ? Math.ceil(hab[c] / 10) * 10 : null;
+  const plafond = async c => { const v = await saisir({ titre: "Plafond " + c, valeur: b.caps[c] || propose(c), mode: "ent", unite: "€", pas: [10, 50], min: 0, indice: propose(c) ? "D'habitude : " + euros(hab[c]) + " par paye. 0 pour retirer." : "0 pour retirer le plafond" }); if (v != null) DB.set("fin-caps", { ...b.caps, [c]: v }); };
+  const prev = cour ? prevision(b) : null, abos = cour ? abonnementsReperes() : [], coutAbos = coutAbonnements(), dehors = repasDehors(p);
   const parMois = p.civil
     ? Array.from({ length: 6 }, (_, i) => { let m = moisDe(p.debut); for (let j = 0; j < 5 - i; j++) m = moisPrec(m); return { l: MOIS[+m.slice(5) - 1].slice(0, 3), v: Math.round(sommeMois(DB.get("fin-expenses"), m)) }; })
     : liste.slice(Math.max(0, k - 5), k + 1).map(x => ({ l: MOIS[+x.debut.slice(5, 7) - 1].slice(0, 3), v: Math.round(sommePeriode(DB.get("fin-expenses"), x)) }));
@@ -30,6 +33,8 @@ function EcranArgent() {
       h("div.affiche-g", h(Geant, null, h(Compteur, { v: (b.reste < 0 ? "−" : "") + entier(Math.abs(b.reste)) })), h("em", "€")),
       h("p", !b.rev ? "Ajoute ta paye pour voir ce qu'il te reste." : b.reste < 0 ? "Tu dépasses de " + euros(-b.reste) + (p.civil ? " ce mois-ci." : " depuis ta paye.") + (cour && prochaine ? " " + prochaine : "")
         : cour ? (b.enRetard ? "à dépenser. " + prochaine : "à dépenser, soit " + Math.round(b.parJour) + " € par jour pendant " + pluriel(b.restants, "jour") + "." + (prochaine ? " " + prochaine : "")) : p.civil ? "restants à la fin du mois" : "restants avant la paye suivante"),
+      prev && prev.apres > 0 && h("p.prevision", { className: prev.fin < 0 ? "mal" : "" },
+        "À ce rythme (" + Math.round(prev.rythme) + " € par jour), il te restera ", h("b", (prev.fin < 0 ? "−" : "") + euros(Math.abs(prev.fin))), " le " + dateJour(b.fin) + "." + (prev.fin < 0 ? " Vise " + Math.round(prev.cible) + " € par jour." : "")),
       h("div.hero-l",
         h("span", h("b", euros(b.rev)), b.estimeRev && b.rev ? "revenus estimés" : "revenus"),
         h("span", h("b", euros(b.depenses)), "dépensés"),
@@ -49,14 +54,22 @@ function EcranArgent() {
         cats.length ? h("div.enveloppes", cats.map(c => {
           const v = Math.round(b.parCat[c] || 0), cap = b.caps[c] || 0;
           return h("button", { key: c, onClick: () => plafond(c), className: cap && v > cap ? "depasse" : "" },
-            h("span", h("b", c), h("em", cap ? v + " / " + cap + " €" : v + " €")),
+            h("span", h("b", c), h("em", cap ? v + " / " + cap + " €" : v + " €" + (propose(c) && cour ? " · d'habitude " + Math.round(hab[c]) + " €" : ""))),
             h(Jauge, { v, max: cap || Math.max(...cats.map(x => b.parCat[x] || 0)), ton: cap && v > cap ? "rouge" : "argent" }));
-        })) : h(Vide, null, p.civil ? "Aucune dépense ce mois-ci." : "Aucune dépense depuis ta paye.")),
+        })) : h(Vide, null, p.civil ? "Aucune dépense ce mois-ci." : "Aucune dépense depuis ta paye."),
+        dehors.fois > 0 && h("p.note", "Dont repas dehors et livraisons : ", h("b", euros(dehors.total)), " en " + pluriel(dehors.fois, "fois") + (p.civil ? " ce mois-ci." : " depuis ta paye."))),
       h(Section, { titre: "Charges fixes", droite: h(Lien, { onClick: () => Nav.sheet("fixes") }, "Gérer") },
         b.fixes.length ? h("div.journee", b.fixes.map(f => h("div.course", { key: f.id, className: f.paye ? "fait" : "" },
           h(Coche, { fait: f.paye, onClick: () => cocherFixe(f, p), label: f.label, t: 34 }),
           h("span", h("b", f.label), h("small", (p.civil ? "le " + (f.jour || 1) : dateJour(f.echeance)) + ", " + (f.cat || "Autre").toLowerCase())),
-          h("b.montant", euros(f.montant, f.montant % 1 ? 2 : 0))))) : h(Vide, null, "Loyer, salle, abonnements : ajoute-les une fois, puis coche-les chaque mois.")),
+          h("b.montant", euros(f.montant, f.montant % 1 ? 2 : 0))))) : h(Vide, null, "Loyer, salle, abonnements : ajoute-les une fois, puis coche-les chaque mois."),
+        coutAbos.mois > 0 && h("p.note", "Tes abonnements : " + euros(coutAbos.mois, 2) + " par mois, soit ", h("b", euros(coutAbos.an) + " par an"), ".")),
+      abos.length > 0 && h(Section, { titre: "Abonnements repérés" },
+        h("p.note", "Ces dépenses reviennent chaque mois au même montant. Ajoute-les à tes charges fixes : elles seront prévues d'avance."),
+        abos.map(a => h("div.abo", { key: a.cle },
+          h("span", h("b", a.label), h("small", euros(a.montant, a.montant % 1 ? 2 : 0) + " par mois, " + euros(a.montant * 12) + " par an")),
+          h("button.mini", { onClick: async () => { await ajouterAuxFixes(a); toast(a.label + " ajouté aux charges fixes"); } }, "Ajouter"),
+          h("button.mini", { onClick: () => ignorerAbonnement(a.cle) }, "Ignorer")))),
       h(Section, { titre: "Dernières opérations", droite: h("span.compte", ops.length) },
         ops.length ? ops.slice(0, 5).map(o => h(LigneOp, { key: o._t + o.id, o })) : h(Vide, null, "Aucune opération.")),
       h("details.details-a",

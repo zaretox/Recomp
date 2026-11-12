@@ -27,6 +27,11 @@ function messagesCoach() {
       { l: "Pas maintenant", run: () => majEpargne(e => ({ ...e, palier: auj })) }],
   });
 
+  const bc = bilanCourant(), pv = prevision(bc);
+  if (pv && pv.fin < 0 && pv.apres >= 3 && pr.coachDismiss?.rythme !== auj) msgs.push({
+    id: "rythme", t: "À ce rythme, tu finiras à −" + euros(-pv.fin) + " le jour de ta paye. Pour l'éviter, vise " + Math.round(pv.cible) + " € par jour jusqu'au " + dateJour(bc.fin) + ".",
+    acts: [{ l: "Voir mon budget", run: () => Nav.tab("argent") }, { l: "Compris", run: () => plusTard("rythme") }],
+  });
   const accesB = accesBanqueExpire();
   if (accesB != null && accesB <= 7 && pr.coachDismiss?.banque !== auj) msgs.push({
     id: "banque", t: accesB < 0 ? "L'accès à ta banque a expiré : tes dépenses n'arrivent plus toutes seules. Il faut le renouveler (une minute dans l'appli de ta banque)." : "L'accès à ta banque expire " + (accesB === 0 ? "aujourd'hui" : "dans " + pluriel(accesB, "jour")) + ". Renouvelle-le en une minute pour que tes dépenses continuent d'arriver.",

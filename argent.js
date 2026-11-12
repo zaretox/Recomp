@@ -69,6 +69,56 @@ const bilanPeriode = memo((debut, fin) => {
   };
 });
 const bilanCourant = () => { const p = periodeCourante(); return bilanPeriode(p.debut, p.fin); };
+
+/* PRÉVISION — où tu en seras le jour de ta paye, au rythme de tes dépenses du quotidien (charges fixes à part).
+ * Les premiers jours, le rythme se mélange avec celui des 3 dernières payes, pour ne pas s'affoler sur un gros plein de courses. */
+const depensesCourantes = p => DB.get("fin-expenses").filter(e => dansPeriode(e, p) && !e.fixId).reduce((a, e) => a + (+e.montant || 0), 0);
+const periodesFinies = () => { const t = periodes(); return t.filter(p => !p.civil && p.fin < t[t.length - 1].debut).slice(-3); };
+function prevision(b) {
+  if (!b?.cour || !b.rev || b.enRetard) return null;
+  const auj = aujourdhui(), ecoules = ecart(b.debut, auj) + 1, apres = Math.max(0, ecart(auj, b.fin));
+  const actuel = depensesCourantes(b) / ecoules, finies = periodesFinies();
+  const habituel = finies.length ? moyenne(finies.map(p => depensesCourantes(p) / (ecart(p.debut, p.fin) + 1))) : null;
+  const poids = Math.min(1, ecoules / 7);
+  const rythme = habituel != null ? actuel * poids + habituel * (1 - poids) : ecoules >= 3 ? actuel : null;
+  if (rythme == null) return null;
+  return { rythme, fin: Math.round(b.reste - rythme * apres), apres, cible: b.parJour };
+}
+/* Plafonds : ce que tu dépenses d'habitude dans chaque catégorie (moyenne des 3 dernières payes) */
+function habituelParCat() {
+  const f = periodesFinies(), dep = DB.get("fin-expenses"), o = {};
+  if (!f.length) return o;
+  f.forEach(p => dep.filter(e => dansPeriode(e, p)).forEach(e => { o[e.cat] = (o[e.cat] || 0) + (+e.montant || 0) / f.length; }));
+  return o;
+}
+/* Abonnements repérés : même commerce, montant quasi identique (5 %), tous les 25 à 35 jours, pas encore dans tes charges fixes */
+const cleCommerce = l => sansAccent(l).replace(/[^a-z ]/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
+function abonnementsReperes() {
+  const auj = aujourdhui(), ignores = reglesBanque().recurrentsIgnores || [], fixes = DB.get("fin-fixes"), groupes = {};
+  DB.get("fin-expenses").filter(e => !e.fixId && e.label && ecart(e.dateISO, auj) <= 130).forEach(e => { const k = cleCommerce(e.label); if (k) (groupes[k] = groupes[k] || []).push(e); });
+  return Object.entries(groupes).map(([k, l]) => {
+    const s = [...l].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).slice(-3), der = s[s.length - 1];
+    if (s.length < 2 || ignores.includes(k) || ecart(der.dateISO, auj) > 40) return null;
+    const regulier = s.slice(1).every((e, i) => { const j = ecart(s[i].dateISO, e.dateISO); return j >= 25 && j <= 35 && Math.abs(e.montant - s[i].montant) <= Math.max(.5, s[i].montant * .05); });
+    if (!regulier) return null;
+    if (fixes.some(f => cleCommerce(f.label) === k || (Math.abs(f.montant - der.montant) < .01 && f.cat === der.cat))) return null;
+    return { cle: k, label: der.label, montant: +der.montant, jour: +der.dateISO.slice(8), cat: der.cat === "Autre" ? "Abonnements" : der.cat, fois: l.length };
+  }).filter(Boolean).sort((a, b) => b.montant - a.montant);
+}
+const coutAbonnements = () => {
+  const m = DB.get("fin-fixes").filter(f => f.cat === "Abonnements").reduce((a, f) => a + (+f.montant || 0), 0) + abonnementsReperes().reduce((a, x) => a + x.montant, 0);
+  return { mois: arrondi(m, 2), an: Math.round(m * 12) };
+};
+async function ajouterAuxFixes(a) {
+  await DB.set("fin-fixes", [...DB.get("fin-fixes"), { id: nouvelId("f"), label: a.label, montant: a.montant, cat: a.cat, jour: a.jour }]);
+  // Les dernières fois comptent comme cette charge (déjà payée)
+  const dep = DB.get("fin-expenses"), f = DB.get("fin-fixes").slice(-1)[0];
+  await DB.set("fin-expenses", dep.map(e => !e.fixId && cleCommerce(e.label) === a.cle && Math.abs(e.montant - a.montant) <= Math.max(.5, a.montant * .05) ? { ...e, fixId: f.id, cat: a.cat } : e));
+}
+const ignorerAbonnement = cle => { const r = reglesBanque(); return DB.set("banque-regles", { ...r, recurrentsIgnores: [...(r.recurrentsIgnores || []), cle] }); };
+/* Repas dehors et livraisons : ce que coûtent les écarts au plan */
+const RE_REPAS_DEHORS = /mc ?do|mcdonald|burger|kfc|quick|uber ?eats|deliveroo|just ?eat|restau|brasserie|pizz|sushi|kebab|tacos|starbucks|columbus|five guys|subway|bistro|traiteur|snack/;
+const repasDehors = p => { const l = DB.get("fin-expenses").filter(e => dansPeriode(e, p) && RE_REPAS_DEHORS.test(sansAccent(e.label || ""))); return { total: Math.round(l.reduce((a, e) => a + (+e.montant || 0), 0)), fois: l.length }; };
 /* ÉPARGNE — on met de côté en premier, à chaque paye ; le reste se dépense sans culpabiliser.
  * "fin-goal" = la somme mise de côté à chaque paye (déjà retirée du reste à dépenser).
  * "epargne" = { cagnottes: [{ id, nom, cible }], versements: [{ id, dateISO, montant, source, ref? }], virement, palier, gardes: [début de période] }
