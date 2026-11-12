@@ -173,8 +173,7 @@ function changerTypeJour(iso, dayType) {
 }
 
 /* TENDANCE DE POIDS — moyenne lissée : le chiffre qui compte, débarrassé des variations d'eau */
-const tendancePoids = memo(() => {
-  const pts = pesees();
+function lisser(pts) {
   if (!pts.length) return [];
   const out = [{ ...pts[0], t: pts[0].kg }];
   for (let i = 1; i < pts.length; i++) {
@@ -182,12 +181,16 @@ const tendancePoids = memo(() => {
     out.push({ ...pts[i], t: out[i - 1].t + a * (pts[i].kg - out[i - 1].t) });
   }
   return out;
-});
-/* kg par semaine, régression sur les 8 dernières pesées */
+}
+const tendancePoids = memo(() => lisser(pesees()));
+/* kg par semaine : pente de la tendance sur les 3 dernières semaines.
+ * La tendance gomme l'eau ; les pesées brutes seules donnaient des rythmes faux (+0,01 kg alors que la courbe descend). */
 function rythmeHebdo(pts) {
-  const p = pts.slice(-8);
+  const t = lisser(pts), fin = t[t.length - 1];
+  let p = fin ? t.filter(x => ecart(x.dateISO, fin.dateISO) <= 21) : [];
+  if (p.length < 3 || ecart(p[0].dateISO, fin.dateISO) < 7) p = t.slice(-8);
   if (p.length < 2) return null;
-  const xs = p.map(x => ecart(p[0].dateISO, x.dateISO)), ys = p.map(x => x.kg), n = xs.length;
+  const xs = p.map(x => ecart(p[0].dateISO, x.dateISO)), ys = p.map(x => x.t), n = xs.length;
   const sx = xs.reduce((a, b) => a + b, 0), sy = ys.reduce((a, b) => a + b, 0), sxx = xs.reduce((a, b) => a + b * b, 0), sxy = xs.reduce((a, b, i) => a + b * ys[i], 0);
   const den = n * sxx - sx * sx;
   return den === 0 ? null : arrondi((n * sxy - sx * sy) / den * 7, 2);

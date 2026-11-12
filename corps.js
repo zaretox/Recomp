@@ -17,6 +17,7 @@ function EcranCorps() {
       h("span.affiche-e", "Ta tendance"),
       h("div.affiche-g", h(Geant, null, der ? h(Compteur, { v: nb1(der.t) }) : "—"), h("em", "kg")),
       h("p", der ? (prem && prem !== der ? signe(arrondi(der.t - prem.t)) + " kg depuis le " + dateJour(prem.dateISO) : "Première pesée enregistrée") + (ry.kg != null ? ". Rythme : " + signe(ry.kg, 2) + " kg par semaine." : ".") : "Pèse-toi pour lancer ta courbe."),
+      der && h("p.pesee-j", (der.dateISO === auj ? "Ce matin : " : "Dernière pesée, " + dateJour(der.dateISO) + " : ") + nb1(der.kg) + " kg. La tendance bouge doucement pour gommer l'eau : c'est elle qui compte."),
       h("div.hero-b", h(Bouton, { cl: "noir", ico: "plus", onClick: () => Nav.sheet("pesee") }, "Me peser"), h(Bouton, { cl: "contour-n", onClick: () => Nav.sheet("bilan") }, "Bilan de la semaine"))),
     h("div.corps-p",
       h(Section, null,
