@@ -458,6 +458,21 @@ h1, h2, h3, p { margin: 0; }
 .series-n > div > span:nth-child(3), .series-n > div > span:nth-child(4) { text-align: right; color: var(--mou); }
 .series-n .tours-t, .tours .tours-t { font-size: 11.5px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--pale); }
 .hero .pesee-j { margin-top: -4px; font-size: 14px; opacity: .8; }
+/* Épargne */
+.epargne-c { display: grid; gap: 8px; width: 100%; padding: 14px; border-radius: var(--r); background: var(--fond2); text-align: left; color: var(--encre); }
+.epargne-c > div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.epargne-c > div b { font-family: var(--an); font-weight: 400; font-size: 32px; line-height: 1; }
+.epargne-c > div span, .epargne-c p { font-size: 13.5px; color: var(--mou); }
+.cagnotte { display: grid; gap: 6px; padding: 12px 0; border-bottom: 1px solid var(--trait); }
+.cagnotte > div:first-child { display: flex; justify-content: space-between; gap: 10px; font-size: 15px; }
+.cagnotte > div:first-child span { color: var(--mou); font-variant-numeric: tabular-nums; }
+.cagnotte small { font-size: 12.5px; color: var(--mou); }
+.etapes { display: grid; gap: 8px; padding-left: 20px; font-size: 14.5px; line-height: 1.4; }
+.ajout-l { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
+.ajout-l input { flex: 1; min-width: 0; }
+.details-a { display: grid; gap: 16px; }
+.details-a > summary { cursor: pointer; padding: 12px 0; font-size: 14px; font-weight: 700; color: var(--mou); border-top: 1px solid var(--trait); }
+.details-a[open] > summary { margin-bottom: 4px; }
 .polar-matin { width: 100%; min-height: 44px; margin-bottom: 10px; }
 .clavier { display: grid; grid-template-columns: repeat(3, 1fr) 1.15fr; gap: 5px; }
 .tch { height: 56px; display: grid; place-items: center; border-radius: var(--r); background: var(--fond3); color: var(--encre); font-family: var(--an); font-size: 28px; text-align: center; transition: transform .08s, background .08s; }

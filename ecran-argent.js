@@ -1,6 +1,7 @@
 "use strict";
 /* ARGENT — « Combien il me reste ? »
- * Un seul chiffre : le reste à vivre. Dessous, les charges à cocher, les enveloppes et les opérations. */
+ * Un seul chiffre : ce que tu peux dépenser jusqu'à ta paye. Dessous, ton épargne, où va ton argent, les charges à cocher.
+ * Les graphiques et toutes les opérations sont rangés dans « Détails ». */
 function EcranArgent() {
   useDB();
   // On navigue d'une paye à l'autre ; « décalage » 0 = la période en cours
@@ -27,28 +28,108 @@ function EcranArgent() {
       h("div.deux-b",
         h(Bouton, { cl: "plein", ico: "moins", onClick: () => Nav.sheet("operation") }, "Dépense"),
         h(Bouton, { cl: "contour", ico: "plus", onClick: () => Nav.sheet("operation", { revenu: true }) }, "Revenu")),
-      h(Section, { titre: "Charges fixes", droite: h(Lien, { onClick: () => Nav.sheet("fixes") }, "Gérer") },
-        b.fixes.length ? h("div.journee", b.fixes.map(f => h("div.course", { key: f.id, className: f.paye ? "fait" : "" },
-          h(Coche, { fait: f.paye, onClick: () => cocherFixe(f, p), label: f.label, t: 34 }),
-          h("span", h("b", f.label), h("small", (p.civil ? "le " + (f.jour || 1) : dateJour(f.echeance)) + ", " + (f.cat || "Autre").toLowerCase())),
-          h("b.montant", euros(f.montant, f.montant % 1 ? 2 : 0))))) : h(Vide, null, "Loyer, salle, abonnements : ajoute-les une fois, puis coche-les chaque mois.")),
-      h(Section, { titre: "Enveloppes", droite: h("span.compte", "touche pour fixer un plafond") },
+      cour && h(CarteEpargne),
+      h(Section, { titre: "Où va ton argent", droite: h("span.compte", "touche pour fixer un plafond") },
         cats.length ? h("div.enveloppes", cats.map(c => {
           const v = Math.round(b.parCat[c] || 0), cap = b.caps[c] || 0;
           return h("button", { key: c, onClick: () => plafond(c), className: cap && v > cap ? "depasse" : "" },
             h("span", h("b", c), h("em", cap ? v + " / " + cap + " €" : v + " €")),
             h(Jauge, { v, max: cap || Math.max(...cats.map(x => b.parCat[x] || 0)), ton: cap && v > cap ? "rouge" : "argent" }));
         })) : h(Vide, null, p.civil ? "Aucune dépense ce mois-ci." : "Aucune dépense depuis ta paye.")),
-      h(Section, { titre: p.civil ? "Six derniers mois" : "Six dernières payes" },
-        h(Barres, { pts: parMois, ton: "argent", unite: " €" }),
-        h("div.tuiles",
-          h(Tuile, { v: b.taux != null ? b.taux + " %" : "—", l: p.civil ? "épargné ce mois" : "épargné sur cette paye" }),
-          h(Tuile, { v: b.evolution != null ? signe(b.evolution, 0) + " %" : "—", l: p.civil ? "face à " + nomMois(moisPrec(moisDe(p.debut))) : "face à la paye d'avant" }))),
-      h(Section, { titre: "Objectif d'épargne" }, h(Champ, { etiquette: p.civil ? "Par mois" : "Par paye", valeur: b.objectif || null, mode: "ent", unite: "€", pas: [10, 50], min: 0, onChange: v => DB.set("fin-goal", v) })),
-      h(Section, { titre: "Opérations", droite: h("span.compte", ops.length) },
-        ops.length ? ops.slice(0, 40).map(o => h("button.ligne", { key: o._t + o.id, onClick: () => Nav.sheet("operation", { edite: o }) },
-          h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + o.cat.toLowerCase() : ""))),
-          h("b", { className: o._t === "rev" ? "plus" : "" }, (o._t === "rev" ? "+" : "−") + euros(o.montant, o.montant % 1 ? 2 : 0)))) : h(Vide, null, "Aucune opération."))));
+      h(Section, { titre: "Charges fixes", droite: h(Lien, { onClick: () => Nav.sheet("fixes") }, "Gérer") },
+        b.fixes.length ? h("div.journee", b.fixes.map(f => h("div.course", { key: f.id, className: f.paye ? "fait" : "" },
+          h(Coche, { fait: f.paye, onClick: () => cocherFixe(f, p), label: f.label, t: 34 }),
+          h("span", h("b", f.label), h("small", (p.civil ? "le " + (f.jour || 1) : dateJour(f.echeance)) + ", " + (f.cat || "Autre").toLowerCase())),
+          h("b.montant", euros(f.montant, f.montant % 1 ? 2 : 0))))) : h(Vide, null, "Loyer, salle, abonnements : ajoute-les une fois, puis coche-les chaque mois.")),
+      h(Section, { titre: "Dernières opérations", droite: h("span.compte", ops.length) },
+        ops.length ? ops.slice(0, 5).map(o => h(LigneOp, { key: o._t + o.id, o })) : h(Vide, null, "Aucune opération.")),
+      h("details.details-a",
+        h("summary", "Détails : graphiques et toutes les opérations"),
+        h(Section, { titre: p.civil ? "Six derniers mois" : "Six dernières payes" },
+          h(Barres, { pts: parMois, ton: "argent", unite: " €" }),
+          h("div.tuiles",
+            h(Tuile, { v: b.taux != null ? b.taux + " %" : "—", l: p.civil ? "non dépensé ce mois" : "non dépensé sur cette paye" }),
+            h(Tuile, { v: b.evolution != null ? signe(b.evolution, 0) + " %" : "—", l: p.civil ? "face à " + nomMois(moisPrec(moisDe(p.debut))) : "de dépenses face à la paye d'avant" }))),
+        ops.length > 5 && h(Section, { titre: "Toutes les opérations" }, ops.slice(5, 60).map(o => h(LigneOp, { key: o._t + o.id, o }))))));
+}
+const LigneOp = ({ o }) => h("button.ligne", { onClick: () => Nav.sheet("operation", { edite: o }) },
+  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + o.cat.toLowerCase() : ""))),
+  h("b", { className: o._t === "rev" ? "plus" : "" }, (o._t === "rev" ? "+" : "−") + euros(o.montant, o.montant % 1 ? 2 : 0)));
+
+/* ÉPARGNE — la carte de l'onglet Argent */
+function CarteEpargne() {
+  const e = etatEpargne(), pp = pointPaye();
+  if (!e.cagnottes.length) return h(Section, { titre: "Mettre de côté" },
+    h(Rangee, { ico: "argent", titre: "Commencer à épargner", sous: euros(montantPropose()) + " à chaque paye, sans y penser", onClick: () => Nav.sheet("epargne") }));
+  const cs = cagnottes(), c = cs.find(x => !x.pleine) || cs[cs.length - 1], d = dateCagnotte(c);
+  return h(Section, { titre: "Ton épargne", droite: h(Lien, { onClick: () => Nav.sheet("epargne") }, "Gérer") },
+    h("button.epargne-c", { onClick: () => Nav.sheet("epargne") },
+      h("div", h("b", euros(totalEpargne())), h("span", "mis de côté, " + euros(montantParPaye()) + " à chaque paye")),
+      h("p", c.nom + " : " + euros(c.verse) + " sur " + euros(c.cible) + (c.pleine ? ", objectif atteint" : d ? ", atteint vers " + nomMois(moisDe(d)) : "")),
+      h(Jauge, { v: c.verse, max: c.cible || 1, ton: "argent" })),
+    pp?.aVerser && h(Bouton, { cl: "plein", onClick: async () => { await ajouterVersement(pp.montant, "paye"); toast(euros(pp.montant) + " de plus dans ta cagnotte"); } }, "Mes " + euros(pp.montant) + " de cette paye sont partis"));
+}
+
+/* ÉPARGNE — mise en route en trois choix, puis suivi */
+const SOURCES_VERSEMENT = { paye: "à la paye", reste: "reste de la paye d'avant", main: "en plus" };
+function FeuilleEpargne() {
+  useDB();
+  const e = etatEpargne(), montant = montantParPaye();
+  const [m, setM] = useState(montant || montantPropose()), [cible, setCible] = useState(cibleSecurite()), [projet, setProjet] = useState(""), [cibleP, setCibleP] = useState(null);
+  if (!e.cagnottes.length) {
+    const lancer = async () => {
+      await DB.set("fin-goal", m);
+      await DB.set("epargne", { ...EPARGNE_VIDE, cagnottes: [{ id: "securite", nom: "Épargne de sécurité", cible }, ...(projet.trim() && cibleP ? [{ id: nouvelId("c"), nom: projet.trim(), cible: cibleP }] : [])] });
+      toast("C'est parti : " + euros(m) + " à chaque paye");
+    };
+    return h(Feuille, { titre: "Mettre de côté", ton: "argent" },
+      h("p.texte-p", "Le principe : à chaque paye, une petite somme part d'abord sur ton livret, toute seule. Ce qui reste, tu le dépenses sans te poser de questions."),
+      h(Section, { titre: "1. À chaque paye" },
+        h(Champ, { etiquette: "Je mets de côté", valeur: m, mode: "ent", unite: "€", pas: [10, 50], min: 10, onChange: setM }),
+        h("p.note", "Je te propose " + euros(montantPropose()) + ", environ 5 % de ta paye. On commence petit : dans 3 mois, je te proposerai d'augmenter un peu.")),
+      h(Section, { titre: "2. Ton épargne de sécurité" },
+        h(Champ, { etiquette: "Objectif", valeur: cible, mode: "ent", unite: "€", pas: [50, 100], min: 100, onChange: setCible }),
+        h("p.note", "Environ un mois de dépenses : de quoi encaisser un imprévu (une panne, une facture) sans tout remettre en cause.")),
+      h(Section, { titre: "3. Un projet, si tu veux" },
+        h("input.recherche", { value: projet, onChange: x => setProjet(x.target.value), placeholder: "Vacances, ordinateur… (facultatif)", "aria-label": "Nom du projet" }),
+        projet.trim() && h(Champ, { etiquette: "Montant visé", valeur: cibleP, mode: "ent", unite: "€", pas: [50, 100], min: 50, onChange: setCibleP }),
+        h("p.note", "Il se remplit une fois l'épargne de sécurité atteinte.")),
+      h(Bouton, { cl: "plein grand", onClick: lancer }, "C'est parti"));
+  }
+  const cs = cagnottes(), versements = [...e.versements].sort((a, c) => c.dateISO.localeCompare(a.dateISO) || c.id - a.id);
+  const enPlus = async () => { const v = await saisir({ titre: "Mis de côté en plus", mode: "dec", unite: "€", pas: [10, 50], min: 0 }); if (v > 0) { await ajouterVersement(v, "main"); toast(euros(v) + " de plus dans ta cagnotte"); } };
+  const ajouterProjet = async () => {
+    if (!projet.trim()) return toast("Donne un nom à ton projet");
+    const v = await saisir({ titre: projet.trim() + " : montant visé", mode: "ent", unite: "€", pas: [50, 100], min: 50 });
+    if (v > 0) { await majEpargne(x => ({ ...x, cagnottes: [...x.cagnottes, { id: nouvelId("c"), nom: projet.trim(), cible: v }] })); setProjet(""); }
+  };
+  return h(Feuille, { titre: "Ton épargne", ton: "argent" },
+    h("div.tuiles", h(Tuile, { v: euros(totalEpargne()), l: "mis de côté" }), h(Tuile, { v: euros(montant), l: "à chaque paye" })),
+    h(Section, { titre: "Tes cagnottes" },
+      cs.map((c, i) => { const d = dateCagnotte(c); return h("div.cagnotte", { key: c.id },
+        h("div", h("b", c.nom), h("span", euros(c.verse) + " sur " + euros(c.cible))),
+        h(Jauge, { v: c.verse, max: c.cible || 1, ton: "argent" }),
+        h("small", c.pleine ? "Objectif atteint." : d ? "Atteint vers " + nomMois(moisDe(d)) + (i > 0 && !cs[i - 1].pleine ? ", après la précédente" : "") + "." : "Choisis un montant par paye pour estimer la date."),
+        h("div.actions-l",
+          h(Champ, { etiquette: "Objectif", valeur: c.cible, mode: "ent", unite: "€", pas: [50, 100], min: 50, onChange: v => majEpargne(x => ({ ...x, cagnottes: x.cagnottes.map(y => y.id === c.id ? { ...y, cible: v } : y) })) }),
+          c.id !== "securite" && h("button.mini", { onClick: () => avecAnnuler("epargne", { ...e, cagnottes: e.cagnottes.filter(y => y.id !== c.id) }, "Projet retiré") }, "Retirer"))); }),
+      h("div.ajout-l", h("input.recherche", { value: projet, onChange: x => setProjet(x.target.value), placeholder: "Nouveau projet : vacances…", "aria-label": "Nom du projet" }), h("button.mini", { onClick: ajouterProjet }, "Ajouter"))),
+    h(Section, { titre: "Le virement automatique" },
+      e.virement ? h("p.texte-p", h("b", "En place. "), euros(montant) + " partent de ton compte vers ton livret le lendemain de ta paye. Si tu changes le montant ici, change-le aussi dans ta banque.")
+        : h(Fragment, null,
+          h("ol.etapes",
+            h("li", "Dans l'appli de ta banque, ouvre un ", h("b", "Livret A"), " (rubrique épargne) si tu n'en as pas."),
+            h("li", "Dans les virements, crée un ", h("b", "virement permanent"), " : de ton compte courant vers ton Livret A, ", h("b", euros(montant)), ", chaque mois, le ", h("b", String(jourVirement())), " (le lendemain de ta paye)."),
+            h("li", "Reviens ici et touche « C'est en place ».")),
+          h("p.note", "Les noms des menus peuvent changer selon la version de l'appli."),
+          h(Bouton, { cl: "plein", onClick: () => majEpargne(x => ({ ...x, virement: true })) }, "C'est en place"))),
+    h(Section, { titre: "Réglage" },
+      h(Champ, { etiquette: "À chaque paye", valeur: montant || null, mode: "ent", unite: "€", pas: [10, 50], min: 0, onChange: v => DB.set("fin-goal", v) }),
+      h("p.note", "Cette somme est déjà retirée de ce que tu peux dépenser.")),
+    h(Section, { titre: "Versements", droite: h(Lien, { onClick: enPlus }, "J'ai mis de côté en plus") },
+      versements.length ? versements.slice(0, 30).map(v => h("div.histo", { key: v.id }, h("span", dateMini(v.dateISO) + ", " + (SOURCES_VERSEMENT[v.source] || "")), h("b", euros(v.montant, v.montant % 1 ? 2 : 0)),
+        h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("epargne", { ...e, versements: e.versements.filter(x => x.id !== v.id) }, "Versement supprimé") }, h(Icone, { n: "fermer", t: 16 }))))
+        : h(Vide, null, "À ta prochaine paye, je te demanderai si ton épargne est bien partie.")));
 }
 
 /* Ajouter ou modifier une dépense ou un revenu. Le clavier est ouvert d'emblée : montant, catégorie, c'est fait. */

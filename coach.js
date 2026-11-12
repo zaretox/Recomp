@@ -10,6 +10,23 @@ function messagesCoach() {
   const faite = seanceFaite(auj);
   msgs.push({ id: "jour", t: salut + ". " + (sess ? (faite ? sess.label + " est faite. " : "Aujourd'hui : " + sess.label + " à " + hhmm(seanceCreneau()) + ". ") : "Pas de séance aujourd'hui. ") + entier(n.menu.dayTgt) + " kcal à manger." });
 
+  // Épargne : le point de la paye passe avant le reste (une fois par mois, quelques jours)
+  const pp = pointPaye(), plusTard = id => setProfil({ coachDismiss: { ...(pr.coachDismiss || {}), [id]: auj } });
+  if (pp?.aVerser && pr.coachDismiss?.epargne !== auj) msgs.push({
+    id: "epargne", t: "Ta paye est arrivée. Tes " + euros(pp.montant) + " sont bien partis sur ton livret ?" + (etatEpargne().virement ? "" : " Si ton virement n'est pas encore automatique, fais-le maintenant dans l'appli de ta banque."),
+    acts: [{ l: "Oui, c'est fait", run: async () => { await ajouterVersement(pp.montant, "paye"); toast(euros(pp.montant) + " de plus dans ta cagnotte"); } }, { l: "Pas encore", run: () => plusTard("epargne") }],
+  });
+  if (pp?.restePrec && pr.coachDismiss?.epargneReste !== auj) msgs.push({
+    id: "epargneReste", t: "D'après tes dépenses notées, il te restait " + euros(pp.restePrec) + " de ta paye d'avant. Si c'est bien sur ton compte, tu les mets de côté ?",
+    acts: [{ l: "Oui, je les vire", run: async () => { await ajouterVersement(pp.restePrec, "reste", pp.avant); toast("Fais le virement de " + euros(pp.restePrec) + " vers ton livret dans l'appli de ta banque"); } },
+      { l: "Non, je les garde", run: () => majEpargne(e => ({ ...e, gardes: [...e.gardes, pp.avant] })) }],
+  });
+  if (pp?.palier && !pp.aVerser) msgs.push({
+    id: "epargnePalier", t: "Ça fait 3 mois que tu mets " + euros(pp.montant) + " de côté à chaque paye. On passe à " + euros(pp.nouveau) + " ? Tu le sentiras à peine.",
+    acts: [{ l: "Oui, " + euros(pp.nouveau), run: async () => { await DB.set("fin-goal", pp.nouveau); await majEpargne(e => ({ ...e, palier: auj })); toast("Pense à changer ton virement automatique : " + euros(pp.nouveau)); } },
+      { l: "Pas maintenant", run: () => majEpargne(e => ({ ...e, palier: auj })) }],
+  });
+
   if (r && r.score != null) msgs.push({ id: "forme", t: r.conseil, acts: [{ l: "Pourquoi ce score ?", run: () => Nav.sheet("forme") }] });
   else if (!DB.get("recup-logs").some(l => l.dateISO === auj) && heure < 16) msgs.push({ id: "matin", t: "Fais ta saisie du matin : j'adapte ta séance à ta forme.", acts: [{ l: "Saisir maintenant", run: () => Nav.sheet("matin") }] });
 

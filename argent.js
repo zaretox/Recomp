@@ -69,6 +69,70 @@ const bilanPeriode = memo((debut, fin) => {
   };
 });
 const bilanCourant = () => { const p = periodeCourante(); return bilanPeriode(p.debut, p.fin); };
+/* ÉPARGNE — on met de côté en premier, à chaque paye ; le reste se dépense sans culpabiliser.
+ * "fin-goal" = la somme mise de côté à chaque paye (déjà retirée du reste à dépenser).
+ * "epargne" = { cagnottes: [{ id, nom, cible }], versements: [{ id, dateISO, montant, source, ref? }], virement, palier, gardes: [début de période] }
+ * Les cagnottes se remplissent dans l'ordre : la sécurité d'abord, puis le projet. */
+const EPARGNE_VIDE = { cagnottes: [], versements: [], virement: false, palier: null, gardes: [] };
+const etatEpargne = () => ({ ...EPARGNE_VIDE, ...(DB.get("epargne") || {}) });
+const majEpargne = f => DB.set("epargne", f(etatEpargne()));
+const totalEpargne = () => arrondi(etatEpargne().versements.reduce((a, v) => a + (+v.montant || 0), 0), 2);
+const montantParPaye = () => parseNb(DB.get("fin-goal")) || 0;
+function cagnottes() {
+  let reste = totalEpargne();
+  return etatEpargne().cagnottes.map(c => { const v = Math.min(reste, c.cible || 0); reste -= v; return { ...c, verse: arrondi(v, 2), pleine: c.cible > 0 && v >= c.cible }; });
+}
+// Paye et dépenses habituelles : moyenne des 3 dernières périodes (les dépenses, sur les périodes terminées)
+function payeHabituelle() {
+  const l = periodes().filter(p => !p.civil).slice(-3).map(p => sommePeriode(DB.get("fin-income"), p)).filter(x => x > 0);
+  return l.length ? Math.round(moyenne(l)) : null;
+}
+function depensesHabituelles() {
+  const l = periodes().filter(p => !p.civil).slice(0, -1).slice(-3);
+  return l.length ? Math.round(moyenne(l.map(p => sommePeriode(DB.get("fin-expenses"), p)))) : null;
+}
+// On commence petit : 5 % de la paye, arrondi à 10 €, sans dépasser la moitié de ce qui reste d'habitude
+function montantPropose() {
+  const rev = payeHabituelle(), dep = depensesHabituelles();
+  if (!rev) return 50;
+  let m = Math.max(20, Math.round(rev * .05 / 10) * 10);
+  if (dep != null && dep > rev * .4 && rev - dep > 0) m = Math.min(m, Math.max(20, Math.round((rev - dep) / 2 / 10) * 10));
+  return m;
+}
+// Épargne de sécurité : un mois de dépenses (charges fixes comprises), arrondi à 50 €
+function cibleSecurite() {
+  const dep = depensesHabituelles(), fixes = DB.get("fin-fixes").reduce((a, f) => a + (+f.montant || 0), 0), rev = payeHabituelle();
+  const base = dep && dep > fixes ? dep : fixes ? fixes * 1.6 : rev ? rev * .8 : 1000;
+  return Math.max(300, Math.round(base / 50) * 50);
+}
+// Jour conseillé pour le virement automatique : le lendemain de la paye la plus tardive des derniers mois
+const jourVirement = () => { const d = datesPaye().slice(-3).map(x => +x.slice(8)); return d.length ? Math.min(28, Math.max(...d) + 1) : 12; };
+// Mois où une cagnotte sera pleine, à raison du montant par paye (après les cagnottes d'avant)
+function dateCagnotte(c) {
+  const m = montantParPaye(), cs = cagnottes(), i = cs.findIndex(x => x.id === c.id);
+  const manque = cs.slice(0, i + 1).reduce((a, x) => a + Math.max(0, (x.cible || 0) - x.verse), 0);
+  if (c.pleine || !m || manque <= 0) return null;
+  let d = periodeCourante().debut;
+  for (let i = 0; i < Math.ceil(manque / m); i++) d = unMoisApres(d);
+  return d;
+}
+const ajouterVersement = (montant, source, ref) => majEpargne(e => ({ ...e, versements: [...e.versements, { id: Date.now(), dateISO: aujourdhui(), montant: arrondi(montant, 2), source, ...(ref ? { ref } : {}) }] }));
+/* Le point de la paye : le versement prévu, le reste de la paye d'avant, et une petite hausse tous les 3 mois */
+function pointPaye() {
+  const e = etatEpargne(), tout = periodes(), p = tout[tout.length - 1], auj = aujourdhui(), montant = montantParPaye();
+  if (!p || p.civil || !e.cagnottes.length) return null;
+  const recent = ecart(p.debut, auj) <= 10, avant = tout[tout.length - 2];
+  const aVerser = recent && montant > 0 && !e.versements.some(v => v.source === "paye" && v.dateISO >= p.debut);
+  // Le reste de la paye d'avant n'est proposé que si les dépenses semblent notées (sinon le chiffre serait trompeur)
+  let restePrec = 0;
+  if (recent && avant && !e.gardes.includes(avant.debut) && !e.versements.some(v => v.source === "reste" && v.ref === avant.debut)) {
+    const b = bilanPeriode(avant.debut, avant.fin);
+    if (b.rev > 0 && b.depenses >= b.rev * .4) restePrec = Math.floor(Math.max(0, b.reste) / 10) * 10;
+  }
+  const premier = e.versements.map(v => v.dateISO).sort()[0];
+  const palier = montant > 0 && premier && ecart(e.palier && e.palier > premier ? e.palier : premier, auj) >= 90;
+  return { montant, aVerser, restePrec: restePrec >= 10 ? restePrec : 0, avant: avant?.debut, palier, nouveau: montant + 10 };
+}
 const depenses7j = memo(() => Math.round(DB.get("fin-expenses").filter(e => dansLes(e.dateISO, 7)).reduce((a, e) => a + (+e.montant || 0), 0)));
 function cocherFixe(f, p) {
   const dep = DB.get("fin-expenses"), ex = dep.find(e => e.fixId === f.id && dansPeriode(e, p));
