@@ -92,9 +92,15 @@ const familleSortie = s => {
 const COURT_SORTIE = { course: "Course", marche: "Marche", velo: "Vélo", nage: "Nage", muscu: "Muscu", autre: "Polar" };
 
 /* Échantillons : « 0,100,102,… » enregistrés toutes les r secondes */
+// Polar n'écrit pas toujours ses champs comme dans sa documentation : « sample-type », « sample_type » ou « sampleType »
+const champPolar = (o, nom) => { if (!o) return undefined; const v = [nom, nom.replace(/-/g, "_"), nom.replace(/-(\w)/g, (m, c) => c.toUpperCase())]; for (const k of v) if (o[k] !== undefined) return o[k]; return undefined; };
 const lireEchantillons = l => {
   const o = {};
-  (l || []).forEach(x => { o[+x["sample-type"]] = { r: +x["recording-rate"] || 1, v: String(x.data || "").split(",").map(y => y === "" || y === "NULL" ? null : +y) }; });
+  (l || []).forEach(x => {
+    const type = +champPolar(x, "sample-type"), d = x.data;
+    if (!isFinite(type)) return;
+    o[type] = { r: +champPolar(x, "recording-rate") || 1, v: (Array.isArray(d) ? d : String(d ?? "").split(",")).map(y => y === "" || y === "NULL" || y == null ? null : +y) };
+  });
   return o;
 };
 // Moyennes par paquets : au plus `max` points, assez pour une courbe sur téléphone
@@ -138,7 +144,7 @@ function toursAuKm(dist, fc, pas = 1000) {
 }
 // Parcours allégé (Douglas-Peucker, environ 4 m de précision) : [[lat, lon], …]
 function alleger(route) {
-  const p = (route || []).filter(x => x.latitude != null && x.longitude != null && (x.latitude || x.longitude));
+  const p = (route || []).map(x => ({ latitude: x.latitude ?? x.lat, longitude: x.longitude ?? x.lon ?? x.lng })).filter(x => x.latitude != null && x.longitude != null && (x.latitude || x.longitude));
   if (p.length < 3) return p.map(x => [arrondi(x.latitude, 5), arrondi(x.longitude, 5)]);
   const c = Math.cos(p[0].latitude * Math.PI / 180), X = x => x.longitude * 111320 * c, Y = x => x.latitude * 110540;
   const garde = new Uint8Array(p.length); garde[0] = garde[p.length - 1] = 1;
@@ -161,7 +167,8 @@ function sortieDepuisPolar(d) {
     fcMoy: d.heart_rate?.average ?? null, fcMax: d.heart_rate?.maximum ?? null, charge: d.training_load != null ? Math.round(d.training_load) : null,
     appareil: d.device || null, deniv: alt ? denivele(alt.v) : null, trace: alleger(d.route),
     fc: fc ? reduire(fc) : null, vit: vit ? reduire(vit) : null, alt: alt ? reduire(alt) : null, tours: dist ? toursAuKm(dist, fc, /SWIM/.test((d.sport || "") + (d.detailed_sport_info || "")) ? 100 : 1000) : [],
-    zones: (d.heart_rate_zones || []).map(z => ({ i: z.index, bas: z["lower-limit"], haut: z["upper-limit"], s: Math.round(dureeIso(z["in-zone"])) })),
+    zones: (champPolar(d, "heart-rate-zones") || []).map(z => ({ i: +champPolar(z, "index"), bas: champPolar(z, "lower-limit"), haut: champPolar(z, "upper-limit"), s: Math.round(dureeIso(champPolar(z, "in-zone"))) })),
+    cad: e[2] ? reduire(e[2]) : null, v: 2,
     importe: aujourdhui(),
   };
 }
@@ -176,6 +183,14 @@ async function importerSortiesPolar1() {
     if (!x?.id || deja.has(x.id)) continue;
     const d = await polarLire("/v3/exercises/" + x.id, "GET", { samples: true, zones: true, route: true });
     if (d) neuves.push(sortieDepuisPolar({ ...x, ...d }));
+  }
+  // Séances lues avec l'ancien lecteur (échantillons et zones manqués) : relues une fois, tant que Polar les garde
+  const anciennes = DB.get("polar-seances").filter(s => !s.supprime && (s.v || 1) < 2 && ecart(s.dateISO, aujourdhui()) <= 29);
+  for (const a of anciennes) {
+    let d = null;
+    try { d = await polarLire("/v3/exercises/" + a.id, "GET", { samples: true, zones: true, route: true }); } catch (e) { d = null; }
+    const n = d ? { ...sortieDepuisPolar(d), fit: a.fit, bassin: a.bassin, longueurs: a.longueurs, importe: a.importe } : { v: 2 };
+    await DB.set("polar-seances", DB.get("polar-seances").map(x => x.id === a.id ? { ...x, ...n } : x));
   }
   // Natation : le détail des longueurs vient du fichier complet de la séance
   for (const s of neuves) if (familleSortie(s) === "nage") {
@@ -384,8 +399,11 @@ async function diagnosticSortie(id) {
     if (!d) return "Polar ne renvoie plus cette séance (plus de 30 jours ?).";
     l.push("Sport : " + d.sport + " / " + (d.detailed_sport_info || "—") + " · " + (d.device || "?"));
     l.push("Champs reçus : " + Object.keys(d).sort().join(", "));
-    l.push("Échantillons : " + ((d.samples || []).length ? d.samples.map(x => (NOMS_ECH[+x["sample-type"]] || "type " + x["sample-type"]) + " ×" + String(x.data || "").split(",").length + " (toutes les " + x["recording-rate"] + " s)").join(", ") : "aucun"));
-    l.push("Zones de FC : " + ((d.heart_rate_zones || []).length || "aucune") + " · Parcours : " + ((d.route || []).length || 0) + " points");
+    const ech = d.samples || [];
+    l.push("Échantillons : " + (ech.length ? ech.map(x => { const t = champPolar(x, "sample-type"), dt = x.data; return (NOMS_ECH[+t] || "type " + t) + " ×" + (Array.isArray(dt) ? dt.length : String(dt ?? "").split(",").length) + " (toutes les " + champPolar(x, "recording-rate") + " s)"; }).join(", ") : "aucun"));
+    if (ech[0]) l.push("Clés d'un échantillon : " + Object.keys(ech[0]).join(", "));
+    const zs = champPolar(d, "heart-rate-zones") || [];
+    l.push("Zones de FC : " + (zs.length || "aucune") + (zs[0] ? " (clés : " + Object.keys(zs[0]).join(", ") + ")" : "") + " · Parcours : " + ((d.route || []).length || 0) + " points");
   } catch (e) { l.push("Résumé : erreur " + e.message); }
   try {
     const b = await polarFit(id);

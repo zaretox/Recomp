@@ -156,6 +156,7 @@ function BlocMontre({ s }) {
       s.fcMoy && h(Tuile, { v: s.fcMoy, l: "FC moyenne" }),
       s.fcMax && h(Tuile, { v: s.fcMax, l: "FC max" }),
       s.deniv > 0 && f !== "nage" && h(Tuile, { v: s.deniv + " m", l: "dénivelé +" }),
+      f === "nage" && moyenneSerie(s.cad) > 0 && h(Tuile, { v: Math.round(moyenneSerie(s.cad)), l: "coups de bras par minute" }),
       s.kcal && h(Tuile, { v: entier(s.kcal), l: "kcal (montre)" }),
       s.charge != null && h(Tuile, { v: s.charge, l: "charge Polar" })),
     s.fc && h(Section, { titre: "Fréquence cardiaque" }, h(CourbeTemps, { serie: s.fc, ton: "sport", unite: "bpm" })),
@@ -166,6 +167,9 @@ function BlocMontre({ s }) {
     s.tours?.length > 1 && h(Section, { titre: f === "nage" ? "Temps aux 100 m" : "Tours au km" }, h(ToursKm, { tours: s.tours, famille: f })),
     f === "nage" && h(DetailNage, { s }));
 }
+
+// Moyenne d'une courbe { pas, v } en ignorant les arrêts (zéros)
+const moyenneSerie = c => { const v = (c?.v || []).filter(x => x > 0); return v.length ? v.reduce((a, x) => a + x, 0) / v.length : 0; };
 
 /* Diagnostic : relit chez Polar ce qui a été envoyé, en texte à copier pour me l'envoyer */
 function Diagnostic({ id }) {
