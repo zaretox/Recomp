@@ -38,8 +38,8 @@ function messagesCoach() {
   }
   if (!pesees().some(p => dansLes(p.dateISO, 3))) msgs.push({ id: "pesee", t: "Pense à te peser au réveil : c'est ce qui me permet d'ajuster ton plan.", acts: [{ l: "Je me pèse", run: () => Nav.sheet("pesee") }] });
 
-  const b = bilanMois(moisDe(auj));
-  if (b.depasse.length) msgs.push({ id: "enveloppe", t: "Enveloppe dépassée ce mois-ci : " + b.depasse.join(", ") + ".", acts: [{ l: "Voir", run: () => Nav.tab("argent") }] });
+  const b = bilanCourant();
+  if (b.depasse.length) msgs.push({ id: "enveloppe", t: "Enveloppe dépassée " + (b.civil ? "ce mois-ci" : "depuis ta paye") + " : " + b.depasse.join(", ") + ".", acts: [{ l: "Voir", run: () => Nav.tab("argent") }] });
 
   const som = sommeil();
   if (heure >= 19) msgs.push({ id: "coucher", t: "Pour tenir 8 h, couche-toi vers " + hhmm(som.coucher) + "." + (som.dette >= 2 ? " Tu as " + dureeHM(som.dette) + " de dette sur 7 nuits." : "") });

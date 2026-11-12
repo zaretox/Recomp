@@ -251,7 +251,7 @@ function FeuilleBilan() {
     { ton: "sport", e: "Tes séances", g: b.seances + "/" + b.prevues, p: nb(b.volume / 1000) + " tonnes soulevées" + (b.volumePrec ? " (" + signe((b.volume - b.volumePrec) / b.volumePrec * 100, 0) + " %)" : "") + (b.records.length ? ", " + pluriel(b.records.length, "record") + " : " + b.records.slice(0, 2).map(r => r.nom + " " + nb(r.kg) + " kg").join(", ") : "") + "." },
     { ton: "repas", e: "Tes repas", g: b.suivi != null ? b.suivi + " %" : "—", p: (b.kcal ? entier(b.kcal) + " kcal par jour en moyenne. " : "") + (b.suivi >= 80 ? "Belle régularité." : b.suivi != null ? "Vise 80 % : c'est là que tout se joue." : "Coche tes repas pour que je suive.") },
     { ton: "papier", e: "Ta forme", g: b.forme != null ? b.forme : "—", u: "/100", p: (b.formePrec != null && b.forme != null ? signe(b.forme - b.formePrec, 0) + " par rapport à la semaine d'avant. " : "") + (b.sommeil ? "Sommeil moyen : " + dureeHM(b.sommeil) + "." : "") },
-    { ton: "argent", e: "Ton argent", g: entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + euros(Math.max(0, bilanMois(moisDe(aujourdhui())).reste)) + " ce mois-ci." },
+    { ton: "argent", e: "Ton argent", g: entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + euros(Math.max(0, bilanCourant().reste)) + (bilanCourant().civil ? " ce mois-ci." : " jusqu'à ta paye.") },
     { ton: "noir", e: "Ma décision", g: decision.g, u: decision.u, p: decision.t, fin: true },
   ];
   const e = ecrans[i];

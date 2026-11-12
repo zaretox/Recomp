@@ -65,7 +65,7 @@
 | Bilan de la semaine | Whoop, MacroFactor | Six écrans à toucher, et une seule décision à la fin. |
 | Ce qui joue sur votre forme | Whoop Journal | Cases Alcool, Stress, Repas tardif… L'app compare ensuite vos matins : par exemple +13 points après une bonne nuit. |
 | Dette de sommeil et coucher conseillé | Oura, Whoop | Le soir, le coach donne l'heure de coucher pour tenir 8 h. |
-| Reste à vivre | YNAB | Un seul chiffre : ce que vous pouvez dépenser, par jour, jusqu'à la fin du mois. |
+| Reste à vivre | YNAB | Un seul chiffre : ce que vous pouvez dépenser, par jour, jusqu'à la prochaine paye. Le budget court d'une paye à la suivante (revenu marqué « C'est ma paye », ou plus gros revenu du mois pour l'historique) ; sans paye connue, du 1er au 31. |
 | Charges fixes à cocher | YNAB | Loyer, salle, abonnements : saisis une fois, cochés chaque mois. |
 | Courses calculées | Propre à RECOMP | Les quantités viennent de vos vrais menus. On coche en magasin, on note le ticket, il part dans Argent. |
 | Fiche d'exercice | Hevy, Strong | Courbe du max, records, dernières séances, tableau des %. |

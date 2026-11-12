@@ -42,7 +42,7 @@ Les scripts sont chargés dans l'ordre par `index.html` et partagent la même po
 - `entrainement.js` : `progression()` décide de la prochaine charge, `proposition()` ajoute les réglages et la semaine légère. Natation à la fin du fichier.
 - `nutrition.js` : `objectifs()` (poids → masse maigre → cible → macros), `menuDuJour()`, `jourNutrition()`, `tendancePoids()`, `depenseReelle()`.
 - `recuperation.js` : `recuperation(iso)` calcule le score, `sommeil()` la dette, `influences()` ce qui joue sur la forme.
-- `argent.js` : `bilanMois()` (reste à vivre), `listeCourses()`.
+- `argent.js` : `periodes()` (d'une paye à la suivante), `bilanPeriode()` et `bilanCourant()` (reste à vivre), `listeCourses()`.
 - `coach.js` : `messagesCoach()`, `repondre()`, `bilanSemaine()`, `regularite()`.
 
 ## Comment ça marche
@@ -62,7 +62,7 @@ Inchangées : `sport-logs`, `maison-logs`, `nutri-logs`, `food-log`, `foods-cust
 
 Nouvelles clés : `fin-fixes` (charges fixes), `courses-etat` (liste de courses en cours) `polar-lien` (jeton de la montre Polar : `{ jeton, utilisateur, depuis, expire, notifs }`, jamais mis dans la sauvegarde) et `polar-seances` (séances importées de la montre : résumé, parcours allégé `trace`, courbes `fc`/`vit`/`alt` en `{ pas, v }`, `tours` au km ou aux 100 m en natation (`{ n, d, s, fc }`), `zones` de FC ; en natation, `fit` (fichier détaillé lu ou non), `bassin` (m) et `longueurs` : `[début (s), durée (s), coups de bras, nage, active]` ; une séance retirée devient `{ id, supprime: true }` pour ne pas revenir).
 
-Champs ajoutés, que l'ancienne version ignore : `startedAt`, `endedAt`, `swaps`, `finisher`, `ajouts` (exercices ajoutés en cours de séance), `retires` (exercices retirés pour la séance) dans `sport-logs`, et `aide` (contrepoids) et `pc` (poids du corps) dans les séries des exercices assistés, dont `w` est alors la charge soulevée ; `tags` dans `recup-logs` ; `mealScale` dans `nutri-logs` ; `fixId` dans `fin-expenses` ; `polarId` dans `natation-logs` (nage ajoutée depuis la montre) ; `depense` dans `nutri-cal-cfg` ; `objectifKg` et `theme` dans `profil`.
+Champs ajoutés, que l'ancienne version ignore : `startedAt`, `endedAt`, `swaps`, `finisher`, `ajouts` (exercices ajoutés en cours de séance), `retires` (exercices retirés pour la séance) dans `sport-logs`, et `aide` (contrepoids) et `pc` (poids du corps) dans les séries des exercices assistés, dont `w` est alors la charge soulevée ; `tags` dans `recup-logs` ; `mealScale` dans `nutri-logs` ; `fixId` dans `fin-expenses` ; `paye` dans `fin-income` (ce revenu ouvre une période de budget) ; `polarId` dans `natation-logs` (nage ajoutée depuis la montre) ; `depense` dans `nutri-cal-cfg` ; `objectifKg` et `theme` dans `profil`.
 
 La sauvegarde garde le même format de fichier : une sauvegarde de l'ancienne version se restaure ici, et inversement.
 

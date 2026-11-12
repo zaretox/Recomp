@@ -35,7 +35,7 @@ const Affiche = ({ ton, etiquette, grand, unite, texte, onClick, action }) => h(
 
 function Affiches() {
   const auj = aujourdhui(), r = recuperation(auj), n = jourNutrition(auj), prog = programmeEnCours(), sess = seanceDuJour(auj, prog);
-  const b = bilanMois(moisDe(auj)), faite = seanceFaite(auj);
+  const b = bilanCourant(), faite = seanceFaite(auj);
   const nage = nagePrevue(auj), nageFaite = DB.get("natation-logs").filter(l => l.dateISO === auj);
   const se = sess && sess.prog !== "maison" ? seanceParId(sess.code) : null;
   const series = se ? se.exercices.reduce((a, e) => a + (fourchette(e.detail)?.sets || 3), 0) : 0;
@@ -49,7 +49,7 @@ function Affiches() {
     forme,
     h(Affiche, { ton: "repas", etiquette: n.reste >= 0 ? "Reste à manger" : "Au-dessus de ta cible", grand: h(Compteur, { v: entier(Math.abs(n.reste)) }), unite: "kcal", texte: entier(n.mange.kcal) + " sur " + entier(n.menu.dayTgt) + " kcal · " + Math.round(n.mange.p) + " g de protéines sur " + n.menu.dayMacros.p, onClick: () => Nav.tab("repas"), action: "Mes repas" }),
     seance,
-    h(Affiche, { ton: "argent", etiquette: "Reste ce mois-ci", grand: h(Compteur, { v: entier(Math.max(0, b.reste)) }), unite: "€", texte: b.rev ? "Soit " + Math.round(b.parJour) + " € par jour jusqu'à la fin de " + nomMois(b.ym) : "Ajoute tes revenus pour voir ce qu'il reste.", onClick: () => Nav.tab("argent"), action: "Mes comptes" }));
+    h(Affiche, { ton: "argent", etiquette: b.civil ? "Reste ce mois-ci" : "Reste jusqu'à ta paye", grand: h(Compteur, { v: entier(Math.max(0, b.reste)) }), unite: "€", texte: !b.rev ? "Ajoute ta paye pour voir ce qu'il reste." : b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : "Soit " + Math.round(b.parJour) + " € par jour " + (b.civil ? "jusqu'à la fin de " + nomMois(moisDe(b.debut)) : "pendant " + pluriel(b.restants, "jour")), onClick: () => Nav.tab("argent"), action: "Mes comptes" }));
 }
 
 /* Le coach : ce qu'il a à dire, puis les imprévus en deux touches */
