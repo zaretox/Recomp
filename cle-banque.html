@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Clé Enable Banking</title>
+<style>
+  /* Aide à la mise en place : lit le fichier .pem sur le téléphone et prépare les deux valeurs à coller dans Netlify.
+     Rien n'est envoyé : cette page ne fait aucune requête. */
+  :root { --fond: #0E0E0C; --fond2: #191916; --encre: #F5F3EB; --mou: #B4B2A6; --argent: #8CA0FF; --rouge: #FF6257; --vert: #2FD27C; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--fond); color: var(--encre); font-family: system-ui, -apple-system, sans-serif; -webkit-text-size-adjust: 100%; }
+  main { max-width: 480px; margin: 0 auto; padding: calc(28px + env(safe-area-inset-top)) 16px 40px; display: grid; gap: 16px; }
+  h1 { margin: 0; font: 900 34px/1 Impact, "Arial Narrow Bold", sans-serif; text-transform: uppercase; }
+  h2 { margin: 8px 0 0; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--mou); }
+  p, li { margin: 0; line-height: 1.45; color: var(--mou); }
+  b { color: var(--encre); }
+  ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  label.bouton, button { display: block; width: 100%; font: inherit; font-weight: 800; font-size: 17px; text-align: center; border: 0; border-radius: 10px; padding: 15px 18px; background: var(--argent); color: var(--fond); cursor: pointer; }
+  button.contour { background: transparent; color: var(--encre); box-shadow: inset 0 0 0 2px #34342C; }
+  .valeur { padding: 14px; border-radius: 10px; background: var(--fond2); font: 600 14px/1.4 ui-monospace, Menlo, monospace; word-break: break-all; }
+  .erreur { color: var(--rouge); font-weight: 700; }
+  .ok { color: var(--vert); font-weight: 700; }
+  input[type=file] { display: none; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Ta clé Enable Banking</h1>
+  <p>Choisis le fichier <b>.pem</b> téléchargé quand tu as créé ton application chez Enable Banking (app Fichiers, dossier <b>Téléchargements</b>). Il est lu ici, sur ton téléphone : <b>rien n'est envoyé</b>.</p>
+  <label class="bouton" for="f">Choisir le fichier .pem</label>
+  <input type="file" id="f">
+  <div id="r"></div>
+</main>
+<script>
+(() => {
+  const r = document.getElementById("r");
+  const copier = async (texte, bouton) => {
+    try { await navigator.clipboard.writeText(texte); bouton.textContent = "Copié ✓"; }
+    catch (e) {
+      const t = document.createElement("textarea"); t.value = texte; document.body.appendChild(t); t.select();
+      try { document.execCommand("copy"); bouton.textContent = "Copié ✓"; } catch (x) { bouton.textContent = "Copie impossible"; }
+      t.remove();
+    }
+    setTimeout(() => { bouton.textContent = bouton.dataset.texte; }, 2500);
+  };
+  const bloc = (titre, aide, valeur, apercu) => {
+    const s = document.createElement("section"); s.style.display = "grid"; s.style.gap = "10px";
+    s.innerHTML = "<h2></h2><p></p><div class='valeur'></div><button></button>";
+    s.children[0].textContent = titre; s.children[1].innerHTML = aide; s.children[2].textContent = apercu || valeur;
+    const b = s.children[3]; b.dataset.texte = b.textContent = "Copier " + titre; b.onclick = () => copier(valeur, b);
+    return s;
+  };
+  document.getElementById("f").onchange = async e => {
+    const f = e.target.files && e.target.files[0];
+    if (!f) return;
+    const texte = (await f.text()).trim();
+    r.innerHTML = "";
+    if (!/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(texte) || !/-----END [A-Z ]*PRIVATE KEY-----/.test(texte)) {
+      r.innerHTML = "<p class='erreur'>Ce fichier ne ressemble pas à une clé .pem. Choisis celui dont le nom ressemble à « a1b2c3d4-….pem », téléchargé quand tu as touché « Register » chez Enable Banking.</p>";
+      return;
+    }
+    const id = f.name.replace(/(\.pem)?(\.txt)?$/i, "").replace(/\s*\(\d+\)$/, "");
+    const cle = btoa(texte);
+    const ok = document.createElement("p"); ok.className = "ok"; ok.textContent = "Clé lue (" + texte.length + " caractères).";
+    r.appendChild(ok);
+    r.appendChild(bloc("EB_APP_ID", "C'est le nom du fichier. Dans Netlify, colle-le comme valeur de <b>EB_APP_ID</b>.", id));
+    r.appendChild(bloc("EB_PRIVATE_KEY", "Ta clé, mise sur une seule ligne pour que Netlify l'accepte. Dans Netlify, <b>remplace</b> la valeur de <b>EB_PRIVATE_KEY</b> par celle-ci (garde « Contains secret values » coché).", cle, cle.slice(0, 24) + "… (" + cle.length + " caractères)"));
+    const fin = document.createElement("section"); fin.style.display = "grid"; fin.style.gap = "8px";
+    fin.innerHTML = "<h2>Ensuite</h2><ol><li>Dans Netlify : <b>Deploys → Trigger deploy → Deploy site</b>.</li><li>Attends une minute, puis dans RECOMP : <b>Réglages → Banque → Relier ma banque</b>.</li><li>Tu peux ensuite effacer le texte copié : colle n'importe quoi d'autre par-dessus.</li></ol>";
+    r.appendChild(fin);
+  };
+})();
+</script>
+</body>
+</html>

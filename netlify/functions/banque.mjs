@@ -8,13 +8,24 @@ const API = "https://api.enablebanking.com";
 const reponse = (o, statut = 200) => new Response(JSON.stringify(o), { status: statut, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
 const UUID = "[0-9a-fA-F-]{36}";
 
-// La clé peut être collée telle quelle, avec des « \n » à la place des retours à la ligne, ou encodée en base64
+// La clé peut être collée telle quelle, sur une seule ligne (retours à la ligne perdus), avec des « \n », encodée en base64,
+// ou sans ses lignes BEGIN/END : on la remet en forme avant de la lire
+const enLignes = (type, corps) => "-----BEGIN " + type + "-----\n" + corps.match(/.{1,64}/g).join("\n") + "\n-----END " + type + "-----\n";
 export function lireCle(brut) {
-  let k = String(brut || "").trim();
-  if (k.includes("\\n")) k = k.replace(/\\n/g, "\n");
-  if (!k.includes("-----BEGIN")) { try { k = Buffer.from(k, "base64").toString("utf8"); } catch (e) { /* laissé tel quel */ } }
+  let k = String(brut || "").trim().replace(/^["']|["']$/g, "").replace(/\\n/g, "\n");
+  if (!k.includes("-----BEGIN")) {
+    try { const d = Buffer.from(k.replace(/\s+/g, ""), "base64").toString("utf8"); if (d.includes("-----BEGIN")) k = d; } catch (e) { /* laissé tel quel */ }
+  }
+  const m = k.match(/-----BEGIN ([A-Z ]+)-----([\s\S]*?)-----END \1-----/);
+  if (m) return crypto.createPrivateKey(enLignes(m[1], m[2].replace(/[^A-Za-z0-9+/=]/g, "")));
+  const corps = k.replace(/\s+/g, "");
+  if (/^[A-Za-z0-9+/=]{500,}$/.test(corps)) {
+    for (const type of ["PRIVATE KEY", "RSA PRIVATE KEY"]) { try { return crypto.createPrivateKey(enLignes(type, corps)); } catch (e) { /* type suivant */ } }
+  }
   return crypto.createPrivateKey(k);
 }
+// Ce qu'on peut dire d'une clé illisible sans jamais la montrer
+const decrireCle = brut => { const k = String(brut || ""); return k.length + " caractères, " + (k.includes("BEGIN") ? "avec" : "sans") + " la ligne BEGIN, " + (k.includes("END") ? "avec" : "sans") + " la ligne END"; };
 // Jeton signé (RS256) demandé par Enable Banking à chaque requête, valable une heure
 export function jetonEB(appId, cle) {
   const b64 = o => Buffer.from(JSON.stringify(o)).toString("base64url"), iat = Math.floor(Date.now() / 1000);
@@ -27,7 +38,7 @@ export default async (req) => {
   const appId = process.env.EB_APP_ID, brut = process.env.EB_PRIVATE_KEY;
   if (!appId || !brut) return reponse({ erreur: "config", message: "Les clés Enable Banking ne sont pas encore dans les variables d'environnement Netlify." }, 500);
   let cle;
-  try { cle = lireCle(brut); } catch (e) { return reponse({ erreur: "config", message: "La clé privée Enable Banking est illisible : recopie tout le fichier .pem dans EB_PRIVATE_KEY." }, 500); }
+  try { cle = lireCle(brut); } catch (e) { return reponse({ erreur: "config", message: "La clé EB_PRIVATE_KEY est illisible (" + decrireCle(brut) + "). Utilise la page recompaurel1.netlify.app/cle-banque.html pour la copier depuis ton fichier .pem." }, 500); }
   const eb = (chemin, o = {}) => fetch(API + chemin, { ...o, headers: { Authorization: "Bearer " + jetonEB(appId, cle), Accept: "application/json", ...(o.body ? { "Content-Type": "application/json" } : {}) } });
   const relais = async r => new Response(await r.text() || "null", { status: r.status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
