@@ -12,6 +12,17 @@ function EcranArgent() {
   const parMois = p.civil
     ? Array.from({ length: 6 }, (_, i) => { let m = moisDe(p.debut); for (let j = 0; j < 5 - i; j++) m = moisPrec(m); return { l: MOIS[+m.slice(5) - 1].slice(0, 3), v: Math.round(sommeMois(DB.get("fin-expenses"), m)) }; })
     : liste.slice(Math.max(0, k - 5), k + 1).map(x => ({ l: MOIS[+x.debut.slice(5, 7) - 1].slice(0, 3), v: Math.round(sommePeriode(DB.get("fin-expenses"), x)) }));
+  // Banque reliée : mise à jour toute seule à l'ouverture (au plus toutes les 4 heures)
+  const lien = lienBanque(), [sync, setSync] = useState(false);
+  const actualiser = async silencieux => {
+    if (sync) return;
+    setSync(true);
+    try { const r = await importerBanque(); if (r.nouvelles || !silencieux) toast(r.nouvelles ? pluriel(r.nouvelles, "opération") + " récupérée" + (r.nouvelles > 1 ? "s" : "") + " de ta banque" : "Rien de nouveau à la banque"); }
+    catch (e) { if (!silencieux) toast("Banque : " + e.message, { danger: true }); }
+    finally { setSync(false); }
+  };
+  useEffect(() => { if (importBanqueDu()) actualiser(true); }, []);
+  const aClasser = cour ? ops.filter(o => o._t === "dep" && o.banque && o.cat === "Autre").length : 0;
   const prochaine = b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : p.civil ? "" : "Prochaine paye vers le " + dateJour(decale(b.fin, 1)) + ".";
   return h("div.page", { "data-t": "argent" },
     h("header.hero", { "data-ton": "argent" },
@@ -23,11 +34,16 @@ function EcranArgent() {
         h("span", h("b", euros(b.rev)), b.estimeRev && b.rev ? "revenus estimés" : "revenus"),
         h("span", h("b", euros(b.depenses)), "dépensés"),
         h("span", h("b", euros(b.aVenir)), "à venir"),
-        b.objectif > 0 && h("span", h("b", euros(b.objectif)), "à épargner"))),
+        b.objectif > 0 && h("span", h("b", euros(b.objectif)), "à épargner"),
+        cour && lien?.solde && h("span", h("b", euros(lien.solde.montant)), "sur ton compte"))),
     h("div.corps-p",
       h("div.deux-b",
         h(Bouton, { cl: "plein", ico: "moins", onClick: () => Nav.sheet("operation") }, "Dépense"),
         h(Bouton, { cl: "contour", ico: "plus", onClick: () => Nav.sheet("operation", { revenu: true }) }, "Revenu")),
+      cour && lien?.session && h("div.synchro",
+        h("span", (lien.banque || "Banque") + (sync ? " : mise à jour…" : lien.derniere ? " : à jour " + (lien.derniere === aujourdhui() ? "aujourd'hui" : "le " + dateMini(lien.derniere)) : "")),
+        aClasser > 0 && h("em", pluriel(aClasser, "opération") + " à classer"),
+        h("button.mini", { disabled: sync, onClick: () => actualiser(false) }, "Actualiser")),
       cour && h(CarteEpargne),
       h(Section, { titre: "Où va ton argent", droite: h("span.compte", "touche pour fixer un plafond") },
         cats.length ? h("div.enveloppes", cats.map(c => {
@@ -53,7 +69,7 @@ function EcranArgent() {
         ops.length > 5 && h(Section, { titre: "Toutes les opérations" }, ops.slice(5, 60).map(o => h(LigneOp, { key: o._t + o.id, o }))))));
 }
 const LigneOp = ({ o }) => h("button.ligne", { onClick: () => Nav.sheet("operation", { edite: o }) },
-  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + o.cat.toLowerCase() : ""))),
+  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + (o.banque && o.cat === "Autre" ? "à classer" : o.cat.toLowerCase()) : ""))),
   h("b", { className: o._t === "rev" ? "plus" : "" }, (o._t === "rev" ? "+" : "−") + euros(o.montant, o.montant % 1 ? 2 : 0)));
 
 /* ÉPARGNE — la carte de l'onglet Argent */
@@ -149,14 +165,20 @@ function FeuilleOperation({ revenu, edite }) {
     if (!m || m <= 0) return toast("Indique un montant");
     const inc = DB.get("fin-income"), dep = DB.get("fin-expenses"), id = edite?.id ?? Date.now();
     const i2 = inc.filter(x => !edite || x.id !== edite.id), d2 = dep.filter(x => !edite || x.id !== edite.id);
-    if (rev) { await DB.set("fin-income", [...i2, { id, dateISO: iso, montant: m, source: lib.trim() || (paye ? "Paye" : "Revenu"), paye }]); if (edite) await DB.set("fin-expenses", d2); }
-    else { await DB.set("fin-expenses", [...d2, { ...(edite?.fixId ? { fixId: edite.fixId } : {}), id, dateISO: iso, montant: m, cat, label: lib.trim() }]); if (edite) await DB.set("fin-income", i2); }
+    // Une opération venue de la banque garde sa référence (sinon elle reviendrait au prochain import)
+    const garde = edite?.banque ? { banque: edite.banque } : {};
+    if (rev) { await DB.set("fin-income", [...i2, { ...garde, id, dateISO: iso, montant: m, source: lib.trim() || (paye ? "Paye" : "Revenu"), paye }]); if (edite) await DB.set("fin-expenses", d2); }
+    else { await DB.set("fin-expenses", [...d2, { ...garde, ...(edite?.fixId ? { fixId: edite.fixId } : {}), id, dateISO: iso, montant: m, cat, label: lib.trim() }]); if (edite) await DB.set("fin-income", i2); }
     Nav.fermer();
     toast((rev ? "+" : "−") + nb(m, 2) + " € enregistrés");
+    // Catégorie changée sur une opération de la banque : on propose de s'en souvenir
+    if (edite?.banque && !rev && cat !== edite.cat && lib.trim() && await confirmer({ titre: "Toujours classer « " + lib.trim() + " » dans " + cat + " ?", message: "Les prochaines opérations de ce commerce seront classées toutes seules, et celles encore « à classer » aussi.", oui: "Oui, toujours" }))
+      await apprendreRegle(lib.trim(), cat);
   };
   const suppr = async () => {
     const cle = edite._t === "rev" ? "fin-income" : "fin-expenses";
     Nav.fermer();
+    if (edite.banque) await ignorerOperation(edite.banque);
     avecAnnuler(cle, DB.get(cle).filter(x => x.id !== edite.id), "Opération supprimée");
   };
   return h(Feuille, { titre: edite ? "Modifier" : rev ? "Revenu" : "Dépense", ton: "argent" },

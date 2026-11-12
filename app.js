@@ -18,7 +18,7 @@ const FEUILLES = {
   programmes: FeuilleProgrammes, import: FeuilleImport, editeur: FeuilleEditeur, bibliotheque: FeuilleBibliotheque, fiche: FeuilleFiche, technique: FeuilleTechnique,
   repas: FeuilleRepas, equivalents: FeuilleEquivalents, aliment: FeuilleAliment, calories: FeuilleCalories, courses: FeuilleCourses,
   operation: FeuilleOperation, fixes: FeuilleFixes, mensurations: FeuilleMensurations, photos: FeuillePhotos,
-  capture: FeuilleCapture, reglages: FeuilleReglages, sorties: FeuilleSorties, sortie: FeuilleSortie, nageProgres: FeuilleNageProgres, epargne: FeuilleEpargne,
+  capture: FeuilleCapture, reglages: FeuilleReglages, sorties: FeuilleSorties, sortie: FeuilleSortie, nageProgres: FeuilleNageProgres, epargne: FeuilleEpargne, banque: FeuilleBanque,
 };
 
 /* Pastille de repos, visible partout quand la séance est réduite */
@@ -78,6 +78,7 @@ function App() {
   await DB.init();
   if (window.RECOMP_DEMO) await window.RECOMP_DEMO();
   codePolarDansAdresse();
+  codeBanqueDansAdresse();
   const notif = new URLSearchParams(location.search).get("ouvrir");
   if (notif) history.replaceState(null, "", location.pathname);
   navigator.serviceWorker?.addEventListener("message", e => ouvrirDepuisNotif(e.data?.ouvrir));

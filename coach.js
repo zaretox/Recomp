@@ -27,6 +27,12 @@ function messagesCoach() {
       { l: "Pas maintenant", run: () => majEpargne(e => ({ ...e, palier: auj })) }],
   });
 
+  const accesB = accesBanqueExpire();
+  if (accesB != null && accesB <= 7 && pr.coachDismiss?.banque !== auj) msgs.push({
+    id: "banque", t: accesB < 0 ? "L'accès à ta banque a expiré : tes dépenses n'arrivent plus toutes seules. Il faut le renouveler (une minute dans l'appli de ta banque)." : "L'accès à ta banque expire " + (accesB === 0 ? "aujourd'hui" : "dans " + pluriel(accesB, "jour")) + ". Renouvelle-le en une minute pour que tes dépenses continuent d'arriver.",
+    acts: [{ l: "Renouveler", run: () => Nav.sheet("banque") }, { l: "Plus tard", run: () => plusTard("banque") }],
+  });
+
   if (r && r.score != null) msgs.push({ id: "forme", t: r.conseil, acts: [{ l: "Pourquoi ce score ?", run: () => Nav.sheet("forme") }] });
   else if (!DB.get("recup-logs").some(l => l.dateISO === auj) && heure < 16) msgs.push({ id: "matin", t: "Fais ta saisie du matin : j'adapte ta séance à ta forme.", acts: [{ l: "Saisir maintenant", run: () => Nav.sheet("matin") }] });
 

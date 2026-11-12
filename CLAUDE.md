@@ -6,7 +6,7 @@ Réponds en français. L'utilisateur n'est pas développeur : explique en mots s
 
 ## Règles absolues
 
-1. **Tout reste à la racine du dépôt**, sauf `vendor/` et `netlify/functions/` (exception validée par Aurélien : Netlify exige ce dossier pour ses fonctions ; il n'y a que `polar.mjs` dedans). Ne crée jamais de sous-dossier : l'envoi par la page web de GitHub les aplatit, et l'app a déjà été cassée ainsi.
+1. **Tout reste à la racine du dépôt**, sauf `vendor/` et `netlify/functions/` (exception validée par Aurélien : Netlify exige ce dossier pour ses fonctions ; il n'y a que `polar.mjs` et `banque.mjs` dedans). Ne crée jamais de sous-dossier : l'envoi par la page web de GitHub les aplatit, et l'app a déjà été cassée ainsi.
 2. **Jamais deux fichiers du même nom.** À plat, l'un écraserait l'autre. Les écrans dont le nom existe déjà côté données ou calculs sont préfixés `ecran-` (`ecran-repas.js`, `ecran-argent.js`, `ecran-programmes.js`).
 3. **Ne renomme et ne supprime jamais une clé de stockage**, et ne change jamais le format d'une donnée existante. On peut seulement ajouter des champs. La liste des clés est dans `LISEZMOI.md`. Les données réelles ne sont que sur le téléphone, sans copie ailleurs.
 4. **`index.html` et `FICHIERS` dans `sw.js` listent les mêmes scripts, dans le même ordre.** Tout fichier ajouté va dans les deux.

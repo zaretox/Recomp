@@ -34,8 +34,8 @@ function FeuilleCapture() {
 }
 
 /* Sauvegarde complète, photos comprises. Même format que les versions précédentes. */
-// Le jeton Polar reste sur ce téléphone : il ne part jamais dans une sauvegarde
-const HORS_SAUVEGARDE = ["last-export", "polar-lien"];
+// Les accès Polar et banque restent sur ce téléphone : ils ne partent jamais dans une sauvegarde
+const HORS_SAUVEGARDE = ["last-export", "polar-lien", "banque-lien"];
 const CLES_SAUVEGARDE = Object.keys(DEFAUTS).filter(k => !HORS_SAUVEGARDE.includes(k));
 async function exporter() {
   let cles = [];
@@ -94,6 +94,32 @@ function appliquerTheme(t) {
   else document.documentElement.dataset.theme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "papier" ? "#F0F1EC" : "#0E0E0C");
 }
+/* Banque : liaison en lecture seule, pour que tes opérations arrivent toutes seules dans Argent */
+function SectionBanque() {
+  const l = lienBanque(), reste = accesBanqueExpire();
+  if (!l?.session) return h(Section, { titre: "Banque" },
+    h("p.texte-p", "Relie ton compte pour que tes dépenses arrivent toutes seules dans Argent, déjà classées. Lecture seule : aucun paiement possible. Tes opérations ne sont gardées que sur ce téléphone."),
+    h("div.deux-b", h(Bouton, { cl: "plein", onClick: () => Nav.sheet("banque") }, "Relier ma banque"), h(Bouton, { cl: "contour", onClick: collerCodeBanque }, "J'ai un code")));
+  const c = (l.comptes || []).find(x => x.uid === l.compte);
+  return h(Section, { titre: "Banque" },
+    h("p.texte-p", h("b", (l.banque || "Banque") + " reliée"), c ? ", " + c.nom + (c.fin ? " ••" + c.fin : "") : "", ". ",
+      reste == null ? "" : reste < 0 ? h("b", "Accès expiré : relie-la à nouveau.") : "Accès valable jusqu'au " + dateJour(l.expire) + (reste <= 10 ? ", pense à le renouveler." : ".")),
+    (l.comptes || []).length > 1 && h(Puces, null, l.comptes.map(x => h(Puce, { key: x.uid, actif: x.uid === l.compte, onClick: () => DB.set("banque-lien", { ...l, compte: x.uid, derniere: null }) }, x.nom + (x.fin ? " ••" + x.fin : "")))),
+    h("div.deux-b",
+      h(Bouton, { cl: "contour", onClick: () => Nav.sheet("banque") }, reste != null && reste <= 10 ? "Renouveler l'accès" : "Relier à nouveau"),
+      h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier ta banque ?", message: "Les opérations déjà récupérées restent dans Argent.", oui: "Délier" })) delierBanque(); } }, "Délier")));
+}
+function FeuilleBanque() {
+  const [liste, setListe] = useState(null), [err, setErr] = useState(null), [part, setPart] = useState(false);
+  useEffect(() => { banquesDispo().then(setListe).catch(e => setErr(e.message)); }, []);
+  const aller = async b => { setPart(true); try { await relierBanque(b); } catch (e) { setPart(false); toast("Liaison impossible : " + e.message, { danger: true }); } };
+  return h(Feuille, { titre: "Relier ma banque", ton: "argent" },
+    h("p.texte-p", "Tu vas valider l'accès dans l'appli de ta banque (pour BNP : Mes Comptes). C'est un accès en ", h("b", "lecture seule"), ", valable 6 mois, que tu peux couper à tout moment."),
+    h("p.note", "Le service Enable Banking, agréé pour ça, fait le lien avec ta banque. Tes opérations passent par lui et par ta fonction Netlify, sans y être gardées : elles ne sont enregistrées que sur ce téléphone."),
+    err ? h(Vide, null, "Impossible de joindre le service : " + err) : !liste ? h(Vide, null, "Recherche de ta banque…")
+      : !liste.length ? h(Vide, null, "BNP Paribas n'est pas proposée pour l'instant.")
+      : h("div.choix-v", liste.map(b => h("button.choix-l", { key: b.nom, disabled: part, onClick: () => aller(b) }, h("span", h("b", b.nom), h("small", "Accès en lecture seule")), h(Icone, { n: "fleche", t: 18 })))));
+}
 /* Notifications « séance arrivée » et « nuit arrivée » */
 function InterNotifs() {
   const [charge, setCharge] = useState(false), actif = notifsActives();
@@ -136,6 +162,7 @@ function FeuilleReglages() {
       h(Puces, null, PHASES.map((p, i) => h(Puce, { key: i, actif: (+DB.get("sport-phase") || 0) === i, onClick: () => DB.set("sport-phase", i) }, p.ph + " · " + p.sem)))),
     h(Section, { titre: "Apparence" }, h(Puces, null, [["auto", "Comme le téléphone"], ["nuit", "Nuit"], ["papier", "Papier"]].map(([k, l]) => h(Puce, { key: k, actif: theme === k, onClick: () => { setProfil({ theme: k }); appliquerTheme(k); } }, l)))),
     h(SectionPolar),
+    h(SectionBanque),
     h(Section, { titre: "Rappels" },
       h(Rangee, { ico: "calendrier", titre: "Ajouter au calendrier", sous: "Réveil, repas et séances aux bonnes heures", onClick: async () => { const r = await partagerFichier("recomp-routine.ics", calendrierIcs(), "text/calendar"); if (r === "partage" || r === "telecharge") toast("Ouvre le fichier pour l'ajouter à ton calendrier"); } })),
     h(Section, { titre: "Tes données" },

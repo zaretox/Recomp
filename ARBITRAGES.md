@@ -66,6 +66,7 @@
 | Ce qui joue sur votre forme | Whoop Journal | Cases Alcool, Stress, Repas tardif… L'app compare ensuite vos matins : par exemple +13 points après une bonne nuit. |
 | Dette de sommeil et coucher conseillé | Oura, Whoop | Le soir, le coach donne l'heure de coucher pour tenir 8 h. |
 | Reste à vivre | YNAB | Un seul chiffre : ce que vous pouvez dépenser, par jour, jusqu'à la prochaine paye. Le budget court d'une paye à la suivante (revenu marqué « C'est ma paye », ou plus gros revenu du mois pour l'historique) ; sans paye connue, du 1er au 31. |
+| Banque reliée | Finary, Bankin' | Les opérations BNP arrivent toutes seules (au plus toutes les 4 h, ou « Actualiser »), classées par des règles toutes prêtes, les codes de commerce et tes propres règles. Paye, virement vers le livret et charges fixes reconnus. Lecture seule, via Enable Banking et ta fonction Netlify, sans stockage ailleurs que sur le téléphone : validé par Aurélien, avec la double authentification sur GitHub et Netlify. |
 | Épargne d'abord | Études sur l'épargne automatique (Madrian et Shea, Save More Tomorrow) | Un montant mis de côté à chaque paye par virement permanent, deux cagnottes (sécurité puis projet) qui se remplissent dans l'ordre, le coach qui vérifie à la paye, propose de mettre de côté le reste de la paye d'avant et d'augmenter de 10 € tous les 3 mois. L'app ne touche jamais au compte. |
 | Charges fixes à cocher | YNAB | Loyer, salle, abonnements : saisis une fois, cochés chaque mois. |
 | Courses calculées | Propre à RECOMP | Les quantités viennent de vos vrais menus. On coche en magasin, on note le ticket, il part dans Argent. |
@@ -85,7 +86,6 @@
 | Idée | Pourquoi |
 | --- | --- |
 | Scan de code-barres | Il faut une bibliothèque de lecture et des essais sur un vrai iPhone. Je préfère ne pas livrer ce que je ne peux pas tester. |
-| Lecture automatique de la banque | Il faudrait un serveur : vos données quitteraient le téléphone. |
 | Rappels à heure fixe (repas, coucher) | Il faudrait un serveur qui connaisse tes horaires. Le calendrier .ics reste la solution fiable. Seules les notifications « séance arrivée » et « nuit arrivée » de la montre Polar existent, validées par Aurélien. |
 | Réseau social, défis, niveaux | Vous ne vouliez ni niveaux ni démarrage en questions, et rien de tel n'a été ajouté. |
 

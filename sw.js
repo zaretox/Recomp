@@ -22,6 +22,7 @@ const FICHIERS = [
   "./argent.js",
   "./coach.js",
   "./polar.js",
+  "./banque.js",
   "./kit.js",
   "./pave.js",
   "./graphiques.js",
