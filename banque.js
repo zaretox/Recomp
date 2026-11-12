@@ -60,6 +60,7 @@ function libelleDe(t) {
   const nom = t.credit_debit_indicator === "DBIT" ? t.creditor?.name : t.debtor?.name;
   let l = String(nom || (t.remittance_information || []).join(" ") || t.bank_transaction_code?.description || "Opération").replace(/\s+/g, " ").trim();
   if (/^RETRAIT\s+(DAB|GAB)/i.test(l)) return "Retrait d'espèces";
+  if (/COTISATION|OFFRE GROUPEE|COMMISSIONS?\b|FRAIS (BANCAIRES|DE TENUE)|AGIOS/i.test(l)) return "Frais bancaires";
   l = l.replace(/^(FACTURE|PAIEMENT|ACHAT)\s+(PAR\s+)?CARTE(\s+X?\d{4})?\s*/i, "").replace(/^PRLV\s+(SEPA\s+)?/i, "")
     .replace(/^VIR(EMENT)?\s+(SEPA\s+)?(INST(ANTANE)?\s+)?(RECU|EMIS)?\s*(\/?DE:?\s*|\/?POUR:?\s*)?/i, "")
     .replace(/\bDU\s+\d{6}\b/g, "").replace(/\bCARTE\s+[X\d*]{4,}\b/gi, "").replace(/\b\d{2}\/\d{2}(\/\d{2,4})?\b/g, "")
@@ -70,6 +71,7 @@ function libelleDe(t) {
 }
 // Règles toutes prêtes ; tes propres règles passent avant
 const REGLES_DEFAUT = [
+  [/FRAIS BANCAIRES|COTISATION|OFFRE GROUPEE|AGIOS/, "Abonnements"],
   [/CARREFOUR|LECLERC|AUCHAN|LIDL|INTERMARCHE|MONOPRIX|FRANPRIX|ALDI|CASINO|SUPER U|HYPER U|PICARD|GRAND FRAIS|NETTO|BIOCOOP|LEADER PRICE|PROXI|SPAR/, "Courses"],
   [/MC ?DO|MCDONALD|BURGER KING|KFC|QUICK|UBER ? EATS|DELIVEROO|JUST EAT|RESTAU|BRASSERIE|PIZZ|SUSHI|KEBAB|TACOS|STARBUCKS|COLUMBUS|BAR |CAFE/, "Sorties"],
   [/TOTAL|ESSO|SHELL|\bBP\b|AVIA|SNCF|RATP|NAVIGO|UBER|BOLT|BLABLA|PEAGE|AUTOROUTE|VINCI|SANEF|APRR|PARKING|INDIGO|TCL|TISSEO/, "Transport"],
@@ -117,59 +119,144 @@ async function lireOperations(l, du) {
   }
   return toutes;
 }
-const ORDRE_SOLDES = ["CLBD", "ITBD", "XPCD", "ITAV", "CLAV", "OTHR"];
+// Le solde affiché : « à venir » (paiements en cours déduits), comme dans l'appli de ta banque
+const ORDRE_SOLDES = ["XPCD", "ITBD", "CLBD", "ITAV", "CLAV", "OTHR"];
+// Empreinte d'une opération : même jour, même sens, même montant, même commerce (sert à repérer une opération déjà là sous une autre référence)
+const empreinte = (dateISO, sens, montant, libelle) => dateISO + "|" + sens + "|" + (+montant).toFixed(2) + "|" + cleCommerce(libelle || "");
+const empreinteDe = (x, sens) => empreinte(x.dateISO, sens, x.montant, x.brut || x.label || x.source);
+const periodeDe = iso => periodes().find(p => iso >= p.debut && iso <= p.fin) || null;
 let importBanqueEnCours = null;
 const importerBanque = () => importBanqueEnCours || (importBanqueEnCours = importerBanque1().finally(() => { importBanqueEnCours = null; }));
 async function importerBanque1() {
   const l = lienBanque();
   if (!l?.session || !l.compte) throw new Error("banque non reliée");
-  const auj = aujourdhui(), du = l.derniere ? decale(l.derniere, -7) : decale(auj, -62);
+  const auj = aujourdhui(), du = l.derniere ? decale(l.derniere, -10) : decale(auj, -62);
   const [ops, soldes] = await Promise.all([lireOperations(l, du), appelBanque("lire", { q: { session: l.session, compte: l.compte, quoi: "soldes" } }).catch(() => null)]);
-  const rang = x => { const i = ORDRE_SOLDES.indexOf(x.balance_type); return i < 0 ? 99 : i; };
-  const b = [...(soldes?.balances || [])].sort((x, y) => rang(x) - rang(y))[0];
-  const solde = b ? { montant: +b.balance_amount?.amount || 0, date: auj } : l.solde;
 
-  // Copies : rien n'est modifié tant que tout n'est pas prêt
-  const dep = DB.get("fin-expenses").map(x => ({ ...x })), inc = DB.get("fin-income").map(x => ({ ...x }));
+  // Copies : rien n'est modifié tant que tout n'est pas prêt. Les opérations « en cours » relues sont retirées : la banque les renvoie si elles le sont encore.
+  const garder = x => !(x.attente && x.dateISO >= du);
+  const dejaEnCours = new Set([...DB.get("fin-expenses"), ...DB.get("fin-income")].filter(x => !garder(x)).map(x => x.banque));
+  const dep = DB.get("fin-expenses").filter(garder).map(x => ({ ...x })), inc = DB.get("fin-income").filter(garder).map(x => ({ ...x }));
   const ep0 = etatEpargne(), ep = { ...ep0, versements: ep0.versements.map(x => ({ ...x })) };
   let epChange = false;
   const { ignores } = reglesBanque(), fixes = DB.get("fin-fixes"), p = periodeCourante();
   const connues = new Set([...dep, ...inc, ...ep.versements].map(x => x.banque).filter(Boolean).concat(ignores));
   const proche = (a, c, j = 3) => Math.abs(ecart(a, c)) <= j;
-  let n = 0, id = Date.now();
-  for (const t of ops) {
-    if (t.status && t.status !== "BOOK") continue; // en attente : on la prendra une fois comptabilisée
+  // Empreintes déjà présentes (opérations de la banque), pour ne pas doubler après une nouvelle liaison
+  const deja = {};
+  [...dep.filter(x => x.banque).map(x => empreinteDe(x, "D")), ...inc.filter(x => x.banque).map(x => empreinteDe(x, "C"))].forEach(k => { deja[k] = (deja[k] || 0) + 1; });
+  const prep = ops.map(t => {
     const montant = Math.abs(+t.transaction_amount?.amount || 0), dateISO = (t.transaction_date || t.booking_date || t.value_date || auj).slice(0, 10);
-    if (!montant) continue;
-    const libelle = libelleDe(t), L = majuscSansAccent(libelle + " " + (t.remittance_information || []).join(" "));
-    const ref = t.entry_reference || t.transaction_id || [dateISO, t.credit_debit_indicator, montant, L.slice(0, 30)].join("|");
-    if (connues.has(ref)) continue;
-    connues.add(ref); n++;
-    if (t.credit_debit_indicator === "CRDT") {
+    const libelle = libelleDe(t), L = majuscSansAccent(libelle + " " + (t.remittance_information || []).join(" ")), sens = t.credit_debit_indicator === "CRDT" ? "C" : "D";
+    const ref = t.entry_reference || t.transaction_id || [dateISO, sens, montant, L.slice(0, 30)].join("|");
+    return { t, montant, dateISO, libelle, L, sens, ref, k: empreinte(dateISO, sens, montant, libelle), attente: !!t.status && t.status !== "BOOK" };
+  }).filter(o => o.montant);
+  prep.forEach(o => { if (connues.has(o.ref)) { o.connue = true; if (deja[o.k]) deja[o.k]--; } });
+  let n = 0, enCours = { n: 0, debits: 0, credits: 0 }, id = Date.now();
+  for (const o of prep) {
+    if (o.attente) { enCours.n++; o.sens === "D" ? enCours.debits += o.montant : enCours.credits += o.montant; }
+    if (o.connue) continue;
+    if (deja[o.k] > 0) { deja[o.k]--; continue; } // même opération, déjà là sous une autre référence
+    const { t, montant, dateISO, libelle, L, ref } = o, en = o.attente ? { attente: true } : {};
+    connues.add(ref); if (!dejaEnCours.has(ref)) n++;
+    if (o.sens === "C") {
       const main = inc.find(x => !x.banque && Math.abs(x.montant - montant) < .01 && proche(x.dateISO, dateISO));
-      if (main) main.banque = ref;
-      else inc.push({ id: id++, dateISO, montant, source: libelle, banque: ref, ...(RE_PAYE.test(L) ? { paye: true } : {}) });
+      if (main) Object.assign(main, { banque: ref, brut: libelle, ...en });
+      else inc.push({ id: id++, dateISO, montant, source: libelle, brut: libelle, banque: ref, ...en, ...(RE_PAYE.test(L) ? { paye: true } : {}) });
       continue;
     }
-    // Virement vers ton livret : c'est de l'épargne, pas une dépense
+    // Virement vers ton livret : c'est de l'épargne, pas une dépense (une fois passé)
     if (RE_EPARGNE.test(L) && /VIR|VERSEMENT/.test(L)) {
-      const deja = ep.versements.find(v => !v.banque && Math.abs(v.montant - montant) < .01 && proche(v.dateISO, dateISO, 10));
-      if (deja) deja.banque = ref;
-      else ep.versements.push({ id: id++, dateISO, montant, source: dateISO >= p.debut && !ep.versements.some(v => v.source === "paye" && v.dateISO >= p.debut) ? "paye" : "main", banque: ref });
+      if (o.attente) continue;
+      const v = ep.versements.find(x => !x.banque && Math.abs(x.montant - montant) < .01 && proche(x.dateISO, dateISO, 10));
+      if (v) v.banque = ref;
+      else ep.versements.push({ id: id++, dateISO, montant, source: dateISO >= p.debut && !ep.versements.some(x => x.source === "paye" && x.dateISO >= p.debut) ? "paye" : "main", banque: ref });
       epChange = true;
       continue;
     }
-    const main = dep.find(x => !x.banque && Math.abs(x.montant - montant) < .01 && proche(x.dateISO, dateISO));
-    if (main) { main.banque = ref; continue; }
-    // Charge fixe reconnue (même montant à 3 % près, ou son nom dans le libellé) : cochée toute seule
+    const main = dep.find(x => !x.banque && !x.fixId && Math.abs(x.montant - montant) < .01 && proche(x.dateISO, dateISO));
+    if (main) { Object.assign(main, { banque: ref, brut: libelle, ...en }); continue; }
+    // Charge fixe reconnue (même montant à 3 % près, ou son nom dans le libellé), si la banque ne l'a pas déjà prélevée ces 20 jours
     const f = fixes.find(x => (Math.abs(x.montant - montant) <= Math.max(1, x.montant * .03) || L.includes(majuscSansAccent(x.label))) && Math.abs(x.montant - montant) <= x.montant * .2
-      && !dep.some(e => e.fixId === x.id && proche(e.dateISO, dateISO, 20)));
-    dep.push({ id: id++, dateISO, montant, cat: f?.cat || categorieDe(libelle, t.merchant_category_code), label: f ? f.label : libelle, banque: ref, ...(f ? { fixId: f.id } : {}) });
+      && !dep.some(e => e.banque && e.fixId === x.id && proche(e.dateISO, dateISO, 20)));
+    dep.push({ id: id++, dateISO, montant, cat: f?.cat || categorieDe(libelle, t.merchant_category_code), label: f ? f.label : libelle, brut: libelle, banque: ref, ...en, ...(f ? { fixId: f.id } : {}) });
   }
-  if (n) { await DB.set("fin-expenses", dep); await DB.set("fin-income", inc); if (epChange) await DB.set("epargne", ep); }
-  await DB.set("banque-lien", { ...lienBanque(), derniere: auj, solde });
+  const fusion = fusionnerManuels(dep, inc);
+  // Solde « à venir » : celui donné par la banque, sinon le solde comptable moins les paiements en cours
+  const rang = x => { const i = ORDRE_SOLDES.indexOf(x.balance_type); return i < 0 ? 99 : i; };
+  const liste = [...(soldes?.balances || [])].sort((x, y) => rang(x) - rang(y)), b = liste[0];
+  let solde = l.solde;
+  if (b) {
+    const brut = +b.balance_amount?.amount || 0;
+    solde = { montant: b.balance_type === "XPCD" ? brut : arrondi(brut - enCours.debits + enCours.credits, 2), date: auj };
+  }
+  const changes = n || fusion || DB.get("fin-expenses").length !== dep.length || DB.get("fin-income").length !== inc.length;
+  if (changes) { await DB.set("fin-expenses", dep); await DB.set("fin-income", inc); }
+  if (epChange) await DB.set("epargne", ep);
+  await DB.set("banque-lien", { ...lienBanque(), derniere: auj, solde, soldes: liste.map(x => ({ type: x.balance_type, montant: +x.balance_amount?.amount || 0 })), enCours });
   try { localStorage.setItem("recomp_banque_import", String(Date.now())); } catch (e) { /* facultatif */ }
   return { nouvelles: n, solde };
+}
+/* Ce que tu avais noté à la main et que la banque a maintenant : on garde la version de la banque (montant exact),
+ * avec ton libellé et ta catégorie. Une charge fixe cochée à la main laisse la place au prélèvement de la même période. */
+function fusionnerManuels(dep, inc) {
+  const proche = (a, c, j) => Math.abs(ecart(a, c)) <= j, pris = new Set();
+  let n = 0;
+  const incB = inc.filter(x => x.banque);
+  for (let i = inc.length - 1; i >= 0; i--) {
+    const m = inc[i];
+    if (m.banque) continue;
+    const b = incB.find(x => !pris.has(x) && proche(x.dateISO, m.dateISO, 5) && (Math.abs(x.montant - m.montant) <= x.montant * .05 || (m.paye && (x.paye || x.montant >= m.montant * .5))));
+    if (!b) continue;
+    pris.add(b); if (m.paye) b.paye = true; inc.splice(i, 1); n++;
+  }
+  const depB = dep.filter(x => x.banque);
+  for (let i = dep.length - 1; i >= 0; i--) {
+    const m = dep[i];
+    if (m.banque) continue;
+    let b = null;
+    if (m.fixId) { const per = periodeDe(m.dateISO); b = per && depB.find(x => !pris.has(x) && x.fixId === m.fixId && x.dateISO >= per.debut && x.dateISO <= per.fin); }
+    else b = depB.find(x => !pris.has(x) && !x.fixId && proche(x.dateISO, m.dateISO, 2) && Math.abs(x.montant - m.montant) <= Math.max(.5, x.montant * .01));
+    if (!b) continue;
+    pris.add(b);
+    if (!m.fixId) { if (m.label) b.label = m.label; if (m.cat && m.cat !== "Autre") b.cat = m.cat; }
+    dep.splice(i, 1); n++;
+  }
+  return n;
+}
+/* Doublons de la banque : même jour, même montant, même commerce, deux références (par exemple après une nouvelle liaison) */
+function doublonsBanque() {
+  const groupes = {};
+  DB.get("fin-expenses").filter(x => x.banque).forEach(x => { const k = empreinteDe(x, "D"); (groupes[k] = groupes[k] || []).push(["fin-expenses", x]); });
+  DB.get("fin-income").filter(x => x.banque).forEach(x => { const k = empreinteDe(x, "C"); (groupes[k] = groupes[k] || []).push(["fin-income", x]); });
+  return Object.values(groupes).filter(g => g.length > 1);
+}
+async function fusionnerDoublons() {
+  const enTrop = { "fin-expenses": new Set(), "fin-income": new Set() };
+  doublonsBanque().forEach(g => g.slice(1).forEach(([cle, x]) => enTrop[cle].add(x.id)));
+  for (const cle of Object.keys(enTrop)) if (enTrop[cle].size) await DB.set(cle, DB.get(cle).filter(x => !enTrop[cle].has(x.id)));
+  return enTrop["fin-expenses"].size + enTrop["fin-income"].size;
+}
+/* DIAGNOSTIC ARGENT — ce que l'app a compris de tes comptes, en texte à copier (dates, montants, origine, début des libellés) */
+function diagnosticArgent() {
+  const b = bilanCourant(), l = lienBanque(), d = x => x.dateISO.slice(8) + "/" + x.dateISO.slice(5, 7), e = v => nb(v, 2) + " €";
+  const origine = x => (x.banque ? "banque" : "à la main") + (x.attente ? ", en cours" : "");
+  const lignes = ["Diagnostic Argent RECOMP", "Période : " + nomPeriode(b) + (b.civil ? " (mois civil, aucune paye reconnue)" : "")];
+  const incs = DB.get("fin-income").filter(x => dansPeriode(x, b));
+  lignes.push("Revenus de la période (" + e(b.rev) + ") :");
+  incs.forEach(x => lignes.push("  " + d(x) + "  " + e(x.montant) + "  " + origine(x) + (x.paye ? ", paye" : "") + "  « " + String(x.source || "").slice(0, 14) + " »"));
+  const deps = DB.get("fin-expenses").filter(x => dansPeriode(x, b));
+  lignes.push("Dépenses de la période : " + deps.length + " pour " + e(b.depenses) + " (banque " + deps.filter(x => x.banque).length + ", à la main " + deps.filter(x => !x.banque).length + ", en cours " + deps.filter(x => x.attente).length + ")");
+  lignes.push("Charges fixes :");
+  b.fixes.forEach(f => { const x = deps.find(y => y.fixId === f.id); lignes.push("  " + f.label + " (" + e(f.montant) + ", le " + (f.jour || 1) + ") : " + (x ? "payée le " + d(x) + ", " + origine(x) : "à venir")); });
+  lignes.push("Épargne prévue par paye : " + e(montantParPaye()) + " · versements notés : " + etatEpargne().versements.length);
+  lignes.push("Doublons possibles (banque) : " + doublonsBanque().length);
+  if (l?.session) {
+    lignes.push("Soldes donnés par la banque : " + ((l.soldes || []).map(s => s.type + " " + e(s.montant)).join(", ") || "aucun"));
+    lignes.push("Opérations en cours à la banque : " + (l.enCours ? l.enCours.n + " (débits " + e(l.enCours.debits) + ", crédits " + e(l.enCours.credits) + ")" : "inconnu"));
+    lignes.push("Solde affiché : " + (l.solde ? e(l.solde.montant) : "—") + " · dernier import : " + (l.derniere || "—"));
+  } else lignes.push("Banque : non reliée");
+  return lignes.join("\n");
 }
 // Retirer une opération importée : on garde sa référence pour qu'elle ne revienne pas
 async function ignorerOperation(ref) {

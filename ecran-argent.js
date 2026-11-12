@@ -63,6 +63,7 @@ function EcranArgent() {
           h(Coche, { fait: f.paye, onClick: () => cocherFixe(f, p), label: f.label, t: 34 }),
           h("span", h("b", f.label), h("small", (p.civil ? "le " + (f.jour || 1) : dateJour(f.echeance)) + ", " + (f.cat || "Autre").toLowerCase())),
           h("b.montant", euros(f.montant, f.montant % 1 ? 2 : 0))))) : h(Vide, null, "Loyer, salle, abonnements : ajoute-les une fois, puis coche-les chaque mois."),
+        lien?.session && cour && h("p.note", "Avec ta banque reliée, pas besoin de cocher : chaque prélèvement reconnu se coche tout seul."),
         coutAbos.mois > 0 && h("p.note", "Tes abonnements : " + euros(coutAbos.mois, 2) + " par mois, soit ", h("b", euros(coutAbos.an) + " par an"), ".")),
       abos.length > 0 && h(Section, { titre: "Abonnements repérés" },
         h("p.note", "Ces dépenses reviennent chaque mois au même montant. Ajoute-les à tes charges fixes : elles seront prévues d'avance."),
@@ -79,10 +80,21 @@ function EcranArgent() {
           h("div.tuiles",
             h(Tuile, { v: b.taux != null ? b.taux + " %" : "—", l: p.civil ? "non dépensé ce mois" : "non dépensé sur cette paye" }),
             h(Tuile, { v: b.evolution != null ? signe(b.evolution, 0) + " %" : "—", l: p.civil ? "face à " + nomMois(moisPrec(moisDe(p.debut))) : "de dépenses face à la paye d'avant" }))),
-        ops.length > 5 && h(Section, { titre: "Toutes les opérations" }, ops.slice(5, 60).map(o => h(LigneOp, { key: o._t + o.id, o }))))));
+        ops.length > 5 && h(Section, { titre: "Toutes les opérations" }, ops.slice(5, 60).map(o => h(LigneOp, { key: o._t + o.id, o }))),
+        cour && h(VerifComptes))));
+}
+/* Vérifier mes comptes : ce que l'app a compris, en texte à copier ; fusion des doublons s'il y en a */
+function VerifComptes() {
+  const [txt, setTxt] = useState(null), n = doublonsBanque().length;
+  const copier = async () => { try { await navigator.clipboard.writeText(txt); toast("Copié : colle-le dans ton message à Claude"); } catch (e) { toast("Sélectionne le texte et copie-le", { danger: true }); } };
+  return h(Section, { titre: "Vérifier mes comptes" },
+    h("p.note", "Si un chiffre te semble faux, lance la vérification et envoie-moi le texte : il montre ce que l'app a compris (dates, montants, d'où vient chaque revenu)."),
+    n > 0 && h(Bouton, { cl: "plein", onClick: async () => { if (await confirmer({ titre: "Fusionner " + pluriel(n, "doublon") + " ?", message: "Des opérations de ta banque apparaissent deux fois (même jour, même montant, même commerce). On n'en garde qu'une.", oui: "Fusionner" })) { const k = await fusionnerDoublons(); toast(pluriel(k, "doublon") + " retiré" + (k > 1 ? "s" : "")); setTxt(null); } } }, "Fusionner " + pluriel(n, "doublon")),
+    !txt ? h(Bouton, { cl: "contour", onClick: () => setTxt(diagnosticArgent()) }, "Lancer la vérification")
+      : h(Fragment, null, h("pre.diag", txt), h(Bouton, { cl: "plein", onClick: copier }, "Copier")));
 }
 const LigneOp = ({ o }) => h("button.ligne", { onClick: () => Nav.sheet("operation", { edite: o }) },
-  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + (o.banque && o.cat === "Autre" ? "à classer" : o.cat.toLowerCase()) : ""))),
+  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + (o.banque && o.cat === "Autre" ? "à classer" : o.cat.toLowerCase()) : "") + (o.attente ? ", en cours" : ""))),
   h("b", { className: o._t === "rev" ? "plus" : "" }, (o._t === "rev" ? "+" : "−") + euros(o.montant, o.montant % 1 ? 2 : 0)));
 
 /* ÉPARGNE — la carte de l'onglet Argent */
@@ -179,7 +191,7 @@ function FeuilleOperation({ revenu, edite }) {
     const inc = DB.get("fin-income"), dep = DB.get("fin-expenses"), id = edite?.id ?? Date.now();
     const i2 = inc.filter(x => !edite || x.id !== edite.id), d2 = dep.filter(x => !edite || x.id !== edite.id);
     // Une opération venue de la banque garde sa référence (sinon elle reviendrait au prochain import)
-    const garde = edite?.banque ? { banque: edite.banque } : {};
+    const garde = edite?.banque ? { banque: edite.banque, ...(edite.brut ? { brut: edite.brut } : {}), ...(edite.attente ? { attente: true } : {}) } : {};
     if (rev) { await DB.set("fin-income", [...i2, { ...garde, id, dateISO: iso, montant: m, source: lib.trim() || (paye ? "Paye" : "Revenu"), paye }]); if (edite) await DB.set("fin-expenses", d2); }
     else { await DB.set("fin-expenses", [...d2, { ...garde, ...(edite?.fixId ? { fixId: edite.fixId } : {}), id, dateISO: iso, montant: m, cat, label: lib.trim() }]); if (edite) await DB.set("fin-income", i2); }
     Nav.fermer();
