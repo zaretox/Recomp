@@ -1,6 +1,7 @@
 "use strict";
 /* LE COACH — ce qu'il a à te dire maintenant, par ordre d'importance, et le bilan de la semaine.
  * Un message = { id, t, acts: [{ l, run }] }. Il ne décide jamais seul : il propose, tu tranches. */
+const ageSauvegarde = () => { const d = DB.get("last-export"); return d ? ecart(d, aujourdhui()) : null; };
 const seanceFaite = iso => DB.get("sport-logs").some(l => l.dateISO === iso) || DB.get("maison-logs").some(l => l.dateISO === iso);
 
 function messagesCoach() {
@@ -9,6 +10,13 @@ function messagesCoach() {
   const salut = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
   const faite = seanceFaite(auj);
   msgs.push({ id: "jour", t: salut + ". " + (sess ? (faite ? sess.label + " est faite. " : "Aujourd'hui : " + sess.label + " à " + hhmm(seanceCreneau()) + ". ") : "Pas de séance aujourd'hui. ") + entier(n.menu.dayTgt) + " kcal à manger." });
+
+  // Sauvegarde : tout vit sur ce téléphone, on la rappelle en haut dès 7 jours
+  const ageS = ageSauvegarde();
+  if ((ageS == null || ageS > 7) && DB.get("sport-logs").length + DB.get("nutri-logs").length + DB.get("fin-expenses").length > 0 && pr.coachDismiss?.sauvegarde !== auj) msgs.push({
+    id: "sauvegarde", t: (ageS == null ? "Aucune sauvegarde pour l'instant" : "Dernière sauvegarde il y a " + ageS + " jours") + " : tes données ne sont que sur ce téléphone. Une minute, et tu ne perds jamais rien.",
+    acts: [{ l: "Sauvegarder", run: exporter }, { l: "Ce soir", run: () => setProfil({ coachDismiss: { ...(pr.coachDismiss || {}), sauvegarde: auj } }) }],
+  });
 
   // Épargne : le point de la paye passe avant le reste (une fois par mois, quelques jours)
   const pp = pointPaye(), plusTard = id => setProfil({ coachDismiss: { ...(pr.coachDismiss || {}), [id]: auj } });
@@ -72,12 +80,6 @@ function messagesCoach() {
   const som = sommeil();
   if (heure >= 19) msgs.push({ id: "coucher", t: "Pour tenir 8 h, couche-toi vers " + hhmm(som.coucher) + "." + (som.dette >= 2 ? " Tu as " + dureeHM(som.dette) + " de dette sur 7 nuits." : "") });
 
-  const der = DB.get("last-export");
-  const age = der ? ecart(der, auj) : null;
-  if ((age == null || age > 7) && DB.get("sport-logs").length + DB.get("nutri-logs").length > 0) msgs.push({
-    id: "sauvegarde", t: (age == null ? "Aucune sauvegarde pour l'instant" : "Dernière sauvegarde il y a " + age + " jours") + " : tes données ne sont que sur ce téléphone.",
-    acts: [{ l: "Sauvegarder", run: exporter }],
-  });
   return msgs;
 }
 function appliquerDeficit(nouveau) {

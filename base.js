@@ -34,7 +34,7 @@ const DEFAUTS = {
   "fin-goal": 0, "fin-fixes": [], "nutri-cal-cfg": null, "science-config": { weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false },
   "sport-phase": 0, "profil": null, "repas-alts": {}, "taille-corps": "", "last-export": null, "programmes": [],
   "exos-perso": [], "natation-modeles": [], "natation-logs": [], "recup-logs": [], "bilans": [], "courses-etat": null,
-  "polar-lien": null, "polar-seances": [], "epargne": null, "banque-lien": null, "banque-regles": null,
+  "polar-lien": null, "polar-seances": [], "epargne": null, "banque-lien": null, "banque-regles": null, "notes-exos": {},
 };
 const DB = (() => {
   const data = new Map(), abonnes = new Set();

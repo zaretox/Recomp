@@ -41,7 +41,26 @@ function majSeance(iso, code, fn) {
   return DB.set("sport-logs", suivant ? [...reste, suivant] : reste);
 }
 
-function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, douleurs, record, suivant, retirer }) {
+/* NOTES — une note par exercice (réglage de machine, prise, sensation), qui réapparaît à chaque séance */
+const noteExo = nom => (DB.get("notes-exos") || {})[nom] || "";
+function FeuilleNoteExo({ nom }) {
+  const [t, setT] = useState(noteExo(nom));
+  const ok = async () => {
+    const n = { ...(DB.get("notes-exos") || {}) };
+    if (t.trim()) n[nom] = t.trim(); else delete n[nom];
+    await DB.set("notes-exos", n);
+    Nav.fermer();
+    toast(t.trim() ? "Note enregistrée" : "Note effacée");
+  };
+  return h(Feuille, { titre: "Ma note", ton: "sport" },
+    h("p.sous-t", nom),
+    h("textarea.texte", { rows: 4, value: t, onChange: e => setT(e.target.value), placeholder: "Siège sur 4, prise large, coudes serrés…", "aria-label": "Note sur " + nom }),
+    h("p.note", "Elle réapparaît à chaque séance avec cet exercice. Vide-la pour l'effacer."),
+    h(Bouton, { cl: "plein grand", onClick: ok }, "Enregistrer"));
+}
+const BoutonNote = ({ nom }) => { const n = noteExo(nom); return h("button.note-exo", { className: n ? "" : "vide", onClick: () => Nav.sheet("noteExo", { nom }) }, h(Icone, { n: "bulle", t: 16 }), h("span", n || "Ajouter une note : réglage, prise…")); };
+
+function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, douleurs, record, suivant, retirer, modele }) {
   const e = log?.exercices?.find(x => x.nom === ex.nom);
   const faites = e?.setsDetail?.length ? e.setsDetail : e?.sets ? Array.from({ length: e.sets }, () => ({ w: e.weight, r: e.reps })) : [];
   const prevues = Math.max(prop.sets || 3, faites.length);
@@ -50,7 +69,9 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
   const total = Math.max(nbLignes, faites.length);
   const assiste = estAssiste(ex.nom), pc = assiste ? poidsDuCorps() : null;
   const base = assiste ? { w: prop.weight || 0, r: prop.reps || 0, ...(prop.weight && pc ? { aide: Math.max(0, arrondi(pc - prop.weight, 1)) } : {}) } : { w: prop.weight || 0, r: prop.reps || 0 };
-  const ligne = k => faites[k] || brouillon[k] || (k > 0 && (brouillon[k - 1] || faites[k - 1])) || base;
+  // « Comme la dernière fois » : les séries de la dernière séance passent avant la proposition
+  useEffect(() => { if (modele?.length) setNb(n => Math.max(n, modele.length)); }, [modele]);
+  const ligne = k => faites[k] || brouillon[k] || (modele && modele[k]) || (k > 0 && (brouillon[k - 1] || faites[k - 1])) || base;
   const aideDe = v => v.aide != null ? v.aide : null;
   const der = dernierExo(avant, code, ex.nom), mal = douleurSur(ex.nom, douleurs);
   const complet = faites.length >= total;
@@ -106,6 +127,7 @@ function CarteExo({ ex, i, ouvert, setOuvert, iso, code, log, prop, avant, doule
       h("div", h("h3", ex.nom, ex.ajoute && h("em.exo-ajout", "ajouté")), coach && h("p.coach-l", { "data-a": prop.action }, coach)),
       h("button.rond", { onClick: () => Nav.sheet("exercice", { nom: ex.nom, orig: ex.orig, iso, code, kg: ligne(0).w }), "aria-label": "Plus sur cet exercice" }, h(Icone, { n: "points", t: 20 }))),
     der && h("p.dernier", "Dernière fois : " + fmtSeries(der) + (der.rpe ? ", " + (DIFFICULTES.find(d => d[0] >= der.rpe)?.[1] || "").toLowerCase() : "")),
+    h(BoutonNote, { nom: ex.nom }),
     mal.length > 0 && h("button.alerte-b", { onClick: () => Nav.sheet("exercice", { nom: ex.nom, orig: ex.orig, iso, code, kg: ligne(0).w }) }, mal.map(m => m.zone + " " + m.i + "/10").join(", ") + " : baisse la charge ou remplace"),
     ex.note && h("p.dernier", ex.note),
     assiste && h("p.dernier", pc ? "Ton poids : " + nb(pc) + " kg. Tu règles le contrepoids ; charge soulevée = " + nb(pc) + " − contrepoids." : "Pèse-toi (onglet Corps) pour que l'app calcule la charge soulevée."),
@@ -167,7 +189,7 @@ function FeuilleSeance({ iso, prog, code }) {
   useDB();
   useEcranAllume(true);
   const repos = useRepos();
-  const [ouvert, setOuvert] = useState(null), [fini, setFini] = useState(false), [, redessine] = useState(0);
+  const [ouvert, setOuvert] = useState(null), [fini, setFini] = useState(false), [, redessine] = useState(0), [modele, setModele] = useState(null);
   if (prog === "maison") return h(FeuilleCircuit, { iso, code });
   const se = seanceParId(code);
   if (!se) return h(Feuille, { titre: "Séance introuvable" }, h(Vide, null, "Cette séance n'existe plus dans ton programme."));
@@ -203,6 +225,20 @@ function FeuilleSeance({ iso, prog, code }) {
   };
   const remettre = nom => { modifSeance(iso, code, m => ({ retires: (m.retires || []).filter(x => x !== nom) })); redessine(x => x + 1); };
   const fait = ex => { const e = log?.exercices?.find(x => x.nom === ex.nom); return e ? seriesDe(e) : 0; };
+  // « Comme la dernière fois » : en direct, les charges de la dernière séance du même type sont reprises (à cocher au fur et à mesure) ;
+  // pour un jour passé, tout est coché d'un coup, il ne reste qu'à corriger
+  const derniere = avant.filter(l => l.seance === code && !l.deload && (l.exercices || []).some(e => seriesDe(e) > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
+  const setsDe = e => e.setsDetail?.length ? e.setsDetail.map(s => ({ ...s })) : Array.from({ length: e.sets || 0 }, () => ({ w: e.weight, r: e.reps }));
+  const commeAvant = async () => {
+    const m = {};
+    derniere.exercices.forEach(e => { if (seriesDe(e) > 0) m[e.nom] = setsDe(e); });
+    const communs = exos.filter(ex => m[ex.nom]?.length);
+    if (!communs.length) return toast("Aucun exercice en commun avec la dernière fois");
+    if (iso === aujourdhui()) { setModele(m); toast("Charges du " + dateMini(derniere.dateISO) + " reprises : coche au fur et à mesure"); return; }
+    const exs = communs.map(ex => { const l = m[ex.nom], top = Math.max(...l.map(s => s.w)); return { nom: ex.nom, weight: top, reps: Math.min(...l.filter(s => s.w === top).map(s => s.r)), sets: l.length, setsDetail: l, restSets: 0, restExo: 0, rpe: 0 }; });
+    await majSeance(iso, code, l => ({ ...l, exercices: [...(l.exercices || []).filter(x => !exs.some(e => e.nom === x.nom)), ...exs] }));
+    toast(pluriel(exs.length, "exercice") + " rempli" + (exs.length > 1 ? "s" : "") + " comme le " + dateMini(derniere.dateISO) + " : corrige ce qui a changé");
+  };
   const total = props.reduce((a, p) => a + (p.sets || 3), 0), faites = exos.reduce((a, ex, i) => a + Math.min(fait(ex), props[i].sets || 3), 0);
   const courant = ouvert ?? exos.findIndex((ex, i) => fait(ex) < (props[i].sets || 3));
   const r = recuperation(aujourdhui());
@@ -219,7 +255,8 @@ function FeuilleSeance({ iso, prog, code }) {
       iso !== aujourdhui() && h("p.bandeau", h("b", "Séance du " + dateLongue(iso).toLowerCase() + ". "), "Coche ce que tu as fait ce jour-là."),
       cfg.deload && h("p.bandeau", "Semaine légère : charges −40 %, les records ne comptent pas."),
       r?.score != null && iso === aujourdhui() && h("button.bandeau", { onClick: () => Nav.sheet("forme") }, h("b", "Forme " + r.score + ". "), r.conseil),
-      exos.map((ex, i) => h(CarteExo, { key: ex.nom + i, ex, i, ouvert: courant === i, setOuvert, iso, code, log, prop: props[i], avant, douleurs, record: cfg.deload ? Infinity : meilleureCharge(avant, ex.nom) || Infinity, suivant: k => setOuvert(k + 1 < exos.length ? k + 1 : null), retirer })),
+      derniere && !faites && !modele && h(Bouton, { cl: "contour", ico: "liste", onClick: commeAvant }, "Comme la dernière fois (" + dateMini(derniere.dateISO) + ")"),
+      exos.map((ex, i) => h(CarteExo, { key: ex.nom + i, ex, i, ouvert: courant === i, setOuvert, iso, code, log, prop: props[i], avant, douleurs, record: cfg.deload ? Infinity : meilleureCharge(avant, ex.nom) || Infinity, suivant: k => setOuvert(k + 1 < exos.length ? k + 1 : null), retirer, modele: modele?.[ex.nom] || null })),
       retires.length > 0 && h("div.retires", h("small", "Retiré aujourd'hui"), retires.map(n => h("div.retire", { key: n }, h("span", n), h("button.mini", { onClick: () => remettre(n) }, "Remettre")))),
       h(Bouton, { cl: "contour", ico: "plus", onClick: () => { vibre(); Nav.sheet("bibliotheque", { choisir: nom => ajouter(nom) }); } }, "Ajouter un exercice"),
       se.finisher && h("button.finisher", { className: log?.finisher ? "fait" : "", onClick: () => majSeance(iso, code, l => ({ ...l, finisher: !l.finisher })) }, h("i", h(Icone, { n: "check", t: 16 })), h("span", h("small", "Pour finir"), h("b", se.finisher))),
@@ -269,6 +306,7 @@ function FeuilleExercice({ nom, orig, iso, code, kg }) {
   };
   return h(Feuille, { titre: nom, ton: "sport" },
     ficheDe(nom) && h(Rangee, { ico: "bulle", titre: "Comment bien le faire", sous: ficheDe(nom).c, onClick: () => Nav.sheet("fiche", { nom }) }),
+    h(BoutonNote, { nom }),
     h("div.tuiles",
       h(Tuile, { v: mx ? mx.rm + " kg" : "—", l: "max estimé" }),
       h(Tuile, { v: pts.length, l: "séances" }),

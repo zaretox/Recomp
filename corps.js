@@ -252,6 +252,9 @@ function FeuilleBilan() {
     { ton: "repas", e: "Tes repas", g: b.suivi != null ? b.suivi + " %" : "—", p: (b.kcal ? entier(b.kcal) + " kcal par jour en moyenne. " : "") + (b.suivi >= 80 ? "Belle régularité." : b.suivi != null ? "Vise 80 % : c'est là que tout se joue." : "Coche tes repas pour que je suive.") },
     { ton: "papier", e: "Ta forme", g: b.forme != null ? b.forme : "—", u: "/100", p: (b.formePrec != null && b.forme != null ? signe(b.forme - b.formePrec, 0) + " par rapport à la semaine d'avant. " : "") + (b.sommeil ? "Sommeil moyen : " + dureeHM(b.sommeil) + "." : "") },
     { ton: "argent", e: "Ton argent", g: entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + euros(Math.max(0, bilanCourant().reste)) + (bilanCourant().civil ? " ce mois-ci." : " jusqu'à ta paye.") },
+    // Une fois par semaine, la sauvegarde (sauf si elle est récente)
+    ...(ageSauvegarde() == null || ageSauvegarde() >= 6 ? [{ ton: "papier", e: "Ta sauvegarde", g: ageSauvegarde() == null ? "Jamais" : ageSauvegarde() + " j", u: ageSauvegarde() == null ? "" : "sans", sauve: true,
+      p: "Tout RECOMP vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }] : []),
     { ton: "noir", e: "Ma décision", g: decision.g, u: decision.u, p: decision.t, fin: true },
   ];
   const e = ecrans[i];
@@ -263,6 +266,7 @@ function FeuilleBilan() {
         h("span.affiche-e", e.e),
         e.g != null && h("div.affiche-g", h(Geant, null, e.g), e.u && h("em", e.u)),
         h("p", e.p),
+        e.sauve && h("div.hero-b", h(Bouton, { cl: "noir", onClick: async ev => { ev.stopPropagation(); const r = await exporter(); if (r === "partage" || r === "telecharge") setI(i + 1); } }, "Sauvegarder maintenant")),
         e.fin && h("div.hero-b", decision.l && h(Bouton, { cl: "plein", onClick: async ev => { ev.stopPropagation(); await decision.run(); toast("C'est fait : ton menu suit"); Nav.fermer(); } }, decision.l), h(Bouton, { cl: "contour", onClick: ev => { ev.stopPropagation(); Nav.fermer(); } }, decision.l ? "Pas cette fois" : "Fermer"))),
       i < ecrans.length - 1 && h("small.story-s", "Touche pour continuer")));
 }
