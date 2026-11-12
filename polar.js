@@ -264,6 +264,7 @@ function lireFit(buf) {
   const v = new DataView(buf), n = v.byteLength;
   if (n < 14 || String.fromCharCode(v.getUint8(8), v.getUint8(9), v.getUint8(10), v.getUint8(11)) !== ".FIT") return null;
   const tete = v.getUint8(0), fin = Math.min(n, tete + v.getUint32(4, true)), defs = {}, msgs = [];
+  msgs.compte = {}; msgs.premiers = {}; // pour le diagnostic : combien de messages de chaque sorte, et le premier de chacune
   // Lecture d'un champ selon son type de base ; les valeurs « invalides » du format deviennent null
   const lire = (o, type, taille, le) => {
     const t = type & 0x1F;
@@ -285,10 +286,12 @@ function lireFit(buf) {
       defs[loc] = { glob, le, champs, dev };
     } else { // données (en-tête normal ou horodatage compressé)
       const d = defs[h & 0x80 ? (h >> 5) & 0x03 : h & 0x0F];
-      if (!d) return msgs.length ? msgs : null;
+      if (!d) { msgs.erreur = "type de message inconnu à l'octet " + (o - 1); return msgs.length || Object.keys(msgs.compte).length ? msgs : null; }
       const m = { _: d.glob };
-      for (const [num, taille, type] of d.champs) { if (o + taille > n) return msgs; m[num] = lire(o, type, taille, d.le); o += taille; }
+      for (const [num, taille, type] of d.champs) { if (o + taille > n) { msgs.erreur = "fichier coupé"; return msgs; } m[num] = lire(o, type, taille, d.le); o += taille; }
       o += d.dev;
+      msgs.compte[d.glob] = (msgs.compte[d.glob] || 0) + 1;
+      if (!msgs.premiers[d.glob]) msgs.premiers[d.glob] = m;
       if (d.glob === 18 || d.glob === 101) msgs.push(m);
     }
   }
@@ -368,4 +371,35 @@ function comparerNage(modele, series) {
     lignes.push({ ...p, fait: d ? { d: Math.round(d), s: Math.round(s), repos } : null });
   }
   return { lignes, enPlus: reste };
+}
+
+/* DIAGNOSTIC — ce que Polar envoie vraiment pour une séance, en texte à copier (des comptes et des champs, jamais de position GPS) */
+const NOMS_FIT = { 0: "file_id", 12: "sport", 18: "session", 19: "lap", 20: "record", 21: "event", 22: "device_settings", 23: "device_info", 34: "activity", 49: "file_creator", 101: "length", 206: "field_description", 207: "developer_data_id", 216: "time_in_zone" };
+const NOMS_ECH = { 0: "FC", 1: "vitesse", 2: "cadence", 3: "altitude", 8: "cadence de course", 10: "distance", 11: "RR" };
+const champsFit = m => m ? Object.entries(m).filter(([k, x]) => k !== "_" && x != null).map(([k, x]) => k + "=" + x).join(" ") : "—";
+async function diagnosticSortie(id) {
+  const l = [];
+  try {
+    const d = await polarLire("/v3/exercises/" + id, "GET", { samples: true, zones: true, route: true });
+    if (!d) return "Polar ne renvoie plus cette séance (plus de 30 jours ?).";
+    l.push("Sport : " + d.sport + " / " + (d.detailed_sport_info || "—") + " · " + (d.device || "?"));
+    l.push("Champs reçus : " + Object.keys(d).sort().join(", "));
+    l.push("Échantillons : " + ((d.samples || []).length ? d.samples.map(x => (NOMS_ECH[+x["sample-type"]] || "type " + x["sample-type"]) + " ×" + String(x.data || "").split(",").length + " (toutes les " + x["recording-rate"] + " s)").join(", ") : "aucun"));
+    l.push("Zones de FC : " + ((d.heart_rate_zones || []).length || "aucune") + " · Parcours : " + ((d.route || []).length || 0) + " points");
+  } catch (e) { l.push("Résumé : erreur " + e.message); }
+  try {
+    const b = await polarFit(id);
+    if (!b) l.push("Fichier FIT : non reçu");
+    else {
+      const m = lireFit(b);
+      l.push("Fichier FIT : " + b.byteLength + " octets" + (m ? "" : ", en-tête illisible (" + new TextDecoder().decode(new Uint8Array(b).slice(0, 40)).replace(/[^\x20-\x7e]/g, ".") + ")"));
+      if (m) {
+        l.push("Messages : " + Object.entries(m.compte).map(([g, c]) => (NOMS_FIT[g] || "n°" + g) + " ×" + c).join(", ") + (m.erreur ? " · arrêt : " + m.erreur : ""));
+        l.push("Session : " + champsFit(m.premiers[18]));
+        l.push("Premier tour (lap) : " + champsFit(m.premiers[19]));
+        l.push("Première longueur : " + champsFit(m.premiers[101]));
+      }
+    }
+  } catch (e) { l.push("Fichier FIT : erreur " + e.message); }
+  return "Diagnostic RECOMP, séance " + id + "\n" + l.join("\n");
 }

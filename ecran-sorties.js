@@ -167,6 +167,17 @@ function BlocMontre({ s }) {
     f === "nage" && h(DetailNage, { s }));
 }
 
+/* Diagnostic : relit chez Polar ce qui a été envoyé, en texte à copier pour me l'envoyer */
+function Diagnostic({ id }) {
+  const [txt, setTxt] = useState(null), [charge, setCharge] = useState(false);
+  const lancer = async () => { setCharge(true); try { setTxt(await diagnosticSortie(id)); } finally { setCharge(false); } };
+  const copier = async () => { try { await navigator.clipboard.writeText(txt); toast("Diagnostic copié : colle-le dans ton message à Claude"); } catch (e) { toast("Sélectionne le texte et copie-le", { danger: true }); } };
+  return h("details.details-a",
+    h("summary", "Détails techniques, à m'envoyer si quelque chose manque"),
+    !txt ? h(Bouton, { cl: "contour" + (charge ? " occupe" : ""), disabled: charge, onClick: lancer }, charge ? "Lecture chez Polar…" : "Lancer le diagnostic")
+      : h(Fragment, null, h("pre.diag", txt), h(Bouton, { cl: "plein", onClick: copier }, "Copier le diagnostic")));
+}
+
 /* Natation : longueurs, séries, et comparaison avec une séance type */
 const LigneSerie = ({ a, sous, temps, allure, repos }) => h("div", null, h("span", a, sous && h("small", sous)), h("b", temps), h("span", allure), h("span", repos));
 function DetailNage({ s }) {
@@ -224,5 +235,6 @@ function FeuilleSortie({ id }) {
     h(BlocMontre, { s }),
     f === "nage" && !lie && s.distance > 0 && h(Bouton, { cl: "plein", ico: "nage", onClick: () => ajouterANatation(s) }, "Ajouter à ma natation"),
     h("p.note", "Les calories et la charge sont celles calculées par ta montre. Ces séances ne changent pas ton score de forme."),
+    h(Diagnostic, { id: s.id }),
     h(Bouton, { cl: "contour danger-t", onClick: () => { Nav.fermer(); retirerSortie(s.id); } }, "Retirer de RECOMP"));
 }
