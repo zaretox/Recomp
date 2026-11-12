@@ -58,7 +58,7 @@ Pousse les fichiers sur GitHub, Netlify publie. À l'ouverture suivante, l'app t
 
 ## Clés de stockage
 
-Inchangées : `sport-logs`, `maison-logs`, `nutri-logs`, `food-log`, `foods-custom`, `mensurations`, `photos-index` + `photo:<id>`, `douleur-logs`, `budget-logs`, `fin-income`, `fin-expenses`, `fin-caps`, `fin-goal`, `nutri-cal-cfg`, `science-config`, `sport-phase`, `profil`, `repas-alts`, `taille-corps`, `last-export`, `programmes`, `exos-perso`, `natation-modeles`, `natation-logs`, `recup-logs`, `bilans`.
+Inchangées : `sport-logs`, `maison-logs`, `nutri-logs`, `food-log`, `foods-custom`, `mensurations`, `photos-index` + `photo:<id>`, `douleur-logs`, `budget-logs`, `fin-income`, `fin-expenses`, `fin-caps`, `fin-goal`, `nutri-cal-cfg`, `science-config`, `sport-phase`, `profil`, `repas-alts`, `taille-corps`, `last-export`, `programmes`, `exos-perso`, `natation-modeles`, `natation-logs`, `recup-logs`, `bilans` (plus affichée dans l'app, gardée telle quelle).
 
 Nouvelles clés : `fin-fixes` (charges fixes), `courses-etat` (liste de courses en cours) `polar-lien` (jeton de la montre Polar : `{ jeton, utilisateur, depuis, expire, notifs }`, jamais mis dans la sauvegarde) et `polar-seances` (séances importées de la montre : résumé, parcours allégé `trace`, courbes `fc`/`vit`/`alt` en `{ pas, v }`, `tours` au km ou aux 100 m en natation (`{ n, d, s, fc }`), `zones` de FC ; en natation, `fit` (fichier détaillé lu ou non), `bassin` (m) et `longueurs` : `[début (s), durée (s), coups de bras, nage, active]` ; une séance retirée devient `{ id, supprime: true }` pour ne pas revenir).
 

@@ -1,6 +1,6 @@
 "use strict";
 /* CORPS — « Est-ce que ça marche ? »
- * La tendance de poids, la composition, la forme, les mensurations, les photos, les prises de sang. */
+ * La tendance de poids, la composition, la forme, les mensurations, les photos. */
 const PLAGES = [["1 mois", 31], ["3 mois", 92], ["Tout", 9999]];
 
 function EcranCorps() {
@@ -11,7 +11,7 @@ function EcranCorps() {
   const obj = pr.objectifKg, eta = der && obj && ry.kg ? dateObjectif(der.t, ry.kg, obj) : null;
   const forme = historiqueForme(14), notes = forme.filter(j => j.score != null), r = recuperation(auj);
   const mens = DB.get("mensurations"), m = mens.length ? mens[mens.length - 1] : null, m0 = mens[0];
-  const photos = DB.get("photos-index"), bilans = DB.get("bilans");
+  const photos = DB.get("photos-index");
   return h("div.page", { "data-t": "corps" },
     h("header.hero", { "data-ton": "corps" },
       h("span.affiche-e", "Ta tendance"),
@@ -42,8 +42,7 @@ function EcranCorps() {
         m ? h("div.table-m", MENSURATIONS.filter(c => m.vals[c.k] != null).map(c => { const d = m0 && m0 !== m && m0.vals[c.k] != null ? m.vals[c.k] - m0.vals[c.k] : null; return h("button", { key: c.k, onClick: () => Nav.sheet("mensurations", { voir: c.k }) }, h("span", c.l), h("b", nb(m.vals[c.k]) + " cm"), d != null && h("small", signe(arrondi(d), 1))); }))
           : h(Vide, null, "Toutes les 2 à 4 semaines, à jeun, au même moment.")),
       h(Section, { titre: "Suivi" },
-        h(Rangee, { ico: "photo", titre: "Photos", sous: photos.length ? pluriel(photos.length, "photo") + ", avant / après" : "Face, profil, dos", onClick: () => Nav.sheet("photos") }),
-        h(Rangee, { ico: "fiole", titre: "Prises de sang", sous: bilans.length ? pluriel(bilans.length, "valeur") : "Testostérone, ferritine, CRP…", onClick: () => Nav.sheet("bilans") }))));
+        h(Rangee, { ico: "photo", titre: "Photos", sous: photos.length ? pluriel(photos.length, "photo") + ", avant / après" : "Face, profil, dos", onClick: () => Nav.sheet("photos") }))));
 }
 
 function FeuillePesee({ iso }) {
@@ -236,35 +235,6 @@ function FeuillePhotos() {
       images[p.id] ? h("img", { src: images[p.id], alt: LIB[p.type] + " du " + p.date }) : h("span", "…"),
       h("figcaption", dateMini(p.dateISO) + ", " + (LIB[p.type] || p.type).toLowerCase()),
       h("button.mini-x", { "aria-label": "Supprimer", onClick: () => suppr(p) }, h(Icone, { n: "fermer", t: 14 }))))));
-}
-
-function FeuilleBilans() {
-  useDB();
-  const liste = [...DB.get("bilans")].sort((a, b) => b.dateISO.localeCompare(a.dateISO)), auj = aujourdhui();
-  const [libre, setLibre] = useState("");
-  const ajoute = async ([nom, unite]) => {
-    const ex = liste.find(b => b.nom === nom);
-    const r = await saisir([
-      { titre: nom, court: "Valeur", mode: "dec", unite, min: 0 },
-      { titre: "Repère bas du labo", court: "Bas", valeur: ex?.lo ?? null, mode: "dec", unite, min: 0, indice: "Facultatif : c'est écrit sur ton résultat" },
-      { titre: "Repère haut du labo", court: "Haut", valeur: ex?.hi ?? null, mode: "dec", unite, min: 0 },
-    ]);
-    if (!r || r[0] == null) return;
-    await DB.set("bilans", [...DB.get("bilans"), { id: Date.now(), dateISO: auj, nom, valeur: r[0], unite: unite || ex?.unite || "", lo: r[1], hi: r[2] }]);
-    setLibre("");
-    toast(nom + " enregistré");
-  };
-  const noms = [...new Set(liste.map(b => b.nom))];
-  return h(Feuille, { titre: "Prises de sang", ton: "corps" },
-    h(Section, { titre: "Ajouter une valeur" }, h(Puces, null, PRESETS_BILAN.filter(p => p[0] !== "Autre").map(p => h(Puce, { key: p[0], onClick: () => ajoute(p) }, p[0]))),
-      h("form.ajout", { onSubmit: e => { e.preventDefault(); if (libre.trim()) ajoute([libre.trim(), ""]); } }, h("input.recherche", { value: libre, onChange: e => setLibre(e.target.value), placeholder: "Autre analyse", "aria-label": "Autre analyse", enterKeyHint: "done" }))),
-    noms.map(n => {
-      const v = liste.filter(b => b.nom === n), d = v[0], hors = d.lo != null && d.hi != null && (d.valeur < d.lo || d.valeur > d.hi);
-      return h(Section, { key: n, titre: n, droite: h("span.compte", dateMini(d.dateISO)) },
-        h("div.histo", h("b.grand", nb(d.valeur, 2) + " " + d.unite), d.lo != null && h("span", { className: hors ? "hors" : "" }, hors ? "hors repères " : "repères ", nb(d.lo) + "–" + nb(d.hi)), h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("bilans", DB.get("bilans").filter(x => x.id !== d.id), "Valeur supprimée") }, h(Icone, { n: "fermer", t: 16 }))),
-        v.length >= 2 && h(Courbe, { pts: [...v].reverse().map(b => ({ x: b.dateISO, y: b.valeur })), unite: d.unite, ton: "corps", haut: 100 }));
-    }),
-    !noms.length && h(Vide, null, "Tes résultats, à relire avec ton médecin. Ils n'entrent pas dans le score de forme."));
 }
 
 /* BILAN DE LA SEMAINE — plein écran, une idée par écran, on touche pour avancer */

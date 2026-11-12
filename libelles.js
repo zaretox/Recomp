@@ -32,7 +32,6 @@ const MENSURATIONS = [{"k":"taille","l":"Tour de taille"},{"k":"cou","l":"Tour d
 
 const CATEGORIES = ["Logement","Courses","Transport","Sorties","Loisirs","Santé","Abonnements","Sport","Vêtements","Autre"];
 
-const PRESETS_BILAN = [["Testostérone totale","ng/mL"],["Cortisol (8 h, à jeun)","µg/dL"],["CRP ultrasensible","mg/L"],["CK","UI/L"],["Ferritine","ng/mL"],["Vitamine D","ng/mL"],["Autre",""]];
 
 const NAGE_BLOCS = ["Échauffement","Éducatifs","Technique","Série principale","Série","Jambes","Bras","Retour au calme"];
 const NAGES = ["Crawl","Dos","Brasse","Papillon","4 nages","Au choix"];

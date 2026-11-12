@@ -15,7 +15,6 @@
 | Natation | Séances types, records, calories ajoutées à la cible. | Saisie de la durée pénible sans « : ». | Sport → Natation. La durée se tape 3, 8, 3, 0 pour 38:30. |
 | Douleurs | Protège le genou et le pied, relié à la séance et au score. | Écran isolé. | Bouton + pour noter, alerte directement sur l'exercice concerné. |
 | Mensurations, composition, photos | Le seul vrai contrôle d'une recomposition. | Trois sous-onglets. | Corps, sur une seule page. |
-| Prises de sang | Utile et rare, hors du score. | Rangées dans Science, difficiles à retrouver. | Corps → Prises de sang. |
 | Finances | Revenus, dépenses, plafonds, objectif d'épargne. | Trois modes pour une seule question. | Argent, autour d'un seul chiffre. |
 | Sauvegarde et calendrier | Vos données ne vivent que sur le téléphone : indispensable. | Aucun. | Réglages. Même format de fichier, le coach rappelle la sauvegarde après 7 jours. |
 
@@ -52,6 +51,7 @@
 | Listes « à privilégier » et « retirés » | Figées, et le menu les applique déjà. |
 | Pile d'affiches à faire glisser | Élégante mais lente à manier : chaque action demandait d'ouvrir, de défiler, de refermer. |
 | Emojis dans l'interface | Remplacés par un jeu d'icônes dessinées. |
+| Prises de sang | Retirées à la demande d'Aurélien : elles n'entraient dans aucun calcul, et le labo garde déjà l'historique. La clé `bilans` reste, avec ses valeurs éventuelles, et part toujours dans la sauvegarde. |
 
 ## Nouveau
 

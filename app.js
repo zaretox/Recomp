@@ -17,7 +17,7 @@ const FEUILLES = {
   choisir: FeuilleChoisir, seanceDetail: FeuilleSeanceDetail, natation: FeuilleNatation, nageModele: FeuilleNageModele, douleur: FeuilleDouleur, douleurs: FeuilleDouleurs,
   programmes: FeuilleProgrammes, import: FeuilleImport, editeur: FeuilleEditeur, bibliotheque: FeuilleBibliotheque, fiche: FeuilleFiche, technique: FeuilleTechnique,
   repas: FeuilleRepas, equivalents: FeuilleEquivalents, aliment: FeuilleAliment, calories: FeuilleCalories, courses: FeuilleCourses,
-  operation: FeuilleOperation, fixes: FeuilleFixes, mensurations: FeuilleMensurations, photos: FeuillePhotos, bilans: FeuilleBilans,
+  operation: FeuilleOperation, fixes: FeuilleFixes, mensurations: FeuilleMensurations, photos: FeuillePhotos,
   capture: FeuilleCapture, reglages: FeuilleReglages, sorties: FeuilleSorties, sortie: FeuilleSortie, nageProgres: FeuilleNageProgres,
 };
 

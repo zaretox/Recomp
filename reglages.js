@@ -17,7 +17,7 @@ const DESTINATIONS = [
   ["Courses", () => Nav.sheet("courses"), "liste magasin prix supermarche alternatives economies"], ["Ma cible calorique", () => Nav.sheet("calories"), "deficit objectif macros proteines metabolisme depense"],
   ["Mes programmes", () => Nav.sheet("programmes"), "ppl creer importer maison"], ["Bibliothèque d'exercices", () => Nav.sheet("bibliotheque"), "exercices fiches execution comment faire bibliotheque"],
   ["Techniques d'intensification", () => Nav.sheet("bibliotheque", { onglet: "techs" }), "superset triset degressive drop set rest pause negatives isometrie contraction tempo pyramide"], ["Revenu", () => Nav.sheet("operation", { revenu: true }), "salaire"],
-  ["Charges fixes", () => Nav.sheet("fixes"), "loyer abonnement forfait"], ["Photos", () => Nav.sheet("photos"), "avant apres"], ["Prises de sang", () => Nav.sheet("bilans"), "testosterone cortisol crp ferritine"],
+  ["Charges fixes", () => Nav.sheet("fixes"), "loyer abonnement forfait"], ["Photos", () => Nav.sheet("photos"), "avant apres"],
   ["Douleurs", () => Nav.sheet("douleurs"), "suivi historique alternatives regles"], ["Réglages", () => Nav.sheet("reglages"), "profil horaires reveil creneau theme"], ["Sauvegarde", () => Nav.sheet("reglages"), "export import donnees restaurer"],
   ["Rappels au calendrier", () => Nav.sheet("reglages"), "ics planning horaires"], ["Séance d'aujourd'hui", () => Nav.tab("sport"), "minuteur repos series"], ["Repas d'aujourd'hui", () => Nav.tab("repas"), "menu plats manger"], ["Mes comptes", () => Nav.tab("argent"), "budget reste enveloppes plafond epargne"], ["Ma courbe de poids", () => Nav.tab("corps"), "tendance objectif projection"],
 ];
