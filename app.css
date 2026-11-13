@@ -87,8 +87,8 @@ h1, h2, h3, p { margin: 0; }
 .barre .actif { flex-grow: 2.1; background: var(--c); color: var(--sur); }
 .barre .actif b { display: block; animation: apparait .3s ease-out; }
 .barre [data-ton="jour"].actif { color: var(--fond); }
-.plus { position: absolute; right: var(--gout); bottom: calc(72px + var(--bas)); z-index: 30; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--encre); color: var(--fond); box-shadow: 0 8px 24px #0009; transition: transform .15s; }
-.plus:active { transform: scale(.92); }
+button.plus { position: absolute; right: var(--gout); bottom: calc(72px + var(--bas)); z-index: 30; width: 60px; height: 60px; border-radius: 50%; display: grid; place-items: center; background: var(--encre); color: var(--fond); box-shadow: 0 8px 24px #0009; transition: transform .15s; }
+button.plus:active { transform: scale(.92); }
 .pastille { position: absolute; top: calc(10px + var(--haut)); left: 50%; transform: translateX(-50%); z-index: 40; display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 999px; background: var(--sport); color: var(--sur); font-family: var(--an); font-size: 18px; animation: tombe .25s ease-out; }
 .pastille b { font-weight: 400; font-variant-numeric: tabular-nums; }
 
@@ -495,6 +495,19 @@ h1, h2, h3, p { margin: 0; }
 .sous-onglets .point-r { display: inline-block; width: 7px; height: 7px; margin-left: 4px; border-radius: 50%; background: var(--jaune); vertical-align: 2px; }
 .menu-r { display: grid; gap: 6px; }
 .rangee.alerte-r small { color: var(--jaune); }
+button.plus { transition: transform .25s ease, opacity .25s ease; }
+button.plus.cache { transform: translateY(140px); opacity: 0; pointer-events: none; }
+.decompte { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--r); background: var(--fond2); font-size: 15px; }
+.decompte > div { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; color: var(--mou); }
+.decompte > div b { color: var(--encre); font-variant-numeric: tabular-nums; }
+.decompte > div.total { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--trait); color: var(--encre); font-weight: 800; }
+.decompte > div.total b { font-family: var(--an); font-weight: 400; font-size: 22px; color: var(--ton); }
+p.note.mal b { color: var(--rouge); }
+.entete-cat { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-radius: var(--r); background: var(--fond2); }
+.entete-cat > div { flex: 1; min-width: 0; }
+.entete-cat b { display: block; font-size: 16px; }
+.entete-cat span { font-size: 13px; color: var(--mou); }
+.ancre-r { height: 0; scroll-margin-top: var(--haut); }
 /* Banque */
 .synchro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--mou); }
 .synchro span { flex: 1; min-width: 0; }

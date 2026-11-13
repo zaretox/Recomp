@@ -29,37 +29,49 @@ function EcranArgent() {
   };
   useEffect(() => { if (importBanqueDu()) actualiser(true); }, []);
   const aClasser = cour ? ops.filter(o => o._t === "dep" && o.banque && o.cat === "Autre").length : 0;
-  const [rub, setRub] = useRubrique("argent", RUBRIQUES_ARGENT), [q, setQ] = useState("");
-  const qs = sansAccent(q.trim()), opsVues = qs ? ops.filter(o => sansAccent((o.label || "") + " " + (o.source || "") + " " + (o.cat || "")).includes(qs)) : ops;
+  const [rub, setRub] = useRubrique("argent", RUBRIQUES_ARGENT), [q, setQ] = useState(""), [filtre, setFiltre] = useState("tout");
+  // Filtres des opérations : toutes, à classer, revenus, puis les catégories de la période
+  const filtres = [["tout", "Toutes"], ...(aClasser ? [["classer", "À classer (" + aClasser + ")"]] : []), ["revenus", "Revenus"], ...cats.map(c => [c, c])];
+  const estCat = CATEGORIES.includes(filtre);
+  const qs = sansAccent(q.trim());
+  const opsVues = ops.filter(o => (filtre === "tout" || (filtre === "classer" ? o._t === "dep" && o.banque && o.cat === "Autre" : filtre === "revenus" ? o._t === "rev" : o._t === "dep" && o.cat === filtre))
+    && (!qs || sansAccent((o.label || "") + " " + (o.source || "") + " " + (o.cat || "")).includes(qs)));
+  const jours = [];
+  opsVues.slice(0, 150).forEach(o => { const g = jours[jours.length - 1]; if (g && g[0] === o.dateISO) g[1].push(o); else jours.push([o.dateISO, [o]]); });
+  const voirCategorie = c => { setFiltre(c); setQ(""); setRub("operations"); setTimeout(() => document.getElementById("ancre-argent")?.scrollIntoView({ block: "start", behavior: "smooth" }), 30); };
+  // Le filtre choisi reste visible dans la rangée de puces
+  useEffect(() => { if (rub === "operations") document.querySelector(".puces .puce.actif")?.scrollIntoView({ inline: "center", block: "nearest" }); }, [filtre, rub]);
   const prochaine = b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : p.civil ? "" : "Prochaine paye vers le " + dateJour(decale(b.fin, 1)) + ".";
   return h("div.page", { "data-t": "argent" },
     h("header.hero", { "data-ton": "argent" },
       h("div.mois", h("button.rond", { onClick: () => setDec(dec + 1), disabled: k === 0, "aria-label": "Période précédente" }, h(Icone, { n: "retour", t: 18 })), h("span.affiche-e", nomPeriode(b)), h("button.rond", { onClick: () => setDec(Math.max(0, dec - 1)), disabled: dec === 0, "aria-label": "Période suivante" }, h(Icone, { n: "fleche", t: 18 }))),
       h("div.affiche-g", h(Geant, null, Discret.cache() ? h(PointsG) : h(Compteur, { v: (b.reste < 0 ? "−" : "") + entier(Math.abs(b.reste)) })), h("em", "€"), h(Oeil)),
-      h("p", !b.rev ? "Ajoute ta paye pour voir ce qu'il te reste." : b.reste < 0 ? "Tu dépasses de " + eurosD(-b.reste) + (p.civil ? " ce mois-ci." : " depuis ta paye.") + (cour && prochaine ? " " + prochaine : "")
-        : cour ? (b.enRetard ? "à dépenser. " + prochaine : "à dépenser, soit " + eurosD(Math.round(b.parJour)) + " par jour pendant " + pluriel(b.restants, "jour") + "." + (prochaine ? " " + prochaine : "")) : p.civil ? "restants à la fin du mois" : "restants avant la paye suivante"),
-      prev && prev.apres > 0 && h("p.prevision", { className: prev.fin < 0 ? "mal" : "" },
-        "À ce rythme (" + eurosD(Math.round(prev.rythme)) + " par jour), il te restera ", h("b", Discret.cache() ? "•••" : (prev.fin < 0 ? "−" : "") + euros(Math.abs(prev.fin))), " le " + dateJour(b.fin) + "." + (prev.fin < 0 ? " Vise " + eurosD(Math.round(prev.cible)) + " par jour." : "")),
-      h("div.hero-l",
-        h("span", h("b.mt", euros(b.rev)), b.estimeRev && b.rev ? "revenus estimés" : "revenus"),
-        h("span", h("b.mt", euros(b.depenses)), "dépensés"),
-        h("span", h("b.mt", euros(b.aVenir)), "à venir"),
-        b.objectif > 0 && h("span", h("b.mt", euros(b.objectif)), "à épargner"),
-        cour && lien?.solde && h("span", h("b.mt", euros(lien.solde.montant)), "sur ton compte"))),
+      // Une seule ligne sous le chiffre ; le détail est dans Budget
+      h("p", !b.rev ? "Ajoute ta paye pour voir ce qu'il te reste." : b.reste < 0 ? "Tu dépasses de " + eurosD(-b.reste) + (p.civil ? " ce mois-ci." : " depuis ta paye.")
+        : !cour ? (p.civil ? "restants à la fin du mois" : "restants avant la paye suivante")
+        : b.enRetard ? "à dépenser. Ta paye était attendue le " + dateJour(b.prevue) + "."
+        : "à dépenser, soit " + eurosD(Math.round(b.parJour)) + " par jour " + (p.civil ? "jusqu'à la fin du mois." : "jusqu'à ta paye du " + dateJour(decale(b.fin, 1)) + "."))),
     h("div.corps-p.avec-rubriques",
-      // Les gestes, toujours là, quelle que soit la rubrique
-      h("div.deux-b",
-        h(Bouton, { cl: "plein", ico: "moins", onClick: () => Nav.sheet("operation") }, "Dépense"),
-        h(Bouton, { cl: "contour", ico: "plus", onClick: () => Nav.sheet("operation", { revenu: true }) }, "Revenu")),
+      // La banque en une ligne ; noter une dépense ou un revenu passe par le « + »
       cour && lien?.session && h("div.synchro",
-        h("span", (lien.banque || "Banque") + (sync ? " : mise à jour…" : lien.derniere ? " : à jour " + (lien.derniere === aujourdhui() ? "aujourd'hui" : "le " + dateMini(lien.derniere)) : "")),
+        h("span", (lien.banque === "BNP Paribas" ? "BNP" : lien.banque || "Banque") + (sync ? " · mise à jour…" : lien.derniere ? " · à jour " + (lien.derniere === aujourdhui() ? "aujourd'hui" : "le " + dateMini(lien.derniere)) : ""),
+          lien.solde && h(Fragment, null, " · ", h("b.mt", euros(lien.solde.montant)), " sur ton compte")),
         h("button.mini", { disabled: sync, onClick: () => actualiser(false) }, "Actualiser")),
+      h("div", { id: "ancre-argent", className: "ancre-r" }),
       h(SousOnglets, { liste: RUBRIQUES_ARGENT.map(([k, l]) => [k, l, k === "operations" && aClasser ? aClasser : null]), actif: rub, onChange: setRub }),
       rub === "budget" && h(Fragment, null,
-        h(Section, { titre: "Où va ton argent", droite: h("span.compte", "touche pour un plafond") },
+        b.rev > 0 && h(Section, { titre: p.civil ? "Ton mois, poste par poste" : "Ta paye, poste par poste" },
+          h("div.decompte",
+            h("div", h("span", b.estimeRev ? "Revenus estimés" : p.civil ? "Revenus" : "Ta paye et tes revenus"), h("b.mt", euros(b.rev))),
+            b.objectif > 0 && h("div", h("span", "− Épargne"), h("b.mt", euros(b.objectif))),
+            b.aVenir > 0 && h("div", h("span", "− Charges fixes à venir"), h("b.mt", euros(b.aVenir))),
+            h("div", h("span", "− Déjà dépensé"), h("b.mt", euros(b.depenses))),
+            h("div.total", h("span", b.reste < 0 ? "= Dépassement" : "= Reste à dépenser"), h("b.mt", euros(b.reste)))),
+          prev && prev.apres > 0 && h("p.note", { className: prev.fin < 0 ? "mal" : "" }, "À ce rythme (" + eurosD(Math.round(prev.rythme)) + " par jour), il te restera ", h("b", Discret.cache() ? "•••" : (prev.fin < 0 ? "−" : "") + euros(Math.abs(prev.fin))), " le " + dateJour(b.fin) + "." + (prev.fin < 0 ? " Vise " + eurosD(Math.round(prev.cible)) + " par jour." : ""))),
+        h(Section, { titre: "Où va ton argent", droite: h("span.compte", "touche pour le détail") },
           cats.length ? h("div.enveloppes", cats.map(c => {
             const v = Math.round(b.parCat[c] || 0), cap = b.caps[c] || 0;
-            return h("button", { key: c, onClick: () => plafond(c), className: cap && v > cap ? "depasse" : "" },
+            return h("button", { key: c, onClick: () => voirCategorie(c), className: cap && v > cap ? "depasse" : "" },
               h("span", h("b", c), h("em.mt", cap ? v + " / " + cap + " €" : v + " €" + (propose(c) && cour ? " · d'habitude " + Math.round(hab[c]) + " €" : ""))),
               h(Jauge, { v, max: cap || Math.max(...cats.map(x => b.parCat[x] || 0)), ton: cap && v > cap ? "rouge" : "argent" }));
           })) : h(Vide, null, p.civil ? "Aucune dépense ce mois-ci." : "Aucune dépense depuis ta paye."),
@@ -79,10 +91,16 @@ function EcranArgent() {
             h("button.mini", { onClick: () => ignorerAbonnement(a.cle) }, "Ignorer"))))),
       rub === "epargne" && h(BlocEpargne),
       rub === "operations" && h(Fragment, null,
-        h("input.recherche", { value: q, onChange: e => setQ(e.target.value), placeholder: "Chercher : Carrefour, loyer, courses…", "aria-label": "Chercher une opération", enterKeyHint: "search" }),
-        aClasser > 0 && !q && h("p.note", h("b", pluriel(aClasser, "opération") + " à classer"), " : touche-les pour choisir leur catégorie."),
-        h(Section, { titre: q ? "Résultats" : p.civil ? "Ce mois-ci" : "Depuis ta paye", droite: h("span.compte", opsVues.length) },
-          opsVues.length ? opsVues.slice(0, 120).map(o => h(LigneOp, { key: o._t + o.id, o })) : h(Vide, null, q ? "Rien pour « " + q.trim() + " »." : "Aucune opération.")),
+        h("input.recherche", { value: q, onChange: e => setQ(e.target.value), placeholder: "Chercher : Carrefour, loyer…", "aria-label": "Chercher une opération", enterKeyHint: "search" }),
+        h(Puces, { defile: true }, filtres.map(([k, l]) => h(Puce, { key: k, actif: filtre === k, onClick: () => setFiltre(k) }, l))),
+        // Une catégorie choisie : son total et son plafond, en tête
+        estCat && h("div.entete-cat",
+          h("div", h("b", filtre), h("span.mt", euros(Math.round(b.parCat[filtre] || 0)) + (b.caps[filtre] ? " sur " + euros(b.caps[filtre]) : "") + (hab[filtre] ? " · d'habitude " + euros(Math.round(hab[filtre])) : ""))),
+          h("button.mini", { onClick: () => plafond(filtre) }, b.caps[filtre] ? "Changer le plafond" : "Fixer un plafond")),
+        filtre === "classer" && h("p.note", "Touche une opération pour choisir sa catégorie : l'app retiendra ce commerce."),
+        opsVues.length ? jours.map(([d, l]) => h(Section, { key: d, titre: libelleJour(d), droite: h("span.compte.mt", (() => { const t = l.reduce((a, o) => a + (o._t === "rev" ? o.montant : -o.montant), 0); return (t > 0 ? "+" : t < 0 ? "−" : "") + euros(Math.abs(t), Math.abs(t) % 1 ? 2 : 0); })()) },
+          l.map(o => h(LigneOp, { key: o._t + o.id, o, sansDate: true }))))
+          : h(Vide, null, q ? "Rien pour « " + q.trim() + " »." : "Aucune opération ici."),
         cour && h(VerifComptes)),
       rub === "tendances" && h(Fragment, null,
         h(Section, { titre: p.civil ? "Dépenses des six derniers mois" : "Dépenses des six dernières payes" },
@@ -105,8 +123,9 @@ function VerifComptes() {
     !txt ? h(Bouton, { cl: "contour", onClick: () => setTxt(diagnosticArgent()) }, "Lancer la vérification")
       : h(Fragment, null, h("pre.diag.mt", txt), h(Bouton, { cl: "plein", onClick: copier }, "Copier")));
 }
-const LigneOp = ({ o }) => h("button.ligne", { onClick: () => Nav.sheet("operation", { edite: o }) },
-  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", dateMini(o.dateISO) + (o._t === "dep" && o.label ? ", " + (o.banque && o.cat === "Autre" ? "à classer" : o.cat.toLowerCase()) : "") + (o.attente ? ", en cours" : ""))),
+const libelleJour = d => { const e = ecart(d, aujourdhui()); return e === 0 ? "Aujourd'hui" : e === 1 ? "Hier" : dateLongue(d).replace(/^./, c => c.toUpperCase()); };
+const LigneOp = ({ o, sansDate }) => h("button.ligne", { onClick: () => Nav.sheet("operation", { edite: o }) },
+  h("span", h("b", o._t === "rev" ? o.source : o.label || o.cat), h("small", [sansDate ? null : dateMini(o.dateISO), o._t === "rev" ? (o.paye ? "paye" : "revenu") : o.banque && o.cat === "Autre" ? "à classer" : o.cat.toLowerCase(), o.attente ? "en cours" : null].filter(Boolean).join(", "))),
   h("b", { className: (o._t === "rev" ? "plus " : "") + "mt" }, (o._t === "rev" ? "+" : "−") + euros(o.montant, o.montant % 1 ? 2 : 0)));
 
 /* ÉPARGNE — mise en route en trois choix, puis suivi */

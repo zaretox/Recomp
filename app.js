@@ -62,11 +62,26 @@ function App() {
     window.addEventListener("resize", recale);
     return () => { window.removeEventListener("orientationchange", recale); window.removeEventListener("resize", recale); };
   }, []);
+  // Le « + » s'efface quand on descend (il cachait les montants à droite des lignes) et revient quand on remonte
+  const plus = useRef(null);
+  useEffect(() => {
+    let avant = 0;
+    const defile = e => {
+      if (!e.target?.classList?.contains("scene") || !plus.current) return;
+      const y = e.target.scrollTop, d = y - avant;
+      if (Math.abs(d) < 6) return;
+      plus.current.classList.toggle("cache", d > 0 && y > 120);
+      avant = y;
+    };
+    document.addEventListener("scroll", defile, true);
+    return () => document.removeEventListener("scroll", defile, true);
+  }, []);
+  useEffect(() => { plus.current?.classList.remove("cache"); }, [nav.tab]);
   const O = ONGLETS.find(o => o.id === nav.tab);
   const enSeance = nav.pile.some(f => f.nom === "seance");
   return h("div.app", { "data-t": nav.tab },
     h("main.scene", { ref: page, key: nav.tab + jour, "aria-hidden": nav.pile.length > 0 }, h(Filet, null, h(O.E))),
-    h("button.plus", { onClick: () => { vibre(); Nav.sheet("capture"); }, "aria-label": "Que veux-tu faire ?" }, h(Icone, { n: "plus", t: 30 })),
+    h("button.plus", { ref: plus, onClick: () => { vibre(); Nav.sheet("capture"); }, "aria-label": "Que veux-tu faire ?" }, h(Icone, { n: "plus", t: 30 })),
     h("nav.barre", { "aria-label": "Sections" }, ONGLETS.map(o => h("button", { key: o.id, className: nav.tab === o.id ? "actif" : "", "data-ton": o.id, "aria-current": nav.tab === o.id ? "page" : undefined, "aria-label": o.nom, onClick: () => { vibre(); Nav.tab(o.id); } },
       h(Icone, { n: o.ico, t: 22 }), h("b", o.nom)))),
     h(PastilleRepos, { cache: enSeance }),

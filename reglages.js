@@ -7,6 +7,7 @@ const ACTIONS = [
   { t: "Pesée", i: "poids", go: () => Nav.sheet("pesee"), kw: "poids balance kg" },
   { t: "Aliment", i: "repas", go: () => Nav.sheet("aliment", { iso: aujourdhui() }), kw: "manger extra calories journal" },
   { t: "Dépense", i: "argent", go: () => Nav.sheet("operation"), kw: "achat payer euros" },
+  { t: "Revenu", i: "plus", go: () => Nav.sheet("operation", { revenu: true }), kw: "paye salaire virement recu euros" },
   { t: "Séance", i: "sport", go: () => Nav.sheet("choisir"), kw: "muscu salle entrainement" },
   { t: "Natation", i: "nage", go: () => Nav.sheet("natation"), kw: "piscine nager" },
   { t: "J'ai mal", i: "mal", go: () => Nav.sheet("douleur"), kw: "douleur genou pied epaule blessure" },
