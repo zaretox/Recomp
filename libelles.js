@@ -30,7 +30,7 @@ const REGION_MAISON = {"A":["legs"],"B":["upper"],"C":["legs","upper"],"D":["leg
 
 const MENSURATIONS = [{"k":"taille","l":"Tour de taille"},{"k":"cou","l":"Tour de cou"},{"k":"poitrine","l":"Poitrine"},{"k":"bras","l":"Bras"},{"k":"cuisse","l":"Cuisse"},{"k":"hanches","l":"Hanches"}];
 
-const CATEGORIES = ["Logement","Courses","Transport","Sorties","Loisirs","Santé","Abonnements","Sport","Vêtements","Autre"];
+const CATEGORIES = ["Logement","Courses","Transport","Sorties","Loisirs","Santé","Abonnements","Sport","Vêtements","Assurances","Banque","Impôts","Cadeaux","Espèces","Autre"];
 
 
 const NAGE_BLOCS = ["Échauffement","Éducatifs","Technique","Série principale","Série","Jambes","Bras","Retour au calme"];

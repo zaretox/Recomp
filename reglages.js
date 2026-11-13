@@ -112,7 +112,7 @@ function SectionDiscret() {
     } catch (e) { toast(e?.name === "NotAllowedError" ? "Face ID annulé" : "Face ID impossible : " + (e?.message || e), { danger: true }); }
     finally { setCharge(false); }
   };
-  return h(Section, { titre: "Confidentialité" },
+  return h(Section, null,
     h("div.interrupteurs",
       h(Interrupteur, { actif, titre: "Masquer mes montants", sous: "Flous par défaut dans Argent, sur l'écran Jour, dans le coach et le bilan. L'œil les affiche.", onClick: async () => { await setProfil({ discret: !actif }); Discret.appliquer(); } }),
       actif && h(Interrupteur, { actif: avecFaceId, titre: charge ? "Un instant…" : "Avec Face ID", sous: possible === false ? "Pas disponible ici : ouvre RECOMP depuis son icône sur l'écran d'accueil." : "Demandé pour afficher, pas plus d'une fois toutes les 5 minutes", onClick: basculerFaceId })));
@@ -120,11 +120,11 @@ function SectionDiscret() {
 /* Banque : liaison en lecture seule, pour que tes opérations arrivent toutes seules dans Argent */
 function SectionBanque() {
   const l = lienBanque(), reste = accesBanqueExpire();
-  if (!l?.session) return h(Section, { titre: "Banque" },
+  if (!l?.session) return h(Section, null,
     h("p.texte-p", "Relie ton compte pour que tes dépenses arrivent toutes seules dans Argent, déjà classées. Lecture seule : aucun paiement possible. Tes opérations ne sont gardées que sur ce téléphone."),
     h("div.deux-b", h(Bouton, { cl: "plein", onClick: () => Nav.sheet("banque") }, "Relier ma banque"), h(Bouton, { cl: "contour", onClick: collerCodeBanque }, "J'ai un code")));
   const c = (l.comptes || []).find(x => x.uid === l.compte);
-  return h(Section, { titre: "Banque" },
+  return h(Section, null,
     h("p.texte-p", h("b", (l.banque || "Banque") + " reliée"), c ? ", " + c.nom + (c.fin ? " ••" + c.fin : "") : "", ". ",
       reste == null ? "" : reste < 0 ? h("b", "Accès expiré : relie-la à nouveau.") : "Accès valable jusqu'au " + dateJour(l.expire) + (reste <= 10 ? ", pense à le renouveler." : ".")),
     (l.comptes || []).length > 1 && h(Puces, null, l.comptes.map(x => h(Puce, { key: x.uid, actif: x.uid === l.compte, onClick: () => DB.set("banque-lien", { ...l, compte: x.uid, derniere: null }) }, x.nom + (x.fin ? " ••" + x.fin : "")))),
@@ -154,7 +154,7 @@ function InterNotifs() {
 /* Montre Polar : liaison par le service AccessLink, pour remplir la saisie du matin */
 function SectionPolar() {
   const l = lienPolar();
-  return h(Section, { titre: "Montre Polar" },
+  return h(Section, null,
     l?.jeton ? h(Fragment, null,
       h("p.texte-p", h("b", "Montre reliée"), " depuis le " + dateJour(l.depuis) + ". Dans « Forme du matin », un bouton remplit SNA, VFC, FC et sommeil depuis ta Recharge nocturne."),
       h("p.note", "Ta montre doit d'abord avoir synchronisé la nuit avec l'app Polar Flow."),

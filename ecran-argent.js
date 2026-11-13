@@ -236,7 +236,7 @@ function FeuilleOperation({ revenu, edite }) {
     !edite && h(Puces, null, h(Puce, { actif: !rev, onClick: () => setRev(false) }, "Dépense"), h(Puce, { actif: rev, onClick: () => setRev(true) }, "Revenu")),
     h("div.montant-g", { className: neuf ? "neuf" : "" }, h("b", affichage(txt, "dec")), h("em", "€")),
     !rev && recents.length > 0 && !edite && h(Puces, { defile: true }, recents.map(r => h(Puce, { key: r.label, onClick: () => { setTxt(String(r.montant).replace(".", ",")); setCat(r.cat); setLib(r.label); setNeuf(true); } }, r.label))),
-    !rev && h(Puces, { defile: true }, CATEGORIES.map(c => h(Puce, { key: c, actif: cat === c, onClick: () => setCat(c) }, c))),
+    !rev && h(Puces, null, CATEGORIES.map(c => h(Puce, { key: c, actif: cat === c, onClick: () => setCat(c) }, c))),
     rev && h(Puces, null, h(Puce, { actif: paye, onClick: () => setPaye(true) }, "C'est ma paye"), h(Puce, { actif: !paye, onClick: () => setPaye(false) }, "Autre revenu")),
     h("input.recherche", { value: lib, onChange: e => setLib(e.target.value), placeholder: rev ? "Source (facultatif)" : "Libellé (facultatif)", "aria-label": "Libellé" }),
     h(Clavier, { mode: "dec", txt, setTxt, neuf, setNeuf, valeurNum: () => parseNb(txt) || 0, onOk: valider, ok: "OK" }),
@@ -254,7 +254,7 @@ function FeuilleFixes() {
     if (!lib.trim()) return toast("Donne un nom à cette charge");
     const r = await saisir([{ titre: lib.trim() + " : montant", court: "Montant", mode: "dec", unite: "€", min: 0 }, { titre: "Jour du mois", court: "Jour", valeur: 1, mode: "ent", min: 1, max: 31, pas: [1] }]);
     if (!r || !r[0]) return;
-    await DB.set("fin-fixes", [...fixes, { id: nouvelId("f"), label: lib.trim(), montant: r[0], cat: /loyer|edf|elec|gaz|assur/i.test(lib) ? "Logement" : /salle|sport/i.test(lib) ? "Sport" : "Abonnements", jour: r[1] || 1 }]);
+    await DB.set("fin-fixes", [...fixes, { id: nouvelId("f"), label: lib.trim(), montant: r[0], cat: /loyer|edf|elec|gaz|eau/i.test(lib) ? "Logement" : /assur/i.test(lib) ? "Assurances" : /frais|banque|cotisation/i.test(lib) ? "Banque" : /imp[oô]t|taxe/i.test(lib) ? "Impôts" : /salle|sport/i.test(lib) ? "Sport" : "Abonnements", jour: r[1] || 1 }]);
     setLib("");
   };
   return h(Feuille, { titre: "Charges fixes", ton: "argent" },

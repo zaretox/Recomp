@@ -72,6 +72,7 @@ function libelleDe(t) {
     .replace(/^VIR(EMENT)?\s+(SEPA\s+)?(INST(ANTANE)?\s+)?(RECU|EMIS)?\s*(\/?DE:?\s*|\/?POUR:?\s*)?/i, "")
     .replace(/\bDU\s+\d{6}\b/g, "").replace(/\bCARTE\s+[X\d*]{4,}\b/gi, "").replace(/\b\d{2}\/\d{2}(\/\d{2,4})?\b/g, "")
     .replace(/\s\/.*$/, "").replace(/\s{2,}/g, " ").trim();
+  l = sansRefSepa(l);
   if (!l) return "Opération";
   return lisible(l);
 }
@@ -79,15 +80,19 @@ function libelleDe(t) {
 const lisible = l => l.length > 3 && l === l.toUpperCase() ? l.toLowerCase().replace(/(^|[\s\-'])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).slice(0, 48) : l.slice(0, 48);
 // Règles toutes prêtes ; tes propres règles passent avant
 const REGLES_DEFAUT = [
-  [/FRAIS BANCAIRES|COTISATION|OFFRE GROUPEE|AGIOS/, "Abonnements"],
+  [/FRAIS BANCAIRES|COTISATION|OFFRE GROUPEE|AGIOS|COMMISSION/, "Banque"],
+  [/RETRAIT D.ESPECES|RETRAIT (DAB|GAB)/, "Espèces"],
+  [/IMPOT|DGFIP|TRESOR PUBLIC|FINANCES PUBLIQUES|\bTAXE|ANTAI|AMENDE/, "Impôts"],
   [/CARREFOUR|LECLERC|AUCHAN|LIDL|INTERMARCHE|MONOPRIX|FRANPRIX|ALDI|CASINO|SUPER U|HYPER U|PICARD|GRAND FRAIS|NETTO|BIOCOOP|LEADER PRICE|PROXI|SPAR/, "Courses"],
   [/MC ?DO|MCDONALD|BURGER KING|KFC|QUICK|UBER ? EATS|DELIVEROO|JUST EAT|RESTAU|BRASSERIE|PIZZ|SUSHI|KEBAB|TACOS|STARBUCKS|COLUMBUS|BAR |CAFE/, "Sorties"],
+  [/LOYER|EDF|ENGIE|TOTALENERGIES ELEC|VEOLIA|SUEZ/, "Logement"],
+  [/PHARMA|DOCTOLIB|MEDECIN|DOCTEUR|DENTISTE|LABO|MUTUELLE|CPAM|AMELI|\bALAN\b/, "Santé"],
+  [/ASSURANCE|\bASSUR|AVANSSUR|\bAXA\b|MAAF|MACIF|MATMUT|GROUPAMA|\bMAIF\b|\bGMF\b|\bMMA\b|ALLIANZ|GENERALI|AVIVA|PACIFICA|LEOCARE|\bLUKO\b|HISCOX|\bAPRIL\b/, "Assurances"],
   [/TOTAL|ESSO|SHELL|\bBP\b|AVIA|SNCF|RATP|NAVIGO|UBER|BOLT|BLABLA|PEAGE|AUTOROUTE|VINCI|SANEF|APRR|PARKING|INDIGO|TCL|TISSEO/, "Transport"],
-  [/NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON PRIME|CANAL|DEEZER|APPLE\.COM|ICLOUD|GOOGLE ?\*|YOUTUBE|FREE MOBILE|FREE TELECOM|SFR|ORANGE|BOUYGUES|SOSH|RED BY|CHATGPT|OPENAI/, "Abonnements"],
-  [/PHARMA|DOCTOLIB|MEDECIN|DOCTEUR|DENTISTE|LABO|MUTUELLE|CPAM|AMELI/, "Santé"],
+  [/NETFLIX|SPOTIFY|DISNEY|PRIME VIDEO|AMAZON PRIME|CANAL|DEEZER|APPLE\.COM|ICLOUD|GOOGLE ?\*|YOUTUBE|FREE MOBILE|FREE TELECOM|SFR|ORANGE|BOUYGUES|SOSH|RED BY|CHATGPT|OPENAI|CRUNCHYROLL/, "Abonnements"],
   [/DECATHLON|BASIC ?FIT|FITNESS|KEEP COOL|ON AIR|PISCINE|INTERSPORT|GO SPORT|POLAR/, "Sport"],
   [/ZARA|H ?& ?M|KIABI|CELIO|JULES|PRIMARK|UNIQLO|BERSHKA|PULL ?& ?BEAR|ZALANDO|VINTED/, "Vêtements"],
-  [/LOYER|EDF|ENGIE|TOTALENERGIES ELEC|VEOLIA|SUEZ|ASSURANCE|AXA|MAAF|MACIF|MATMUT|GROUPAMA|TAXE|IMPOTS|DGFIP/, "Logement"],
+  [/SMARTBOX|WONDERBOX|INTERFLORA|CADEAU/, "Cadeaux"],
   [/AMAZON|FNAC|DARTY|BOULANGER|STEAM|PLAYSTATION|NINTENDO|XBOX|CINEMA|UGC|PATHE|GAUMONT|CULTURA|LEROY|IKEA|ACTION/, "Loisirs"],
 ];
 // Codes de commerce (MCC) quand le libellé ne dit rien
@@ -200,6 +205,15 @@ async function importerBanque1() {
       && !dep.some(e => e.banque && e.fixId === x.id && proche(e.dateISO, dateISO, 20)));
     dep.push({ id: id++, dateISO, montant, cat: f?.cat || categorieDe(libelle, t.merchant_category_code), label: f ? f.label : libelle, brut: libelle, banque: ref, ...en, ...(f ? { fixId: f.id } : {}) });
   }
+  // Opérations déjà là : libellé de prélèvement nettoyé, et celles « à classer » que les règles reconnaissent maintenant
+  let retouches = 0;
+  dep.forEach(x => {
+    if (!x.banque) return;
+    const c = x.label && sansRefSepa(x.label);
+    if (c && c !== x.label) { x.label = c; retouches++; }
+    if (x.cat === "Autre") { const k = categorieDe(x.label || ""); if (k !== "Autre") { x.cat = k; retouches++; } }
+  });
+  inc.forEach(x => { const c = x.banque && x.source && sansRefSepa(x.source); if (c && c !== x.source) { x.source = c; retouches++; } });
   const fusion = fusionnerManuels(dep, inc);
   // Solde « à venir » : celui donné par la banque, sinon le solde comptable moins les paiements en cours
   const rang = x => { const i = ORDRE_SOLDES.indexOf(x.balance_type); return i < 0 ? 99 : i; };
@@ -209,7 +223,7 @@ async function importerBanque1() {
     const brut = +b.balance_amount?.amount || 0;
     solde = { montant: b.balance_type === "XPCD" ? brut : arrondi(brut - enCours.debits + enCours.credits, 2), date: auj };
   }
-  const changes = n || fusion || DB.get("fin-expenses").length !== dep.length || DB.get("fin-income").length !== inc.length;
+  const changes = n || fusion || retouches || DB.get("fin-expenses").length !== dep.length || DB.get("fin-income").length !== inc.length;
   if (changes) { await DB.set("fin-expenses", dep); await DB.set("fin-income", inc); }
   if (epChange) await DB.set("epargne", ep);
   await DB.set("banque-lien", { ...lienBanque(), derniere: auj, solde, soldes: liste.map(x => ({ type: x.balance_type, montant: +x.balance_amount?.amount || 0 })), enCours });

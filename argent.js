@@ -92,7 +92,9 @@ function habituelParCat() {
   return o;
 }
 /* Abonnements repérés : même commerce, montant quasi identique (5 %), tous les 25 à 35 jours, pas encore dans tes charges fixes */
-const cleCommerce = l => sansAccent(l).replace(/[^a-z ]/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
+// Prélèvements SEPA : « AVANSSUR ECH/111126 ID EMETTEUR/FR64ZZZ… MDT/… » ne garde que « AVANSSUR »
+const sansRefSepa = l => String(l || "").replace(/\s+(ECH|ID\s*EMETTEUR|MDTS?|MD|RUM|REF|NUM|LIB|DATE)\s*[\/:].*$/i, "").trim();
+const cleCommerce = l => sansAccent(sansRefSepa(l)).replace(/[^a-z ]/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
 function abonnementsReperes() {
   const auj = aujourdhui(), ignores = reglesBanque().recurrentsIgnores || [], fixes = DB.get("fin-fixes"), groupes = {};
   DB.get("fin-expenses").filter(e => !e.fixId && e.label && ecart(e.dateISO, auj) <= 130).forEach(e => { const k = cleCommerce(e.label); if (k) (groupes[k] = groupes[k] || []).push(e); });

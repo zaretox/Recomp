@@ -288,12 +288,25 @@ function remonterRubrique(ancre, doux) {
   const top = scene.scrollTop + ancre.getBoundingClientRect().top - scene.getBoundingClientRect().top + ecart - (parseFloat(cs.top) || 0);
   scene.scrollTo({ top: Math.max(0, top), behavior: doux ? "smooth" : "instant" });
 }
-const SousOnglets = ({ liste, actif, onChange }) => h("nav.sous-onglets", { role: "tablist" },
-  liste.map(([k, l, n]) => h("button", { key: k, role: "tab", "aria-selected": actif === k, "aria-label": n ? l + ", " + n + " à voir" : l, className: actif === k ? "actif" : "", onClick: e => {
-    if (actif === k) return;
-    vibre();
-    // Si la barre est collée en haut, la nouvelle rubrique s'affiche depuis son début
-    const barre = e.currentTarget.parentNode, ancre = barre.previousElementSibling, colle = ancre?.classList.contains("ancre-r") && ancre.getBoundingClientRect().top < barre.getBoundingClientRect().top - 20;
-    onChange(k);
-    if (colle) requestAnimationFrame(() => remonterRubrique(ancre));
-  } }, l, n ? h("span.point-r", { "aria-hidden": true }) : null)));
+function SousOnglets({ liste, actif, onChange }) {
+  const barre = useRef(null);
+  // « collée » : la barre est arrivée en haut de l'écran. Alors seulement, elle peint la zone de l'heure et de la batterie
+  // au-dessus d'elle ; sinon elle cacherait ce qui la précède (la ligne de la banque, par exemple).
+  useEffect(() => {
+    const b = barre.current, scene = b?.closest(".scene");
+    if (!b || !scene) return;
+    const maj = () => b.classList.toggle("collee", b.getBoundingClientRect().top - scene.getBoundingClientRect().top - (parseFloat(getComputedStyle(b).top) || 0) < 1);
+    maj();
+    scene.addEventListener("scroll", maj, { passive: true });
+    return () => scene.removeEventListener("scroll", maj);
+  }, []);
+  return h("nav.sous-onglets", { ref: barre, role: "tablist" },
+    liste.map(([k, l, n]) => h("button", { key: k, role: "tab", "aria-selected": actif === k, "aria-label": n ? l + ", " + n + " à voir" : l, className: actif === k ? "actif" : "", onClick: () => {
+      if (actif === k) return;
+      vibre();
+      // Si la barre est collée en haut, la nouvelle rubrique s'affiche depuis son début
+      const ancre = barre.current?.previousElementSibling, colle = barre.current?.classList.contains("collee") && ancre?.classList.contains("ancre-r");
+      onChange(k);
+      if (colle) requestAnimationFrame(() => remonterRubrique(ancre));
+    } }, l, n ? h("span.point-r", { "aria-hidden": true }) : null)));
+}

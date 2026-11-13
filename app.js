@@ -85,7 +85,7 @@ function App() {
     h("nav.barre", { "aria-label": "Sections" }, ONGLETS.map(o => h("button", { key: o.id, className: nav.tab === o.id ? "actif" : "", "data-ton": o.id, "aria-current": nav.tab === o.id ? "page" : undefined, "aria-label": o.nom, onClick: () => { vibre(); Nav.tab(o.id); } },
       h(Icone, { n: o.ico, t: 22 }), h("b", o.nom)))),
     h(PastilleRepos, { cache: enSeance }),
-    nav.pile.map(f => { const F = FEUILLES[f.nom]; return h(Filet, { key: f.id }, h(F, f.props)); }),
+    nav.pile.map(f => { const F = FEUILLES[f.nom]; return h("div.pile-f", { key: f.id }, h(Filet, null, h(F, f.props))); }),
     h(HotePave), h(HoteConfirm), h(HoteToast));
 }
 

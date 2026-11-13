@@ -23,6 +23,8 @@ Sous le bandeau, Sport, Repas, Argent et Corps sont découpés en rubriques (bar
 | Argent | Budget · Épargne · Opérations · Tendances |
 | Corps | Poids (courbe, objectif, dernières pesées) · Forme (score, facteurs, sommeil) · Mesures (composition, mensurations, photos) |
 
+Les catégories de dépenses sont une seule liste, `CATEGORIES` dans `libelles.js`, utilisée partout (classement, filtres, budget, plafonds). On peut en ajouter, jamais en renommer : les opérations gardent le nom de leur catégorie. Les règles de classement automatique sont `REGLES_DEFAUT` dans `banque.js`.
+
 Les feuilles « Ta forme », « Ta cible », « Courses » et « Mes programmes » existent toujours (coach, recherche, Réglages) et affichent le même contenu que la rubrique : `ContenuForme`, `ContenuCalories`, `ContenuCourses`, `ContenuProgrammes`.
 
 ## Carte des fichiers
