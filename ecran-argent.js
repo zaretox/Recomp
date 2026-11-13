@@ -112,7 +112,7 @@ function CarteEpargne() {
 }
 
 /* ÉPARGNE — mise en route en trois choix, puis suivi */
-const SOURCES_VERSEMENT = { paye: "à la paye", reste: "reste de la paye d'avant", main: "en plus" };
+const SOURCES_VERSEMENT = { paye: "à la paye", reste: "reste de la paye d'avant", main: "en plus", retrait: "repris sur ton compte" };
 function FeuilleEpargne() {
   useDB();
   const e = etatEpargne(), montant = montantParPaye();

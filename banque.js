@@ -60,15 +60,23 @@ function libelleDe(t) {
   const nom = t.credit_debit_indicator === "DBIT" ? t.creditor?.name : t.debtor?.name;
   let l = String(nom || (t.remittance_information || []).join(" ") || t.bank_transaction_code?.description || "Opération").replace(/\s+/g, " ").trim();
   if (/^RETRAIT\s+(DAB|GAB)/i.test(l)) return "Retrait d'espèces";
+  if (/CPTE A CPTE|COMPTE A COMPTE/i.test(l)) return t.credit_debit_indicator === "CRDT" ? "Virement depuis ton épargne" : "Virement vers ton épargne";
+  // Virements BNP : « /DE nom », « /BEN nom », « /MOTIF texte » : on garde le nom, sinon le motif
+  if (!nom && /^VIR/i.test(l)) {
+    const champ = k => (l.match(new RegExp("\\/" + k + ":?\\s+([^/]+)", "i")) || [])[1]?.trim();
+    const qui = t.credit_debit_indicator === "CRDT" ? champ("DE") : champ("BEN"), motif = champ("MOTIF");
+    if (qui || motif) return (t.credit_debit_indicator === "CRDT" ? "" : "Virement à ") + lisible(qui || motif);
+  }
   if (/COTISATION|OFFRE GROUPEE|COMMISSIONS?\b|FRAIS (BANCAIRES|DE TENUE)|AGIOS/i.test(l)) return "Frais bancaires";
   l = l.replace(/^(FACTURE|PAIEMENT|ACHAT)\s+(PAR\s+)?CARTE(\s+X?\d{4})?\s*/i, "").replace(/^PRLV\s+(SEPA\s+)?/i, "")
     .replace(/^VIR(EMENT)?\s+(SEPA\s+)?(INST(ANTANE)?\s+)?(RECU|EMIS)?\s*(\/?DE:?\s*|\/?POUR:?\s*)?/i, "")
     .replace(/\bDU\s+\d{6}\b/g, "").replace(/\bCARTE\s+[X\d*]{4,}\b/gi, "").replace(/\b\d{2}\/\d{2}(\/\d{2,4})?\b/g, "")
     .replace(/\s\/.*$/, "").replace(/\s{2,}/g, " ").trim();
   if (!l) return "Opération";
-  // Les banques écrivent en majuscules : on rend le libellé lisible
-  return l.length > 3 && l === l.toUpperCase() ? l.toLowerCase().replace(/(^|[\s\-'])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).slice(0, 48) : l.slice(0, 48);
+  return lisible(l);
 }
+// Les banques écrivent en majuscules : on rend le libellé lisible
+const lisible = l => l.length > 3 && l === l.toUpperCase() ? l.toLowerCase().replace(/(^|[\s\-'])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()).slice(0, 48) : l.slice(0, 48);
 // Règles toutes prêtes ; tes propres règles passent avant
 const REGLES_DEFAUT = [
   [/FRAIS BANCAIRES|COTISATION|OFFRE GROUPEE|AGIOS/, "Abonnements"],
@@ -106,6 +114,10 @@ async function apprendreRegle(libelle, cat) {
 }
 const RE_PAYE = /SALAIRE|\bPAIE\b|\bPAYE\b|REMUNERATION|TRAITEMENT/;
 const RE_EPARGNE = /LIVRET|\bLDDS?\b|\bLEP\b|EPARGNE/;
+// Virement entre tes propres comptes (chez BNP : « VIR CPTE A CPTE ») ou vers un livret : de l'épargne, pas une dépense ni un revenu
+const RE_INTERNE = /CPTE A CPTE|COMPTE A COMPTE/;
+const estEpargne = (L, montant) => RE_INTERNE.test(L) || (RE_EPARGNE.test(L) && /VIR|VERSEMENT/.test(L))
+  || (/VIR(EMENT)? PERMANENT/.test(L) && montantParPaye() > 0 && Math.abs(montant - montantParPaye()) <= 1);
 
 /* 3. Import : les opérations comptabilisées, sans doublons, fusionnées avec ce que tu avais noté à la main */
 async function lireOperations(l, du) {
@@ -159,6 +171,13 @@ async function importerBanque1() {
     if (deja[o.k] > 0) { deja[o.k]--; continue; } // même opération, déjà là sous une autre référence
     const { t, montant, dateISO, libelle, L, ref } = o, en = o.attente ? { attente: true } : {};
     connues.add(ref); if (!dejaEnCours.has(ref)) n++;
+    // Argent repris de ton épargne : la cagnotte baisse, ce n'est pas un revenu
+    if (o.sens === "C" && estEpargne(L, montant)) {
+      if (o.attente) continue;
+      ep.versements.push({ id: id++, dateISO, montant: -montant, source: "retrait", banque: ref });
+      epChange = true;
+      continue;
+    }
     if (o.sens === "C") {
       const main = inc.find(x => !x.banque && Math.abs(x.montant - montant) < .01 && proche(x.dateISO, dateISO));
       if (main) Object.assign(main, { banque: ref, brut: libelle, ...en });
@@ -166,7 +185,7 @@ async function importerBanque1() {
       continue;
     }
     // Virement vers ton livret : c'est de l'épargne, pas une dépense (une fois passé)
-    if (RE_EPARGNE.test(L) && /VIR|VERSEMENT/.test(L)) {
+    if (estEpargne(L, montant)) {
       if (o.attente) continue;
       const v = ep.versements.find(x => !x.banque && Math.abs(x.montant - montant) < .01 && proche(x.dateISO, dateISO, 10));
       if (v) v.banque = ref;
