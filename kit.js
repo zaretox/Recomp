@@ -47,6 +47,7 @@ const ICONES = {
   trace: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 17h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7",
   oeil: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
   "oeil-barre": "M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.4M9.9 9.9a3 3 0 0 0 4.2 4.2",
+  sauve: "M7 18a4 4 0 0 1-.6-8 6 6 0 0 1 11.5 1.5A3.5 3.5 0 0 1 17.5 18H7zM12 10v6M9.5 13.5 12 16l2.5-2.5",
   coeur: "M12 20S4 14.5 4 9a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 5.5-8 11-8 11z",
   fiole: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3",
   liste: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
@@ -203,6 +204,8 @@ const useDiscret = () => useSyncExternalStore(Discret.abonner, Discret.lire);
 const eurosD = (v, d) => Discret.cache() ? "••• €" : euros(v, d);
 // Un montant à flouter (le flou ne demande pas de redessiner : il suit l'attribut posé sur la page)
 const Mt = ({ children }) => h("span.mt", children);
+// Un grand chiffre caché : des points à taille raisonnable (agrandis, leur boîte débordait sur les boutons du bandeau)
+const PointsG = () => h("span.points-g", { role: "img", "aria-label": "Montant caché" }, "•••");
 
 /* Face ID : une clé d'accès « RECOMP » créée sur ce téléphone (trousseau iCloud), puis demandée pour afficher.
  * Aucun serveur : on vérifie seulement que l'iPhone a bien confirmé que c'est toi. */
@@ -266,3 +269,14 @@ function Oeil() {
     "aria-label": cache ? "Afficher les montants" : "Cacher les montants", "aria-pressed": !cache },
     h(Icone, { n: cache ? "oeil-barre" : "oeil", t: 22 }));
 }
+
+/* SOUS-ONGLETS — une rangée de rubriques sous le bandeau ; chaque écran se souvient de la dernière ouverte.
+ * `liste` = [[clé, nom], …] ; la première est celle du quotidien. */
+function useRubrique(cle, liste) {
+  const valide = v => liste.some(x => x[0] === v);
+  const [r, setR] = useState(() => { try { const v = localStorage.getItem("recomp_rubrique_" + cle); return valide(v) ? v : liste[0][0]; } catch (e) { return liste[0][0]; } });
+  const choisir = v => { setR(v); try { localStorage.setItem("recomp_rubrique_" + cle, v); } catch (e) { /* facultatif */ } };
+  return [valide(r) ? r : liste[0][0], choisir];
+}
+const SousOnglets = ({ liste, actif, onChange }) => h("nav.sous-onglets", { role: "tablist" },
+  liste.map(([k, l, n]) => h("button", { key: k, role: "tab", "aria-selected": actif === k, "aria-label": n ? l + ", " + n + " à voir" : l, className: actif === k ? "actif" : "", onClick: () => { if (actif !== k) { vibre(); onChange(k); } } }, l, n ? h("span.point-r", { "aria-hidden": true }) : null)));

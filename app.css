@@ -479,8 +479,22 @@ h1, h2, h3, p { margin: 0; }
 .mt { transition: filter .2s; }
 .oeil { flex: none; align-self: center; margin-left: auto; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: transparent; color: var(--sur); box-shadow: inset 0 0 0 2px var(--sur); -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
 .oeil svg { pointer-events: none; }
+.points-g { display: inline-block; font-size: .5em; line-height: 1; letter-spacing: .08em; vertical-align: .35em; }
+.hero .mois { position: relative; z-index: 1; }
 .oeil-l { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--mou); }
 .oeil-l .oeil { color: var(--encre); box-shadow: inset 0 0 0 2px var(--trait); }
+/* Sous-onglets : collés en haut de l'écran quand on fait défiler ; le bandeau passe par-dessus tant qu'il est visible */
+.hero { position: relative; z-index: 4; }
+.sous-onglets { --fond-r: color-mix(in oklab, var(--ton) 5%, var(--fond)); position: sticky; top: var(--haut); z-index: 3; margin: -6px calc(var(--gout) * -1) -8px; padding: 8px var(--gout); background: var(--fond-r); box-shadow: 0 calc(-1 * var(--haut)) 0 0 var(--fond-r), 0 8px 12px -10px rgba(0, 0, 0, .5); }
+.sous-onglets { display: flex; }
+.sous-onglets > button { position: relative; flex: 1 1 auto; min-width: 0; min-height: 40px; padding: 0 6px; background: var(--fond3); color: var(--mou); font-size: 13.5px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sous-onglets > button:first-child { border-radius: 999px 0 0 999px; padding-left: 8px; }
+.sous-onglets > button:last-child { border-radius: 0 999px 999px 0; padding-right: 8px; }
+.sous-onglets > button + button { box-shadow: inset 1px 0 0 var(--fond-r); }
+.sous-onglets > button.actif { background: var(--ton); color: var(--sur); box-shadow: none; }
+.sous-onglets .point-r { display: inline-block; width: 7px; height: 7px; margin-left: 4px; border-radius: 50%; background: var(--jaune); vertical-align: 2px; }
+.menu-r { display: grid; gap: 6px; }
+.rangee.alerte-r small { color: var(--jaune); }
 /* Banque */
 .synchro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--mou); }
 .synchro span { flex: 1; min-width: 0; }

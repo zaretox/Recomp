@@ -18,8 +18,8 @@ const DESTINATIONS = [
   ["Mes programmes", () => Nav.sheet("programmes"), "ppl creer importer maison"], ["Bibliothèque d'exercices", () => Nav.sheet("bibliotheque"), "exercices fiches execution comment faire bibliotheque"],
   ["Techniques d'intensification", () => Nav.sheet("bibliotheque", { onglet: "techs" }), "superset triset degressive drop set rest pause negatives isometrie contraction tempo pyramide"], ["Revenu", () => Nav.sheet("operation", { revenu: true }), "salaire"],
   ["Charges fixes", () => Nav.sheet("fixes"), "loyer abonnement forfait"], ["Photos", () => Nav.sheet("photos"), "avant apres"],
-  ["Douleurs", () => Nav.sheet("douleurs"), "suivi historique alternatives regles"], ["Réglages", () => Nav.sheet("reglages"), "profil horaires reveil creneau theme"], ["Sauvegarde", () => Nav.sheet("reglages"), "export import donnees restaurer"],
-  ["Rappels au calendrier", () => Nav.sheet("reglages"), "ics planning horaires"], ["Séance d'aujourd'hui", () => Nav.tab("sport"), "minuteur repos series"], ["Repas d'aujourd'hui", () => Nav.tab("repas"), "menu plats manger"], ["Mes comptes", () => Nav.tab("argent"), "budget reste enveloppes plafond epargne"], ["Ma courbe de poids", () => Nav.tab("corps"), "tendance objectif projection"],
+  ["Douleurs", () => Nav.sheet("douleurs"), "suivi historique alternatives regles"], ["Réglages", () => Nav.sheet("reglages"), "profil horaires reveil creneau theme"], ["Sauvegarde", () => Nav.sheet("reglage", { rub: "donnees" }), "export import donnees restaurer"],
+  ["Rappels au calendrier", () => Nav.sheet("reglage", { rub: "rappels" }), "ics planning horaires"], ["Séance d'aujourd'hui", () => Nav.tab("sport"), "minuteur repos series"], ["Repas d'aujourd'hui", () => Nav.tab("repas"), "menu plats manger"], ["Mes comptes", () => Nav.tab("argent"), "budget reste enveloppes plafond epargne"], ["Ma courbe de poids", () => Nav.tab("corps"), "tendance objectif projection"],
 ];
 function FeuilleCapture() {
   const [q, setQ] = useState(""), ql = sansAccent(q.trim());
@@ -166,31 +166,67 @@ function SectionPolar() {
         h(Bouton, { cl: "contour", onClick: collerCodePolar }, "J'ai un code"))));
 }
 
+/* RÉGLAGES — une page menu, comme sur l'iPhone : chaque rubrique avec son état, et sa propre page */
+const RUBRIQUES_REGLAGES = [
+  ["Toi", [["horaires", "Mes horaires", "chrono"], ["programme", "Programme et calories", "liste"]]],
+  ["L'app", [["apparence", "Apparence", "jour"], ["confidentialite", "Confidentialité", "oeil-barre"], ["rappels", "Rappels", "calendrier"]]],
+  ["Connexions", [["polar", "Montre Polar", "coeur"], ["banque", "Banque", "argent"]]],
+  ["Tes données", [["donnees", "Sauvegarde et données", "sauve"]]],
+];
+const NOMS_THEME = { auto: "Comme le téléphone", nuit: "Nuit", papier: "Papier" };
+function etatReglage(k) {
+  const pr = profil(), age = ageSauvegarde(), lp = lienPolar(), lb = lienBanque();
+  return {
+    horaires: (CRENEAUX[pr.creneau]?.label || "") + " · réveil " + hhmm(pr.reveil),
+    programme: infoProgramme(programmeEnCours()).label,
+    apparence: NOMS_THEME[pr.theme || "nuit"],
+    confidentialite: pr.discret === false ? "Montants visibles" : pr.faceIdActif && pr.faceId ? "Montants cachés, avec Face ID" : "Montants cachés",
+    rappels: "Calendrier de l'iPhone",
+    polar: lp?.jeton ? "Reliée" + (lp.notifs ? ", notifications activées" : "") : "Pas reliée",
+    banque: lb?.session ? (lb.banque || "Banque") + " reliée" + (accesBanqueExpire() != null && accesBanqueExpire() <= 10 ? ", à renouveler" : "") : "Pas reliée",
+    donnees: age == null ? "Aucune sauvegarde pour l'instant" : age === 0 ? "Sauvegarde faite aujourd'hui" : "Dernière sauvegarde il y a " + pluriel(age, "jour"),
+  }[k];
+}
 function FeuilleReglages() {
   useDB();
-  const pr = profil(), der = DB.get("last-export"), age = der ? ecart(der, aujourdhui()) : null;
-  const [espace, setEspace] = useState(null);
-  useEffect(() => { navigator.storage?.estimate?.().then(setEspace).catch(() => {}); }, []);
-  const theme = pr.theme || "nuit";
   return h(Feuille, { titre: "Réglages" },
-    h(Section, { titre: "Tes horaires" },
-      h(Puces, null, Object.entries(CRENEAUX).map(([k, c]) => h(Puce, { key: k, actif: pr.creneau === k, onClick: () => setProfil({ creneau: k }) }, c.label + " " + hhmm(c.seance)))),
-      h("p.note", "Les repas des jours d'entraînement suivent ce créneau."),
-      h("div.deux", h(Champ, { etiquette: "Réveil", valeur: hEnMin(pr.reveil) / 60, texte: hhmm(pr.reveil), mode: "hm", pas: [.25], min: 0, max: 23.9, onChange: v => setProfil({ reveil: minEnH(Math.round(v * 60)) }) }))),
-    h(Section, { titre: "Programme" },
-      h(Rangee, { ico: "liste", titre: infoProgramme(programmeEnCours()).label, sous: "Changer ou modifier", onClick: () => Nav.sheet("programmes") }),
-      h(Rangee, { ico: "repas", titre: "Ma cible calorique", sous: "Âge, taille, activité", onClick: () => Nav.sheet("calories") }),
-      h("p.sous-t", "Charges de départ, pour un exercice jamais fait"),
-      h(Puces, null, PHASES.map((p, i) => h(Puce, { key: i, actif: (+DB.get("sport-phase") || 0) === i, onClick: () => DB.set("sport-phase", i) }, p.ph + " · " + p.sem)))),
-    h(Section, { titre: "Apparence" }, h(Puces, null, [["auto", "Comme le téléphone"], ["nuit", "Nuit"], ["papier", "Papier"]].map(([k, l]) => h(Puce, { key: k, actif: theme === k, onClick: () => { setProfil({ theme: k }); appliquerTheme(k); } }, l)))),
-    h(SectionDiscret),
-    h(SectionPolar),
-    h(SectionBanque),
-    h(Section, { titre: "Rappels" },
+    RUBRIQUES_REGLAGES.map(([groupe, liste]) => h(Section, { key: groupe, titre: groupe },
+      h("div.menu-r", liste.map(([k, titre, ico]) => h(Rangee, { key: k, ico, titre, sous: etatReglage(k), cl: k === "donnees" && (ageSauvegarde() == null || ageSauvegarde() > 7) ? "alerte-r" : "", onClick: () => Nav.sheet("reglage", { rub: k }) }))))));
+}
+// Une rubrique des réglages, sur sa propre page
+function FeuilleReglage({ rub }) {
+  useDB();
+  const pr = profil(), theme = pr.theme || "nuit", nom = RUBRIQUES_REGLAGES.flatMap(g => g[1]).find(x => x[0] === rub)?.[1] || "Réglages";
+  const [espace, setEspace] = useState(null);
+  useEffect(() => { if (rub === "donnees") navigator.storage?.estimate?.().then(setEspace).catch(() => {}); }, []);
+  const age = ageSauvegarde();
+  const contenu = {
+    horaires: () => h(Fragment, null,
+      h(Section, { titre: "Créneau de séance" },
+        h(Puces, null, Object.entries(CRENEAUX).map(([k, c]) => h(Puce, { key: k, actif: pr.creneau === k, onClick: () => setProfil({ creneau: k }) }, c.label + " " + hhmm(c.seance)))),
+        h("p.note", "Les repas des jours d'entraînement suivent ce créneau.")),
+      h(Section, { titre: "Réveil" },
+        h("div.deux", h(Champ, { etiquette: "Réveil", valeur: hEnMin(pr.reveil) / 60, texte: hhmm(pr.reveil), mode: "hm", pas: [.25], min: 0, max: 23.9, onChange: v => setProfil({ reveil: minEnH(Math.round(v * 60)) }) })),
+        h("p.note", "Sert à placer ta saisie du matin, ta pesée et tes repas."))),
+    programme: () => h(Fragment, null,
+      h(Section, { titre: "Programme" },
+        h(Rangee, { ico: "liste", titre: infoProgramme(programmeEnCours()).label, sous: "Changer ou modifier", onClick: () => Nav.sheet("programmes") }),
+        h(Rangee, { ico: "repas", titre: "Ma cible calorique", sous: "Âge, taille, activité", onClick: () => Nav.sheet("calories") })),
+      h(Section, { titre: "Charges de départ" },
+        h("p.note", "Pour un exercice jamais fait, l'app part de cette phase."),
+        h(Puces, null, PHASES.map((p, i) => h(Puce, { key: i, actif: (+DB.get("sport-phase") || 0) === i, onClick: () => DB.set("sport-phase", i) }, p.ph + " · " + p.sem))))),
+    apparence: () => h(Section, { titre: "Thème" }, h(Puces, null, Object.entries(NOMS_THEME).map(([k, l]) => h(Puce, { key: k, actif: theme === k, onClick: () => { setProfil({ theme: k }); appliquerTheme(k); } }, l)))),
+    confidentialite: () => h(SectionDiscret),
+    rappels: () => h(Section, { titre: "Calendrier" },
       h(Rangee, { ico: "calendrier", titre: "Ajouter au calendrier", sous: "Réveil, repas et séances aux bonnes heures", onClick: async () => { const r = await partagerFichier("recomp-routine.ics", calendrierIcs(), "text/calendar"); if (r === "partage" || r === "telecharge") toast("Ouvre le fichier pour l'ajouter à ton calendrier"); } })),
-    h(Section, { titre: "Tes données" },
-      h("p.texte-p", "Elles vivent uniquement sur ce téléphone. ", h("b", age == null ? "Aucune sauvegarde pour l'instant." : age === 0 ? "Sauvegarde faite aujourd'hui." : "Dernière sauvegarde il y a " + pluriel(age, "jour") + "."), espace?.usage ? " Espace utilisé : " + nb(espace.usage / 1048576) + " Mo." : ""),
+    polar: () => h(SectionPolar),
+    banque: () => h(SectionBanque),
+    donnees: () => h(Section, { titre: "Sauvegarde" },
+      h("p.texte-p", "Tes données vivent uniquement sur ce téléphone. ", h("b", age == null ? "Aucune sauvegarde pour l'instant." : age === 0 ? "Sauvegarde faite aujourd'hui." : "Dernière sauvegarde il y a " + pluriel(age, "jour") + "."), espace?.usage ? " Espace utilisé : " + nb(espace.usage / 1048576) + " Mo." : ""),
+      h("p.note", "Sauvegarde une fois par semaine, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout."),
       h("div.deux-b",
         h(Bouton, { cl: "plein", onClick: exporter }, "Sauvegarder"),
-        h("label.bouton.contour", "Restaurer", h("input", { type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: e => { restaurer(e.target.files?.[0]); e.target.value = ""; } })))));
+        h("label.bouton.contour", "Restaurer", h("input", { type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: e => { restaurer(e.target.files?.[0]); e.target.value = ""; } })))),
+  }[rub];
+  return h(Feuille, { titre: nom }, contenu ? contenu() : h(Vide, null, "Rubrique introuvable."));
 }
