@@ -235,7 +235,7 @@ function FeuilleSortie({ id }) {
   return h(Feuille, { titre: nomSortie(s), ton: "sport" },
     h("p.sous-t", dateLongue(s.dateISO) + (s.debut ? " à " + s.debut.slice(11, 16) : "") + (s.appareil ? " · " + s.appareil : "")),
     lie?.t === "s" && h(Rangee, { ico: "sport", titre: "Ta séance " + lie.log.seance, sous: "Charges et séries notées dans RECOMP", onClick: () => Nav.sheet("seanceDetail", { id: lie.log.id }) }),
-    lie?.t === "n" && h(Rangee, { ico: "nage", titre: "Dans ta natation", sous: entier(lie.log.distance) + " m notés le " + dateMini(lie.log.dateISO), onClick: () => Nav.sheet("natation") }),
+    lie?.t === "n" && h(Rangee, { ico: "nage", titre: "Dans ta natation", sous: entier(lie.log.distance) + " m notés le " + dateMini(lie.log.dateISO) + ", touche pour corriger", onClick: () => Nav.sheet("nage", { id: lie.log.id }) }),
     h(BlocMontre, { s }),
     f === "nage" && !lie && s.distance > 0 && h(Bouton, { cl: "plein", ico: "nage", onClick: () => ajouterANatation(s) }, "Ajouter à ma natation"),
     h("p.note", "Les calories et la charge sont celles calculées par ta montre. Ces séances ne changent pas ton score de forme."),

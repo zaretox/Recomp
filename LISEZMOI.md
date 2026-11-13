@@ -14,6 +14,17 @@ Cinq onglets, cinq questions :
 
 Le bouton + (« Que veux-tu faire ? ») et les réglages sont dans `reglages.js`.
 
+Sous le bandeau, Sport, Repas, Argent et Corps sont découpés en rubriques (barre `SousOnglets` de `kit.js`, qui reste collée en haut). La première est celle du quotidien ; la dernière ouverte est retenue dans `localStorage` (`recomp_rubrique_<onglet>`, simple confort d'affichage, hors sauvegarde).
+
+| Onglet | Rubriques |
+| --- | --- |
+| Sport | Semaine (jours, séances, séries par muscle, semaine légère et mode récup) · Progrès (tonnage, records, max estimés, natation) · Historique (par semaine, filtre Muscu / Natation / Cardio) · Programmes (programme suivi, natation, bibliothèque, douleurs) |
+| Repas | Aujourd'hui (repas à cocher, hors menu) · Ma cible (cible, 7 derniers jours, dépense réelle, réglages) · Courses |
+| Argent | Budget · Épargne · Opérations · Tendances |
+| Corps | Poids (courbe, objectif, dernières pesées) · Forme (score, facteurs, sommeil) · Mesures (composition, mensurations, photos) |
+
+Les feuilles « Ta forme », « Ta cible », « Courses » et « Mes programmes » existent toujours (coach, recherche, Réglages) et affichent le même contenu que la rubrique : `ContenuForme`, `ContenuCalories`, `ContenuCourses`, `ContenuProgrammes`.
+
 ## Carte des fichiers
 
 Tout est à la racine, sauf `vendor/` et `netlify/functions/`. Pas d'autre sous-dossier : l'envoi par la page web de GitHub les perd. Les fichiers sont nommés par rôle :

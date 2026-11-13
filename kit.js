@@ -278,5 +278,20 @@ function useRubrique(cle, liste) {
   const choisir = v => { setR(v); try { localStorage.setItem("recomp_rubrique_" + cle, v); } catch (e) { /* facultatif */ } };
   return [valide(r) ? r : liste[0][0], choisir];
 }
+/* Fait défiler pour que la barre des rubriques soit pile en haut, au début de la rubrique */
+function remonterRubrique(ancre, doux) {
+  const barre = ancre?.nextElementSibling, scene = ancre?.closest(".scene");
+  if (!barre || !scene) return;
+  const cs = getComputedStyle(barre), ecart = (parseFloat(getComputedStyle(ancre.parentNode).rowGap) || 0) + (parseFloat(cs.marginTop) || 0);
+  const top = scene.scrollTop + ancre.getBoundingClientRect().top - scene.getBoundingClientRect().top + ecart - (parseFloat(cs.top) || 0);
+  scene.scrollTo({ top: Math.max(0, top), behavior: doux ? "smooth" : "instant" });
+}
 const SousOnglets = ({ liste, actif, onChange }) => h("nav.sous-onglets", { role: "tablist" },
-  liste.map(([k, l, n]) => h("button", { key: k, role: "tab", "aria-selected": actif === k, "aria-label": n ? l + ", " + n + " à voir" : l, className: actif === k ? "actif" : "", onClick: () => { if (actif !== k) { vibre(); onChange(k); } } }, l, n ? h("span.point-r", { "aria-hidden": true }) : null)));
+  liste.map(([k, l, n]) => h("button", { key: k, role: "tab", "aria-selected": actif === k, "aria-label": n ? l + ", " + n + " à voir" : l, className: actif === k ? "actif" : "", onClick: e => {
+    if (actif === k) return;
+    vibre();
+    // Si la barre est collée en haut, la nouvelle rubrique s'affiche depuis son début
+    const barre = e.currentTarget.parentNode, ancre = barre.previousElementSibling, colle = ancre?.classList.contains("ancre-r") && ancre.getBoundingClientRect().top < barre.getBoundingClientRect().top - 20;
+    onChange(k);
+    if (colle) requestAnimationFrame(() => remonterRubrique(ancre));
+  } }, l, n ? h("span.point-r", { "aria-hidden": true }) : null)));

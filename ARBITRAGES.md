@@ -10,11 +10,11 @@
 | Moteur de progression | Décide charge et reps sans réglage, en tenant compte de l'historique. | Le cycle de fourchettes était opaque. | Dans la séance : une phrase du coach sur chaque exercice explique la décision. |
 | Score de récupération | Votre meilleure idée : il croise montre, charge, repas et douleurs, ce qu'aucune appli du marché ne fait seule. | La saisie du matin pesait. | Jour et Corps. Quatre chiffres au pavé, et le détail de chaque facteur reste consultable. |
 | Coach | Vous l'avez demandé. Il transforme les données en décisions. | Il était noyé dans le sommaire. | En tête de Jour. Il propose aussi la semaine légère, le recalage des repas, l'heure de coucher et la sauvegarde. |
-| Calories et menu qui s'ajuste | Le calcul poids → masse maigre → cible → portions est juste et unique. | Réparti sur quatre onglets. | Repas, plus une feuille « Ta cible ». |
-| Programmes et import de texte | Liberté totale : PPL, maison, perso, texte collé. | Aucun. | Sport → Mes programmes. |
-| Natation | Séances types, records, calories ajoutées à la cible. | Saisie de la durée pénible sans « : ». | Sport → Natation. La durée se tape 3, 8, 3, 0 pour 38:30. |
+| Calories et menu qui s'ajuste | Le calcul poids → masse maigre → cible → portions est juste et unique. | Réparti sur quatre onglets. | Repas → Ma cible, avec la tenue de la cible sur 7 jours. |
+| Programmes et import de texte | Liberté totale : PPL, maison, perso, texte collé. | Aucun. | Sport → Programmes. |
+| Natation | Séances types, records, calories ajoutées à la cible. | Saisie de la durée pénible sans « : ». | Sport → Programmes → Séances de natation ; les progrès dans Sport → Progrès. La durée se tape 3, 8, 3, 0 pour 38:30. |
 | Douleurs | Protège le genou et le pied, relié à la séance et au score. | Écran isolé. | Bouton + pour noter, alerte directement sur l'exercice concerné. |
-| Mensurations, composition, photos | Le seul vrai contrôle d'une recomposition. | Trois sous-onglets. | Corps, sur une seule page. |
+| Mensurations, composition, photos | Le seul vrai contrôle d'une recomposition. | Trois sous-onglets. | Corps → Mesures. |
 | Finances | Revenus, dépenses, plafonds, objectif d'épargne. | Trois modes pour une seule question. | Argent, autour d'un seul chiffre. |
 | Sauvegarde et calendrier | Vos données ne vivent que sur le téléphone : indispensable. | Aucun. | Réglages. Même format de fichier, le coach rappelle la sauvegarde après 7 jours. |
 
@@ -59,6 +59,7 @@
 | --- | --- | --- |
 | Pavé numérique maison | Strong | Touche +/− pour le signe. Les durées se tapent comme sur un micro-ondes : 7, 4, 5 donne 7 h 45. Le clavier du téléphone ne s'ouvre plus pour aucun chiffre. |
 | Pesée à la règle | Applis de santé | On fait glisser, sans taper, avec ±0,1 kg en deux touches. |
+| Rubriques sous le bandeau | Finary, Hevy, MacroFactor | Chaque onglet garde son grand chiffre et son geste principal en haut, puis une barre de rubriques collée en haut de l'écran. Plus de page sans fin : Sport (Semaine, Progrès, Historique, Programmes), Repas (Aujourd'hui, Ma cible, Courses), Argent (Budget, Épargne, Opérations, Tendances), Corps (Poids, Forme, Mesures). L'historique du sport se lit par semaine avec un filtre par sport ; la forme et la cible ne sont plus cachées derrière « Le détail ». |
 | Tendance de poids | MacroFactor | Le chiffre affiché ignore les variations d'eau. Les pesées brutes restent visibles en points. |
 | Dépense réelle | MacroFactor | Calculée depuis ce que vous mangez et l'évolution de la tendance, puis adoptable en un geste. Elle remplace la formule théorique. |
 | Repas restants recalés | MacroFactor | Un extra de 500 kcal réduit les prochains repas, grammes à l'appui. |

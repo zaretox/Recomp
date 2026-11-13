@@ -40,8 +40,9 @@ function SemaineSport() {
     const d = decale(lundi, i), p = seanceDuJour(d, prog), n = nagePrevue(d);
     const l = DB.get("sport-logs").find(x => x.dateISO === d), m = DB.get("maison-logs").find(x => x.dateISO === d), sw = DB.get("natation-logs").find(x => x.dateISO === d);
     const po = sortiesPolar().find(x => x.dateISO === d);
-    const label = l?.seance || (m ? "Maison " + m.seance : null) || p?.code || (n || sw ? "Nage" : po ? COURT_SORTIE[familleSortie(po)] : "—"), fait = !!(l || m || sw || po);
-    return h("button", { key: d, className: (fait ? "fait " : "") + (d === auj ? "auj" : ""), onClick: () => l ? Nav.sheet("seanceDetail", { id: l.id }) : p ? ouvrirSeance(d, p) : n || sw ? Nav.sheet("natation") : po ? Nav.sheet("sortie", { id: po.id }) : null },
+    // Ce qui a été fait passe avant ce qui était prévu (une course faite un jour de séance B s'affiche comme course)
+    const label = l?.seance || (m ? "Maison " + m.seance : null) || (sw ? "Nage" : null) || (po ? COURT_SORTIE[familleSortie(po)] : null) || p?.code || (n ? "Nage" : "—"), fait = !!(l || m || sw || po);
+    return h("button", { key: d, className: (fait ? "fait " : "") + (d === auj ? "auj" : ""), onClick: () => l ? Nav.sheet("seanceDetail", { id: l.id }) : m ? ouvrirSeance(d, { prog: "maison", code: m.seance }) : sw ? (sortieDeNage(sw) ? Nav.sheet("sortie", { id: sortieDeNage(sw).id }) : Nav.sheet("nage", { id: sw.id })) : po ? Nav.sheet("sortie", { id: po.id }) : p ? ouvrirSeance(d, p) : n ? Nav.sheet("natation", { iso: d }) : null },
       h("small", JOURS[jourSem(d)]), h("b", label.replace("Maison ", "")));
   }));
 }
@@ -60,45 +61,113 @@ function VolumeMuscles() {
   }));
 }
 
-function ListeExos() {
+function ListeExos({ max, plus }) {
   const logs = DB.get("sport-logs"), noms = [...new Set(seancesActives().flatMap(s => s.exercices.map(e => e.nom)))];
   const l = noms.map(n => { const r = maxActuel(logs, n); return r ? { nom: n, ...r } : null; }).filter(Boolean).sort((a, b) => b.rm - a.rm);
   if (!l.length) return h(Vide, null, "Tes max estimés apparaîtront après tes premières séances.");
-  return h("div.liste", l.slice(0, 5).map(x => h("button.ligne", { key: x.nom, onClick: () => Nav.sheet("exercice", { nom: x.nom }) },
-    h("span", x.nom), x.trend && h("i.tendance", { "data-t": x.trend }, x.trend === "up" ? "↗" : x.trend === "down" ? "↘" : "→"), h("b", x.rm + " kg"))));
+  const n = max || 5;
+  return h(Fragment, null,
+    h("div.liste", l.slice(0, n).map(x => h("button.ligne", { key: x.nom, onClick: () => Nav.sheet("exercice", { nom: x.nom }) },
+      h("span", x.nom), x.trend && h("i.tendance", { "data-t": x.trend }, x.trend === "up" ? "↗" : x.trend === "down" ? "↘" : "→"), h("b", x.rm + " kg")))),
+    plus && l.length > n && h(Bouton, { cl: "contour", onClick: plus }, "Voir les " + l.length + " exercices"));
 }
 
+/* Quatre rubriques : la semaine en cours, les progrès, tout l'historique, les programmes et outils */
+const RUBRIQUES_SPORT = [["semaine", "Semaine"], ["progres", "Progrès"], ["historique", "Historique"], ["programmes", "Programmes"]];
 function EcranSport() {
   useDB();
-  const cfg = reglages(), logs = DB.get("sport-logs"), auj = aujourdhui();
-  const vol = n => Math.round(logs.filter(l => { const e = ecart(l.dateISO, auj); return e >= n * 7 && e < (n + 1) * 7; }).reduce((a, l) => a + volumeSeance(l), 0));
-  const v0 = vol(0), v1 = vol(1), rec = recordsDe(logs.filter(l => dansLes(l.dateISO, 30)));
-  const barres = Array.from({ length: 8 }, (_, i) => { const n = 7 - i; return { l: n === 0 ? "Cette" : "S−" + n, v: Math.round(vol(n) / 1000 * 10) / 10 }; });
-  const hist = [...logs.map(l => ({ ...l, _t: "s" })), ...DB.get("maison-logs").map(l => ({ ...l, _t: "m" })), ...DB.get("natation-logs").map(l => ({ ...l, _t: "n" })), ...sortiesPolar().filter(s => !logDeSortie(s)).map(l => ({ ...l, _t: "p" }))].sort((a, b) => b.dateISO.localeCompare(a.dateISO) || (b.id - a.id) || 0);
+  const [rub, setRub] = useRubrique("sport", RUBRIQUES_SPORT);
   return h("div.page", { "data-t": "sport" },
     h(HeroSport),
-    h("div.corps-p",
-      h(Section, { titre: "Ta semaine" }, h(SemaineSport)),
-      h(SectionSorties),
-      h(Section, { titre: "Organisation" },
-        h(Rangee, { ico: "nage", titre: "Natation", sous: "Séances types, records", onClick: () => Nav.sheet("natation") }),
-        h(Rangee, { ico: "bulle", titre: "Bibliothèque", sous: EXO_LIB.length + " exercices expliqués, " + TECHNIQUES.length + " techniques", onClick: () => Nav.sheet("bibliotheque") }),
-        h(Rangee, { ico: "liste", titre: "Mes programmes", sous: infoProgramme(programmeEnCours()).label + " en cours", onClick: () => Nav.sheet("programmes") }),
-        h(Rangee, { ico: "mal", titre: "Douleurs", sous: "Noter, suivre, remplacer", onClick: () => Nav.sheet("douleurs") })),
-      h("div.tuiles",
-        h(Tuile, { v: nb(v0 / 1000) + " t", l: "soulevées en 7 j" + (v1 ? " (" + signe((v0 - v1) / v1 * 100, 0) + " %)" : "") }),
-        h(Tuile, { v: rec.length, l: "records en 30 j" })),
-      h(Section, { titre: "Tonnage par semaine" }, h(Barres, { pts: barres, ton: "sport", unite: " t" })),
-      h(Section, { titre: "Séries par muscle, 7 jours" }, h(VolumeMuscles), h("p.note", "La bande claire est ta zone utile. Dessous, le muscle ne progresse pas assez ; au-dessus, tu récupères moins bien.")),
-      h(Section, { titre: "Tes max estimés" }, h(ListeExos)),
-      h(Section, { titre: "Réglages de la semaine" },
-        h("div.interrupteurs",
-          h(Interrupteur, { actif: cfg.deload, titre: "Semaine légère", sous: "Charges −40 %, même nombre de séries", onClick: () => DB.set("science-config", { ...cfg, deload: !cfg.deload }) }),
-          h(Interrupteur, { actif: cfg.recovery, titre: "Mode récup", sous: "Aucune hausse de charge. Automatique si ta forme passe sous 50", onClick: () => DB.set("science-config", { ...cfg, recovery: !cfg.recovery }) }))),
-      h(Section, { titre: "Historique" }, hist.length ? hist.slice(0, 12).map(l => h("button.ligne", { key: l._t + l.id, onClick: () => l._t === "s" ? Nav.sheet("seanceDetail", { id: l.id }) : l._t === "n" ? Nav.sheet("natation") : l._t === "p" ? Nav.sheet("sortie", { id: l.id }) : ouvrirSeance(l.dateISO, { prog: "maison", code: l.seance }) },
-        h("span", h("b", l._t === "s" ? l.seance : l._t === "m" ? "Maison " + l.seance : l._t === "p" ? nomSortie(l) : "Natation"), h("small", dateMini(l.dateISO))),
-        h("b", l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" + fcDe(sortieDeMuscu(l)) : l._t === "n" ? entier(l.distance) + " m" + fcDe(sortieDeNage(l)) : l._t === "p" ? (l.distance > 0 ? distanceSortie(l) : chrono(l.duree)) : "")
-      )) : h(Vide, null, "Aucune séance pour l'instant."))));
+    h("div.corps-p.avec-rubriques",
+      h("div", { id: "ancre-sport", className: "ancre-r" }),
+      h(SousOnglets, { liste: RUBRIQUES_SPORT, actif: rub, onChange: setRub }),
+      rub === "semaine" ? h(SportSemaine) : rub === "progres" ? h(SportProgres) : rub === "historique" ? h(SportHistorique) : h(SportProgrammes)));
+}
+
+/* SEMAINE — où tu en es depuis lundi, ce que chaque muscle a reçu, les réglages qui ne valent que pour cette semaine */
+function SportSemaine() {
+  const cfg = reglages(), auj = aujourdhui(), lundi = lundiDe(auj), prog = programmeEnCours();
+  const sem = l => l.dateISO >= lundi && l.dateISO <= auj;
+  const muscu = DB.get("sport-logs").filter(sem), maison = DB.get("maison-logs").filter(sem), nages = DB.get("natation-logs").filter(sem);
+  const prevues = ORDRE_JOURS.filter((_, i) => seanceDuJour(decale(lundi, i), prog)).length;
+  const t = muscu.reduce((a, l) => a + volumeSeance(l), 0), m = nages.reduce((a, l) => a + l.distance, 0);
+  const cardio = sortiesPolar().filter(s => sem(s) && !logDeSortie(s) && familleSortie(s) !== "nage").reduce((a, s) => a + (s.distance || 0), 0);
+  return h(Fragment, null,
+    h(Section, { titre: "Depuis lundi" },
+      h(SemaineSport),
+      (() => {
+        const tu = [
+          h(Tuile, { key: "s", v: (muscu.length + maison.length) + (prevues ? "/" + prevues : ""), l: "séances de muscu" }),
+          h(Tuile, { key: "t", v: nb(t / 1000) + " t", l: "soulevées" }),
+          (m > 0 || DB.get("natation-modeles").some(x => x.days?.length)) && h(Tuile, { key: "n", v: entier(m), l: "mètres nagés" }),
+          cardio > 0 && h(Tuile, { key: "c", v: kmDe(cardio), l: "km de cardio" })].filter(Boolean);
+        return h("div.tuiles", { className: tu.length === 4 ? "deux-c" : "" }, tu);
+      })()),
+    h(Section, { titre: "Séries par muscle", droite: h("span.compte", "7 derniers jours") }, h(VolumeMuscles), h("p.note", "La bande claire est ta zone utile. Dessous, le muscle ne progresse pas assez ; au-dessus, tu récupères moins bien.")),
+    h(Section, { titre: "Réglages de la semaine" },
+      h("div.interrupteurs",
+        h(Interrupteur, { actif: cfg.deload, titre: "Semaine légère", sous: "Charges −40 %, même nombre de séries", onClick: () => DB.set("science-config", { ...cfg, deload: !cfg.deload }) }),
+        h(Interrupteur, { actif: cfg.recovery, titre: "Mode récup", sous: "Aucune hausse de charge. Automatique si ta forme passe sous 50", onClick: () => DB.set("science-config", { ...cfg, recovery: !cfg.recovery }) }))));
+}
+
+/* PROGRÈS — est-ce que je deviens plus fort ? Tonnage, records, max estimés, natation */
+function SportProgres() {
+  const logs = DB.get("sport-logs"), auj = aujourdhui(), [tout, setTout] = useState(false);
+  const vol = n => Math.round(logs.filter(l => { const e = ecart(l.dateISO, auj); return e >= n * 7 && e < (n + 1) * 7; }).reduce((a, l) => a + volumeSeance(l), 0));
+  const v0 = vol(0), v1 = vol(1);
+  const barres = Array.from({ length: 8 }, (_, i) => { const n = 7 - i; return { l: n === 0 ? "7 j" : "S−" + n, v: Math.round(vol(n) / 1000 * 10) / 10 }; });
+  // Un record par exercice : le plus lourd des 30 derniers jours
+  const rec = Object.values(recordsDe(logs.filter(l => dansLes(l.dateISO, 30))).reduce((a, r) => (!a[r.nom] || r.kg > a[r.nom].kg ? { ...a, [r.nom]: r } : a), {})).sort((a, b) => b.dateISO.localeCompare(a.dateISO));
+  const nages = DB.get("natation-logs");
+  return h(Fragment, null,
+    h("div.tuiles",
+      h(Tuile, { v: nb(v0 / 1000) + " t", l: "soulevées en 7 j" + (v1 ? " (" + signe((v0 - v1) / v1 * 100, 0) + " %)" : "") }),
+      h(Tuile, { v: rec.length, l: rec.length > 1 ? "records en 30 j" : "record en 30 j" })),
+    h(Section, { titre: "Tonnage par semaine" }, h(Barres, { pts: barres, ton: "sport", unite: " t" })),
+    rec.length > 0 && h(Section, { titre: "Tes records du mois" }, h("div.liste", rec.slice(0, 6).map(r => h("button.ligne", { key: r.nom, onClick: () => Nav.sheet("exercice", { nom: r.nom }) },
+      h("span", h("b", r.nom), h("small", libelleJour(r.dateISO))), h("b", nb(r.kg) + " kg"))))),
+    h(Section, { titre: "Tes max estimés", droite: h("span.compte", "pour 1 répétition") }, h(ListeExos, { max: tout ? 99 : 6, plus: () => setTout(true) })),
+    (nages.length > 0 || nagesToutes().length > 0) && h(Section, { titre: "Natation" },
+      h(Rangee, { ico: "chrono", titre: "Records et progrès", sous: "Meilleurs temps, mètres par semaine, allure", onClick: () => Nav.sheet("nageProgres") })));
+}
+
+/* HISTORIQUE — tout ce que tu as fait, par semaine, avec un filtre par sport */
+const FILTRES_HISTO = [["tout", "Tout"], ["muscu", "Muscu"], ["nage", "Natation"], ["cardio", "Cardio"]];
+const familleHisto = l => l._t === "s" || l._t === "m" ? "muscu" : l._t === "n" || familleSortie(l) === "nage" ? "nage" : "cardio";
+function SportHistorique() {
+  const [f, setF] = useState("tout"), [n, setN] = useState(6), imp = useImportPolar(), auj = aujourdhui();
+  const tout = [...DB.get("sport-logs").map(l => ({ ...l, _t: "s" })), ...DB.get("maison-logs").map(l => ({ ...l, _t: "m" })), ...DB.get("natation-logs").map(l => ({ ...l, _t: "n" })), ...sortiesPolar().filter(s => !logDeSortie(s)).map(l => ({ ...l, _t: "p" }))]
+    .sort((a, b) => b.dateISO.localeCompare(a.dateISO) || String(b.debut || b.id).localeCompare(String(a.debut || a.id)));
+  const presents = new Set(tout.map(familleHisto)), filtres = FILTRES_HISTO.filter(([k]) => k === "tout" || presents.has(k));
+  const vus = f === "tout" ? tout : tout.filter(l => familleHisto(l) === f);
+  const semaines = [];
+  vus.forEach(l => { const k = lundiDe(l.dateISO), s = semaines[semaines.length - 1]; if (s && s[0] === k) s[1].push(l); else semaines.push([k, [l]]); });
+  const titreSem = k => { const e = Math.round(ecart(k, lundiDe(auj)) / 7); return e === 0 ? "Cette semaine" : e === 1 ? "Semaine dernière" : "Semaine du " + dateMini(k); };
+  const ouvrir = l => l._t === "s" ? Nav.sheet("seanceDetail", { id: l.id }) : l._t === "n" ? (sortieDeNage(l) ? Nav.sheet("sortie", { id: sortieDeNage(l).id }) : Nav.sheet("nage", { id: l.id })) : l._t === "p" ? Nav.sheet("sortie", { id: l.id }) : ouvrirSeance(l.dateISO, { prog: "maison", code: l.seance });
+  const nom = l => l._t === "s" ? l.seance : l._t === "m" ? "Maison " + l.seance : l._t === "p" ? nomSortie(l) : "Natation";
+  const valeur = l => l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" + fcDe(sortieDeMuscu(l)) : l._t === "n" ? entier(l.distance) + " m" + fcDe(sortieDeNage(l)) : l._t === "p" ? (l.distance > 0 ? distanceSortie(l) : chrono(l.duree)) : "";
+  return h(Fragment, null,
+    imp.relie && h("div.synchro", h("span", "Polar · tes séances arrivent seules après chaque synchronisation de ta montre."),
+      h("button.mini", { disabled: imp.charge, onClick: () => imp.lancer(false) }, imp.charge ? "Lecture…" : "Actualiser")),
+    filtres.length > 2 && h(Puces, null, filtres.map(([k, l]) => h(Puce, { key: k, actif: f === k, onClick: () => { setF(k); setN(6); } }, l))),
+    semaines.length ? semaines.slice(0, n).map(([k, l]) => h(Section, { key: k, titre: titreSem(k), droite: h("span.compte", pluriel(l.length, "séance")) },
+      h("div.liste", l.map(x => h("button.ligne", { key: x._t + x.id, onClick: () => ouvrir(x) },
+        h("span", h("b", nom(x)), h("small", JOURS[jourSem(x.dateISO)] + " " + dateMini(x.dateISO))), h("b", valeur(x)))))))
+      : h(Vide, null, "Aucune séance pour l'instant."),
+    semaines.length > n && h(Bouton, { cl: "contour", onClick: () => setN(n + 8) }, "Semaines plus anciennes"));
+}
+
+/* PROGRAMMES — ce que tu suis en muscu, tes nages types, et les outils */
+function SportProgrammes() {
+  const modeles = DB.get("natation-modeles"), maux = Object.keys(douleursRecentes(10));
+  return h(Fragment, null,
+    h(ContenuProgrammes),
+    h(Section, { titre: "Natation" },
+      h(Rangee, { ico: "nage", titre: "Séances de natation", sous: modeles.length ? pluriel(modeles.length, "séance type") + ", noter une nage" : "Créer une séance type, noter une nage", onClick: () => Nav.sheet("natation") })),
+    h(Section, { titre: "Outils" },
+      h(Rangee, { ico: "bulle", titre: "Bibliothèque", sous: EXO_LIB.length + " exercices expliqués, " + TECHNIQUES.length + " techniques", onClick: () => Nav.sheet("bibliotheque") }),
+      h(Rangee, { ico: "mal", titre: "Douleurs", sous: maux.length ? maux.join(", ") + " : à ménager en ce moment" : "Noter, suivre, remplacer", onClick: () => Nav.sheet("douleurs") })));
 }
 const fcDe = s => s?.fcMoy ? " · " + s.fcMoy + " bpm" : "";
 const Interrupteur = ({ actif, titre, sous, onClick }) => h("button.inter", { className: actif ? "actif" : "", role: "switch", "aria-checked": !!actif, onClick: () => { vibre(); onClick(); } },

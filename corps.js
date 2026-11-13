@@ -3,46 +3,62 @@
  * La tendance de poids, la composition, la forme, les mensurations, les photos. */
 const PLAGES = [["1 mois", 31], ["3 mois", 92], ["Tout", 9999]];
 
+/* Trois rubriques : le poids (la question du quotidien), la forme, les mesures du corps */
+const RUBRIQUES_CORPS = [["poids", "Poids"], ["forme", "Forme"], ["mesures", "Mesures"]];
 function EcranCorps() {
   useDB();
-  const [plage, setPlage] = useState(92), t = tendancePoids(), auj = aujourdhui(), pr = profil();
-  const der = t.length ? t[t.length - 1] : null, prem = t[0], ry = rythme(), compo = composition(), cl = compo.length ? compo[compo.length - 1] : null;
-  const pts = t.filter(p => ecart(p.dateISO, auj) <= plage).map(p => ({ x: p.dateISO, y: arrondi(p.t, 2), brut: p.kg }));
-  const obj = pr.objectifKg, eta = der && obj && ry.kg ? dateObjectif(der.t, ry.kg, obj) : null;
-  const forme = historiqueForme(14), notes = forme.filter(j => j.score != null), r = recuperation(auj);
-  const mens = DB.get("mensurations"), m = mens.length ? mens[mens.length - 1] : null, m0 = mens[0];
-  const photos = DB.get("photos-index");
+  const t = tendancePoids(), auj = aujourdhui(), [rub, setRub] = useRubrique("corps", RUBRIQUES_CORPS);
+  const der = t.length ? t[t.length - 1] : null, prem = t[0], ry = rythme();
   return h("div.page", { "data-t": "corps" },
     h("header.hero", { "data-ton": "corps" },
       h("span.affiche-e", "Ta tendance"),
       h("div.affiche-g", h(Geant, null, der ? h(Compteur, { v: nb1(der.t) }) : "—"), h("em", "kg")),
-      h("p", der ? (prem && prem !== der ? signe(arrondi(der.t - prem.t)) + " kg depuis le " + dateJour(prem.dateISO) : "Première pesée enregistrée") + (ry.kg != null ? ". Rythme : " + signe(ry.kg, 2) + " kg par semaine." : ".") : "Pèse-toi pour lancer ta courbe."),
-      der && h("p.pesee-j", (der.dateISO === auj ? "Ce matin : " : "Dernière pesée, " + dateJour(der.dateISO) + " : ") + nb1(der.kg) + " kg. La tendance bouge doucement pour gommer l'eau : c'est elle qui compte."),
+      h("p", der ? (prem && prem !== der ? signe(arrondi(der.t - prem.t)) + " kg depuis le " + dateJour(prem.dateISO) : "Première pesée enregistrée") + (ry.kg != null ? ", " + signe(ry.kg, 2) + " kg par semaine." : ".") : "Pèse-toi pour lancer ta courbe."),
+      der && h("p.pesee-j", (der.dateISO === auj ? "Ce matin : " : "Dernière pesée, " + dateJour(der.dateISO) + " : ") + nb1(der.kg) + " kg"),
       h("div.hero-b", h(Bouton, { cl: "noir", ico: "plus", onClick: () => Nav.sheet("pesee") }, "Me peser"), h(Bouton, { cl: "contour-n", onClick: () => Nav.sheet("bilan") }, "Bilan de la semaine"))),
-    h("div.corps-p",
-      h(Section, null,
-        h(Puces, null, PLAGES.map(([l, v]) => h(Puce, { key: v, actif: plage === v, onClick: () => setPlage(v) }, l))),
-        pts.length >= 2 ? h(Courbe, { pts, unite: "kg", ton: "corps", haut: 200, repere: obj && Math.abs(obj - pts[pts.length - 1].y) < 4 ? obj : null }) : h(Vide, null, "Ta courbe apparaîtra dès la deuxième pesée."),
-        h("p.note", "Le trait ignore les variations d'eau, les points sont tes pesées.")),
-      h(Section, { titre: "Objectif" }, h("div.deux",
-        h(Champ, { etiquette: "Poids visé", valeur: obj || null, mode: "dec", unite: "kg", pas: [.5, 1], min: 30, max: 300, onChange: v => setProfil({ objectifKg: v }) }),
-        h("p.texte-p", !obj ? "Fixe un poids pour voir la date d'arrivée." : !eta ? "Il faut un rythme de perte pour estimer la date." : eta.atteignable ? "À ce rythme : " + dateDe(eta.date).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) + ", dans " + nb(eta.semaines, 0) + " semaines." : "Ta tendance ne va pas vers ce poids."))),
-      h(Section, { titre: "Composition", droite: cl ? h("span.compte", "méthode Navy, " + dateMini(cl.dateISO)) : null },
-        cl?.bf != null ? h(Fragment, null,
-          h("div.tuiles", h(Tuile, { v: nb(cl.bf) + " %", l: "de gras" }), h(Tuile, { v: cl.lean != null ? nb(cl.lean) : "—", l: "kg maigres" }), h(Tuile, { v: cl.fat != null ? nb(cl.fat) : "—", l: "kg de gras" })),
-          compo.filter(c => c.lean != null).length >= 2 && h(Courbe, { pts: compo.filter(c => c.lean != null).map(c => ({ x: c.dateISO, y: c.lean })), unite: "kg maigres", ton: "corps", haut: 120 }))
-          : h(Vide, null, "Note ton tour de taille et ton tour de cou pour estimer ta composition."),
-      ),
-      h(Section, { titre: "Forme", droite: h(Lien, { onClick: () => Nav.sheet("forme") }, "Le détail") },
-        notes.length ? h(Fragment, null,
-          h("div.tuiles", h(Tuile, { v: r?.score ?? "—", l: "ce matin", ton: r?.verdict?.ton }), h(Tuile, { v: Math.round(moyenne(notes.map(j => j.score))), l: "moyenne 14 j" }), h(Tuile, { v: sommeil().dette >= .5 ? dureeHM(sommeil().dette) : "0", l: "dette de sommeil" })),
-          h(Barres, { pts: forme.map(j => ({ l: JOURS_L[(jourSem(j.iso) + 6) % 7], v: j.score || 0 })), ton: "corps", haut: 100 }))
-          : h(Vide, null, "Ta forme apparaîtra après ta première saisie du matin.")),
-      h(Section, { titre: "Mensurations", droite: h(Lien, { onClick: () => Nav.sheet("mensurations") }, "Mesurer") },
-        m ? h("div.table-m", MENSURATIONS.filter(c => m.vals[c.k] != null).map(c => { const d = m0 && m0 !== m && m0.vals[c.k] != null ? m.vals[c.k] - m0.vals[c.k] : null; return h("button", { key: c.k, onClick: () => Nav.sheet("mensurations", { voir: c.k }) }, h("span", c.l), h("b", nb(m.vals[c.k]) + " cm"), d != null && h("small", signe(arrondi(d), 1))); }))
-          : h(Vide, null, "Toutes les 2 à 4 semaines, à jeun, au même moment.")),
-      h(Section, { titre: "Suivi" },
-        h(Rangee, { ico: "photo", titre: "Photos", sous: photos.length ? pluriel(photos.length, "photo") + ", avant / après" : "Face, profil, dos", onClick: () => Nav.sheet("photos") }))));
+    h("div.corps-p.avec-rubriques",
+      h("div", { id: "ancre-corps", className: "ancre-r" }),
+      h(SousOnglets, { liste: RUBRIQUES_CORPS, actif: rub, onChange: setRub }),
+      rub === "poids" ? h(CorpsPoids) : rub === "forme" ? h(ContenuForme) : h(CorpsMesures)));
+}
+
+/* POIDS — la courbe, l'objectif, les dernières pesées (pour vérifier ou corriger) */
+function CorpsPoids() {
+  const [plage, setPlage] = useState(92), t = tendancePoids(), auj = aujourdhui(), pr = profil(), ry = rythme();
+  const der = t.length ? t[t.length - 1] : null;
+  const pts = t.filter(p => ecart(p.dateISO, auj) <= plage).map(p => ({ x: p.dateISO, y: arrondi(p.t, 2), brut: p.kg }));
+  const obj = pr.objectifKg, eta = der && obj && ry.kg ? dateObjectif(der.t, ry.kg, obj) : null;
+  const dernieres = [...pesees()].reverse().slice(0, 7);
+  return h(Fragment, null,
+    h(Section, null,
+      h(Puces, null, PLAGES.map(([l, v]) => h(Puce, { key: v, actif: plage === v, onClick: () => setPlage(v) }, l))),
+      pts.length >= 2 ? h(Courbe, { pts, unite: "kg", ton: "corps", haut: 200, repere: obj && Math.abs(obj - pts[pts.length - 1].y) < 4 ? obj : null }) : h(Vide, null, "Ta courbe apparaîtra dès la deuxième pesée."),
+      h("p.note", "Les points sont tes pesées. Le trait est ta tendance : il gomme les variations d'eau d'un jour à l'autre, c'est lui qui compte.")),
+    h(Section, { titre: "Objectif" }, h("div.deux",
+      h(Champ, { etiquette: "Poids visé", valeur: obj || null, mode: "dec", unite: "kg", pas: [.5, 1], min: 30, max: 300, onChange: v => setProfil({ objectifKg: v }) }),
+      h("p.texte-p", !obj ? "Fixe un poids pour voir la date d'arrivée." : !eta ? "Il faut un rythme de perte pour estimer la date." : eta.atteignable ? "À ce rythme : " + dateDe(eta.date).toLocaleDateString("fr-FR", { month: "long", year: "numeric" }) + ", dans " + nb(eta.semaines, 0) + " semaines." : "Ta tendance ne va pas vers ce poids."))),
+    dernieres.length > 0 && h(Section, { titre: "Tes dernières pesées" }, h("div.liste", dernieres.map((p, i) => {
+      const avant = dernieres[i + 1], d = avant ? arrondi(p.kg - avant.kg) : null;
+      return h("button.ligne", { key: p.dateISO, onClick: () => Nav.sheet("pesee", { iso: p.dateISO }) },
+        h("span", h("b", nb1(p.kg) + " kg"), h("small", libelleJour(p.dateISO))), d != null && h("small.ecart-p", signe(d) + " kg"));
+    })), h("p.note", "Touche une pesée pour la corriger.")));
+}
+
+/* MESURES — composition, mensurations, photos */
+function CorpsMesures() {
+  const compo = composition(), cl = compo.length ? compo[compo.length - 1] : null;
+  const mens = DB.get("mensurations"), m = mens.length ? mens[mens.length - 1] : null, m0 = mens[0], photos = DB.get("photos-index");
+  return h(Fragment, null,
+    h(Section, { titre: "Composition", droite: cl ? h("span.compte", "méthode Navy, " + dateMini(cl.dateISO)) : null },
+      cl?.bf != null ? h(Fragment, null,
+        h("div.tuiles", h(Tuile, { v: nb(cl.bf) + " %", l: "de gras" }), h(Tuile, { v: cl.lean != null ? nb(cl.lean) : "—", l: "kg maigres" }), h(Tuile, { v: cl.fat != null ? nb(cl.fat) : "—", l: "kg de gras" })),
+        compo.filter(c => c.lean != null).length >= 2 && h(Courbe, { pts: compo.filter(c => c.lean != null).map(c => ({ x: c.dateISO, y: c.lean })), unite: "kg maigres", ton: "corps", haut: 120 }))
+        : h(Vide, null, "Note ton tour de taille et ton tour de cou pour estimer ta composition.")),
+    h(Section, { titre: "Mensurations", droite: h(Lien, { onClick: () => Nav.sheet("mensurations") }, "Mesurer") },
+      m ? h("div.table-m", MENSURATIONS.filter(c => m.vals[c.k] != null).map(c => { const d = m0 && m0 !== m && m0.vals[c.k] != null ? m.vals[c.k] - m0.vals[c.k] : null; return h("button", { key: c.k, onClick: () => Nav.sheet("mensurations", { voir: c.k }) }, h("span", c.l), h("b", nb(m.vals[c.k]) + " cm"), d != null && h("small", signe(arrondi(d), 1))); }))
+        : h(Vide, null, "Toutes les 2 à 4 semaines, à jeun, au même moment.")),
+    h(Section, { titre: "Photos" },
+      h(Rangee, { ico: "photo", titre: photos.length ? pluriel(photos.length, "photo") : "Tes photos", sous: photos.length ? "Avant / après, côte à côte" : "Face, profil, dos", onClick: () => Nav.sheet("photos") })));
 }
 
 function FeuillePesee({ iso }) {
@@ -135,11 +151,14 @@ function FeuilleMatin({ iso, auto }) {
 
 function FeuilleForme() {
   useDB();
+  return h(Feuille, { titre: "Ta forme", ton: "corps" }, h(ContenuForme));
+}
+function ContenuForme() {
   const auj = aujourdhui(), r = recuperation(auj), h14 = historiqueForme(14), rl = DB.get("recup-logs"), s = sommeil(), inf = influences();
   const vfc = [...rl].filter(l => l.rmssd > 0 && ecart(l.dateISO, auj) <= 30).map(l => ({ x: l.dateISO, y: l.rmssd }));
   const nuits = [...rl].filter(l => l.sleep > 0 && ecart(l.dateISO, auj) <= 13).map(l => ({ l: JOURS_L[(jourSem(l.dateISO) + 6) % 7], v: arrondi(l.sleep) }));
   const TAG = { m: "mesuré", c: "calculé", e: "estimé" };
-  return h(Feuille, { titre: "Ta forme", ton: "corps" },
+  return h(Fragment, null,
     r?.score != null ? h(Fragment, null,
       h("div.forme-t", { "data-ton": r.verdict.ton }, h("b", r.score), h("div", h("strong", r.verdict.t), h("p", r.conseil))),
       h(Section, { titre: "Ce qui compose ton score" }, ORDRE_FACTEURS.filter(k => r.parts[k] != null || r.det[k].length).map(k => h("details.facteur", { key: k, open: k === r.lowest },

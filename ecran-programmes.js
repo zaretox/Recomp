@@ -5,6 +5,10 @@ const copie = o => JSON.parse(JSON.stringify(o));
 
 function FeuilleProgrammes() {
   useDB();
+  return h(Feuille, { titre: "Mes programmes", ton: "sport" }, h(ContenuProgrammes));
+}
+/* Aussi affiché tel quel dans la rubrique Programmes de l'onglet Sport */
+function ContenuProgrammes() {
   const progs = DB.get("programmes"), pr = profil(), enCours = programmeEnCours();
   const ligne = (id, titre, sous) => h("button.choix-l", { key: id, className: pr.programme === id ? "actif" : "", onClick: () => setProfil({ programme: id }) },
     h("span", h("b", titre), h("small", sous)), pr.programme === id && h(Icone, { n: "check", t: 20 }));
@@ -15,11 +19,11 @@ function FeuilleProgrammes() {
       avecAnnuler("programmes", progs.filter(x => x.id !== p.id), "Programme supprimé");
     }
   };
-  return h(Feuille, { titre: "Mes programmes", ton: "sport" },
-    h("div.choix-v",
+  return h(Fragment, null,
+    h(Section, { titre: "Ton programme de muscu" }, h("div.choix-v",
       ligne("auto", "Automatique", "Salle si tu y es allé ces 21 derniers jours, sinon maison. En cours : " + infoProgramme(enCours).label),
       ligne("salle", "PPL Salle", "Lun, mar, mer, ven, sam"),
-      ligne("maison", "Circuits maison", "Lun, mer, ven, sam")),
+      ligne("maison", "Circuits maison", "Lun, mer, ven, sam"))),
     progs.length > 0 && h(Section, { titre: "Tes programmes" }, progs.map(p => h(Fragment, { key: p.id },
       ligne(p.id, p.name, (p.seances || []).length + " séances"),
       h("div.actions-l",

@@ -3,9 +3,11 @@
  * Ce qu'il reste, les repas à cocher, le hors-menu, la cible, les courses. */
 const LigneMacro = ({ l, v, t }) => h("div.macro", h("span", l), h(Jauge, { v, max: t, ton: "noir" }), h("b", Math.round(v) + " / " + t + " g"));
 
+/* Trois rubriques : la journée à cocher, la cible et comment tu la tiens, la liste de courses */
+const RUBRIQUES_REPAS = [["jour", "Aujourd'hui"], ["cible", "Ma cible"], ["courses", "Courses"]];
 function EcranRepas() {
   useDB();
-  const auj = aujourdhui(), [iso] = useState(auj), n = jourNutrition(iso), bt = objectifs(), dep = depenseReelle();
+  const auj = aujourdhui(), [iso] = useState(auj), n = jourNutrition(iso), [rub, setRub] = useRubrique("repas", RUBRIQUES_REPAS);
   const hier = decale(iso, -1), extrasHier = (DB.get("food-log")[hier] || []).filter(f => !f.plan);
   const suppr = id => avecAnnuler("food-log", { ...DB.get("food-log"), [iso]: (DB.get("food-log")[iso] || []).filter(x => x.id !== id) }, "Aliment retiré");
   const faits = n.lignes.filter(l => l.fait).length;
@@ -15,22 +17,37 @@ function EcranRepas() {
       h("div.affiche-g", h(Geant, null, h(Compteur, { v: entier(Math.abs(n.reste)) })), h("em", "kcal")),
       h("p", entier(n.mange.kcal) + " mangées sur " + entier(n.menu.dayTgt) + (n.menu.swimExtra ? ", natation comprise" : "")),
       h("div.macros", h(LigneMacro, { l: "Protéines", v: n.mange.p, t: n.menu.dayMacros.p }), h(LigneMacro, { l: "Glucides", v: n.mange.g, t: n.menu.dayMacros.g }), h(LigneMacro, { l: "Lipides", v: n.mange.l, t: n.menu.dayMacros.l }))),
-    h("div.corps-p",
-      h(Section, { titre: "Tes repas", droite: h("span.compte", faits + "/" + n.lignes.length) },
-        h(Puces, null,
-          h(Puce, { actif: n.dayType === "training", onClick: () => changerTypeJour(iso, "training") }, "Jour d'entraînement"),
-          h(Puce, { actif: n.dayType === "rest", onClick: () => changerTypeJour(iso, "rest") }, "Jour de repos")),
-        n.facteurReste !== 1 && h("p.note.fort", (n.facteurReste < 1 ? "Portions restantes réduites de " : "Portions restantes augmentées de ") + Math.round(Math.abs(1 - n.facteurReste) * 100) + " % pour tomber juste."),
-        h("div.journee", n.lignes.map(l => h(LigneJour, { key: l.id, it: { cle: l.id, h: l.m.h, t: l.m.m, s: (l.m.altLabel ? l.m.altLabel + ", " : "") + (l.fait ? l.kcal : Math.round(l.kcal * n.facteurReste)) + " kcal", fait: l.fait, coche: () => cocherRepas(iso, l.id), ouvre: () => Nav.sheet("repas", { iso, id: l.id }), ton: "repas" } })))),
-      h(Section, { titre: "Hors menu", droite: h("span.compte", entier(n.horsMenu.reduce((a, f) => a + (f.kcal || 0), 0)) + " kcal") },
-        n.horsMenu.map(f => h("div.histo", { key: f.id }, h("span", f.nom + (f.grams ? ", " + f.grams + " g" : "")), h("b", f.kcal + " kcal"), h("button.mini-x", { "aria-label": "Retirer", onClick: () => suppr(f.id) }, h(Icone, { n: "fermer", t: 16 })))),
-        h("div.deux-b",
-          h(Bouton, { cl: "contour", ico: "plus", onClick: () => Nav.sheet("aliment", { iso }) }, "Ajouter un aliment"),
-          extrasHier.length > 0 && h(Bouton, { cl: "contour", onClick: () => { const log = DB.get("food-log"); DB.set("food-log", { ...log, [iso]: [...(log[iso] || []), ...extrasHier.map((f, k) => ({ ...f, id: Date.now() + k }))] }); toast("Hors-menu d'hier copié"); } }, "Comme hier"))),
-      h(Section, { titre: "Ta cible" },
-        h(Rangee, { ico: "repas", titre: bt.cal ? entier(bt.cal.target) + " kcal par jour" : "Cible à configurer", sous: bt.cal ? "déficit de " + cfgCalories().deficit + " kcal, " + bt.prot + " g de protéines" : "Âge et taille suffisent", onClick: () => Nav.sheet("calories") }),
-        dep.pret && h(Rangee, { ico: "corps", titre: "Dépense réelle : " + entier(dep.kcal) + " kcal", sous: "mesurée sur " + dep.jours + " jours", onClick: () => Nav.sheet("calories") })),
-      h(Section, { titre: "Courses" }, (() => { const e = etatCourses(), l = listeCourses(e.debut, e.jours), c = Object.keys(e.coches).filter(k => e.coches[k]).length; return h(Rangee, { ico: "panier", titre: "Liste de la semaine", sous: l.lignes.length + " produits, environ " + Math.round(l.total) + " €", valeur: c ? c + "/" + l.lignes.length : null, onClick: () => Nav.sheet("courses") }); })())));
+    h("div.corps-p.avec-rubriques",
+      h("div", { id: "ancre-repas", className: "ancre-r" }),
+      h(SousOnglets, { liste: RUBRIQUES_REPAS, actif: rub, onChange: setRub }),
+      rub === "jour" ? h(Fragment, null,
+        h(Section, { titre: "Tes repas", droite: h("span.compte", faits + "/" + n.lignes.length) },
+          h(Puces, null,
+            h(Puce, { actif: n.dayType === "training", onClick: () => changerTypeJour(iso, "training") }, "Jour d'entraînement"),
+            h(Puce, { actif: n.dayType === "rest", onClick: () => changerTypeJour(iso, "rest") }, "Jour de repos")),
+          n.facteurReste !== 1 && h("p.note.fort", (n.facteurReste < 1 ? "Portions restantes réduites de " : "Portions restantes augmentées de ") + Math.round(Math.abs(1 - n.facteurReste) * 100) + " % pour tomber juste."),
+          h("div.journee", n.lignes.map(l => h(LigneJour, { key: l.id, it: { cle: l.id, h: l.m.h, t: l.m.m, s: (l.m.altLabel ? l.m.altLabel + ", " : "") + (l.fait ? l.kcal : Math.round(l.kcal * n.facteurReste)) + " kcal", fait: l.fait, coche: () => cocherRepas(iso, l.id), ouvre: () => Nav.sheet("repas", { iso, id: l.id }), ton: "repas" } })))),
+        h(Section, { titre: "Hors menu", droite: h("span.compte", entier(n.horsMenu.reduce((a, f) => a + (f.kcal || 0), 0)) + " kcal") },
+          n.horsMenu.map(f => h("div.histo", { key: f.id }, h("span", f.nom + (f.grams ? ", " + f.grams + " g" : "")), h("b", f.kcal + " kcal"), h("button.mini-x", { "aria-label": "Retirer", onClick: () => suppr(f.id) }, h(Icone, { n: "fermer", t: 16 })))),
+          h("div.deux-b",
+            h(Bouton, { cl: "contour", ico: "plus", onClick: () => Nav.sheet("aliment", { iso }) }, "Ajouter un aliment"),
+            extrasHier.length > 0 && h(Bouton, { cl: "contour", onClick: () => { const log = DB.get("food-log"); DB.set("food-log", { ...log, [iso]: [...(log[iso] || []), ...extrasHier.map((f, k) => ({ ...f, id: Date.now() + k }))] }); toast("Hors-menu d'hier copié"); } }, "Comme hier"))))
+      : rub === "cible" ? h(ContenuCalories, { milieu: h(TenueCible) })
+      : h(ContenuCourses)));
+}
+
+/* Comment tu tiens ta cible : les 7 jours d'avant aujourd'hui, ce qui compte plus qu'une seule journée */
+function TenueCible() {
+  const auj = aujourdhui(), jours = Array.from({ length: 7 }, (_, i) => decale(auj, i - 7));
+  const notes = jours.map(d => ({ d, kc: apportsDu(d), cible: jourNutrition(d).menu.dayTgt })).filter(j => j.kc);
+  if (notes.length < 2) return h(Section, { titre: "Tes 7 derniers jours" }, h(Vide, null, "Coche tes repas quelques jours : tu verras ici si tu tiens ta cible sur la semaine."));
+  const moy = moyenne(notes.map(j => j.kc)), cible = moyenne(notes.map(j => j.cible)), dedans = notes.filter(j => Math.abs(j.kc - j.cible) <= j.cible * .1).length;
+  return h(Section, { titre: "Tes 7 derniers jours", droite: h("span.compte", "sans aujourd'hui") },
+    h("div.tuiles",
+      h(Tuile, { v: entier(moy), l: "kcal par jour en moyenne, pour " + entier(cible) + " visées" }),
+      h(Tuile, { v: dedans + "/" + notes.length, l: "jours à ±\u00a010\u00a0% de ta cible" })),
+    h(Barres, { pts: jours.map(d => ({ l: JOURS_L[(jourSem(d) + 6) % 7], v: apportsDu(d) || 0 })), ton: "repas", haut: 110, unite: " kcal", cible: Math.round(cible) }),
+    h("p.note", "Le trait est ta cible moyenne. " + (notes.length < 7 ? "Les jours sans repas cochés ne comptent pas." : "")));
 }
 
 /* Un repas en détail : portions recalées et plats de remplacement */
@@ -110,15 +127,19 @@ const MODES_PROT = [["1,8 g/kg", "1.8"], ["2 g/kg", "2.0"], ["2,2 g/kg", "2.2"],
 
 function FeuilleCalories() {
   useDB();
+  return h(Feuille, { titre: "Ta cible", ton: "repas" }, h(ContenuCalories));
+}
+function ContenuCalories({ milieu }) {
   const brut = DB.get("nutri-cal-cfg") || {}, c = cfgCalories() || { sex: "H", age: "", activity: 1.55, deficit: 700, protMode: "lean" };
   const bt = objectifs(), dep = depenseReelle(), cm = parseFloat(DB.get("taille-corps")) || 0;
   const maj = p => DB.set("nutri-cal-cfg", { ...brut, sex: c.sex, age: c.age || null, activity: c.activity, deficit: c.deficit, protMode: c.protMode, ...p });
-  return h(Feuille, { titre: "Ta cible", ton: "repas" },
+  return h(Fragment, null,
     bt.cal ? h("div.tuiles",
       h(Tuile, { v: entier(bt.cal.target), l: "kcal par jour" }),
       h(Tuile, { v: bt.macros.p + " g", l: "protéines" }),
       h(Tuile, { v: entier(bt.cal.tdee), l: c.depense ? "dépense mesurée" : "dépense estimée" }))
       : h(Vide, null, "Il manque ton âge, ta taille ou une pesée pour calculer ta cible."),
+    milieu,
     h(Section, { titre: "Dépense réelle" }, dep.pret
       ? h(Fragment, null,
         h("p.texte-p", "Sur " + dep.jours + " jours, tu as mangé " + entier(dep.apports) + " kcal par jour en moyenne et ta tendance de poids a bougé en conséquence : ton corps dépense environ ", h("b", entier(dep.kcal) + " kcal"), ", contre " + entier(dep.formule) + " d'après la formule."),
@@ -138,6 +159,9 @@ function FeuilleCalories() {
 /* COURSES — calculées depuis tes menus. On coche en magasin, on note le ticket à la fin. */
 function FeuilleCourses() {
   useDB();
+  return h(Feuille, { titre: "Courses", ton: "repas" }, h(ContenuCourses));
+}
+function ContenuCourses() {
   const e = etatCourses(), { lignes, total } = listeCourses(e.debut, e.jours);
   const maj = p => DB.set("courses-etat", { ...e, ...p });
   const coche = id => maj({ coches: { ...e.coches, [id]: !e.coches[id] } });
@@ -162,7 +186,7 @@ function FeuilleCourses() {
   };
   const faits = lignes.filter(l => e.coches[l.id]).length, gain = lignes.reduce((a, l) => a + (l.gainEco || 0), 0);
   const ajout = useRef(null);
-  return h(Feuille, { titre: "Courses", ton: "repas" },
+  return h(Fragment, null,
     h("div.tuiles", h(Tuile, { v: "~" + Math.round(total) + " €", l: "pour " + e.jours + " jours" }), h(Tuile, { v: faits + "/" + lignes.length, l: "dans le panier" })),
     h(Puces, null, [3, 5, 7].map(j => h(Puce, { key: j, actif: e.jours === j, onClick: () => maj({ jours: j }) }, j + " jours"))),
     gain > 0 && h("p.note", "Moins cher possible : jusqu'à " + gain + " € d'économie en touchant les produits marqués."),

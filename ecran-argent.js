@@ -38,7 +38,7 @@ function EcranArgent() {
     && (!qs || sansAccent((o.label || "") + " " + (o.source || "") + " " + (o.cat || "")).includes(qs)));
   const jours = [];
   opsVues.slice(0, 150).forEach(o => { const g = jours[jours.length - 1]; if (g && g[0] === o.dateISO) g[1].push(o); else jours.push([o.dateISO, [o]]); });
-  const voirCategorie = c => { setFiltre(c); setQ(""); setRub("operations"); setTimeout(() => document.getElementById("ancre-argent")?.scrollIntoView({ block: "start", behavior: "smooth" }), 30); };
+  const voirCategorie = c => { setFiltre(c); setQ(""); setRub("operations"); setTimeout(() => remonterRubrique(document.getElementById("ancre-argent"), true), 30); };
   // Le filtre choisi reste visible dans la rangée de puces
   useEffect(() => { if (rub === "operations") document.querySelector(".puces .puce.actif")?.scrollIntoView({ inline: "center", block: "nearest" }); }, [filtre, rub]);
   const prochaine = b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : p.civil ? "" : "Prochaine paye vers le " + dateJour(decale(b.fin, 1)) + ".";

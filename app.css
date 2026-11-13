@@ -702,3 +702,5 @@ p.note.mal b { color: var(--rouge); }
 .ce-barre { position: relative; height: 8px; margin: 0 8px; border-radius: 4px; background: linear-gradient(90deg, var(--fond3), var(--sport)); }
 .ce-barre i { position: absolute; top: 50%; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: var(--encre); transform: translateY(-50%); }
 .ce-phrase { margin: 0; font-size: 14px; line-height: 1.4; }
+.ligne .ecart-p { flex: none; display: inline; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tuiles.deux-c { grid-template-columns: 1fr 1fr; }
