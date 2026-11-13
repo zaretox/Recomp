@@ -9,7 +9,8 @@ function messagesCoach() {
   const prog = programmeEnCours(), sess = seanceDuJour(auj, prog), heure = new Date().getHours(), msgs = [];
   const salut = heure < 12 ? "Bonjour" : heure < 18 ? "Bon après-midi" : "Bonsoir";
   const faite = seanceFaite(auj);
-  msgs.push({ id: "jour", t: salut + ". " + (sess ? (faite ? sess.label + " est faite. " : "Aujourd'hui : " + sess.label + " à " + hhmm(seanceCreneau()) + ". ") : "Pas de séance aujourd'hui. ") + entier(n.menu.dayTgt) + " kcal à manger." });
+  const faiteNom = (DB.get("sport-logs").find(l => l.dateISO === auj)?.seance) || (DB.get("maison-logs").find(l => l.dateISO === auj) ? "Ta séance maison" : null);
+  msgs.push({ id: "jour", t: salut + ". " + (sess ? (faite ? (faiteNom || sess.label) + " est faite. " : "Aujourd'hui : " + sess.label + " à " + hhmm(seanceCreneau()) + ". ") : faite ? (faiteNom || "Ta séance") + " est faite. " : "Pas de séance aujourd'hui. ") + entier(n.menu.dayTgt) + " kcal à manger." });
 
   // Sauvegarde : tout vit sur ce téléphone, on la rappelle en haut dès 7 jours
   const ageS = ageSauvegarde();

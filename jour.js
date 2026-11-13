@@ -78,13 +78,14 @@ function itemsDuJour(iso) {
     { cle: "pesee", h: pr.reveil, t: "Pesée", s: n.nlog?.weight ? nb1(n.nlog.weight) + " kg" : "au réveil, à jeun", fait: !!n.nlog?.weight, ouvre: () => Nav.sheet("pesee", { iso }), ton: "corps" },
     ...n.lignes.map(l => ({ cle: l.id, h: l.m.h, t: l.m.m, s: (l.m.altLabel ? l.m.altLabel + ", " : "") + (l.fait ? l.kcal : Math.round(l.kcal * n.facteurReste)) + " kcal", fait: l.fait, coche: () => cocherRepas(iso, l.id), ouvre: () => Nav.sheet("repas", { iso, id: l.id }), ton: "repas" })),
   ];
-  if (sess) {
-    const faite = DB.get(sess.prog === "maison" ? "maison-logs" : "sport-logs").some(l => l.dateISO === iso && l.seance === sess.code);
-    items.push({ cle: "seance", h: seanceCreneau(), t: sess.label, s: faite ? "faite" : sess.titre, fait: faite, ouvre: () => ouvrirSeance(iso, sess), ton: "sport", fort: !faite });
-  }
   // Les séances faites ce jour-là en plus de celle prévue
   const autres = [...DB.get("sport-logs").map(l => ({ ...l, prog: "salle" })), ...DB.get("maison-logs").map(l => ({ ...l, prog: "maison" }))]
     .filter(l => l.dateISO === iso && !(sess && l.seance === sess.code && (l.prog === "maison") === (sess.prog === "maison")));
+  if (sess) {
+    const faite = DB.get(sess.prog === "maison" ? "maison-logs" : "sport-logs").some(l => l.dateISO === iso && l.seance === sess.code);
+    // Une autre séance faite à la place : la prévue ne reste pas « à faire »
+    if (faite || !autres.length) items.push({ cle: "seance", h: seanceCreneau(), t: sess.label, s: faite ? "faite" : sess.titre, fait: faite, ouvre: () => ouvrirSeance(iso, sess), ton: "sport", fort: !faite });
+  }
   autres.forEach(l => items.push({ cle: "en-plus-" + l.prog + l.id, h: seanceCreneau(), t: l.prog === "maison" ? "Maison " + l.seance : l.seance, s: "faite", fait: true, ouvre: () => ouvrirSeance(iso, { prog: l.prog, code: l.seance }), ton: "sport" }));
   if (nage || nages.length) items.push({ cle: "nage", h: "17h30", t: "Natation", s: nages.length ? entier(nages.reduce((a, l) => a + l.distance, 0)) + " m" : entier(nageDistance(nage)) + " m prévus", fait: nages.length > 0, ouvre: () => Nav.sheet("natation", { iso }), ton: "sport" });
   return items.sort((a, b) => hEnMin(a.h) - hEnMin(b.h));
@@ -107,8 +108,16 @@ function Journee({ iso }) {
     lignes.push(h(LigneJour, { key: it.cle, it, futur }));
   });
   const faits = items.filter(x => x.fait).length;
+  // Ce qui a été noté ce jour-là en dehors du plan : écarts de repas et douleurs
+  const hors = jourNutrition(iso).horsMenu, maux = DB.get("douleur-logs").filter(l => l.dateISO === iso);
   return h(Section, { titre: iso === auj ? "Ta journée" : dateLongue(iso), droite: h("span.compte", faits + "/" + items.length) }, h("div.journee", lignes),
-    !futur && h("div.ajout-seance", h(Bouton, { cl: "contour", ico: "plus", onClick: () => { vibre(); Nav.sheet("choisir", { iso }); } }, "Ajouter une séance")));
+    !futur && (hors.length > 0 || maux.length > 0) && h("div.notes-jour",
+      hors.length > 0 && h("button", { onClick: () => Nav.sheet("aliment", { iso }) }, h(Icone, { n: "repas", t: 16 }), h("span", "Hors plan : " + hors.map(f => f.nom).slice(0, 3).join(", ") + (hors.length > 3 ? "…" : "") + ", " + entier(hors.reduce((a, f) => a + (f.kcal || 0), 0)) + " kcal")),
+      maux.map(m => h("button", { key: m.id, onClick: () => Nav.sheet("douleurs") }, h(Icone, { n: "mal", t: 16 }), h("span", m.zone + " " + m.intensite + "/10" + (m.note ? ", " + m.note : ""))))),
+    !futur && h("div.ajout-seance", h(Bouton, { cl: "contour", ico: "plus", onClick: () => { vibre(); Nav.sheet("choisir", { iso }); } }, "Ajouter une séance")),
+    !futur && h("div.deux-b.rattrape",
+      h(Bouton, { cl: "contour", ico: "repas", onClick: () => Nav.sheet("aliment", { iso }) }, iso === auj ? "J'ai mangé autre chose" : "Un repas oublié"),
+      h(Bouton, { cl: "contour", ico: "mal", onClick: () => Nav.sheet("douleur", { iso }) }, "Une douleur")));
 }
 /* Compléments et eau : deux lignes à cocher */
 function Petits({ iso }) {

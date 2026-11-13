@@ -168,7 +168,36 @@ function FeuilleNatation({ iso }) {
         h(Tuile, { v: entier(Math.max(...logs.map(l => l.distance))) + " m", l: "plus longue" }),
         [[400, "≥ 400 m"], [1000, "≥ 1 000 m"]].map(([mn, l]) => { const b = meilleur(mn); return h(Tuile, { key: mn, v: b ? mmss(Math.round(allure(b.distance, b.duree))) : "—", l: "allure " + l }); }))),
       aAjouter.length > 0 && h(Section, { titre: "Nages de ta montre" }, h("div.liste", aAjouter.slice(0, 5).map(s => h(LigneSortie, { key: s.id, s }))), h("p.note", "Touche une nage pour voir son détail et l'ajouter à ta natation.")),
-      logs.length > 0 && h(Section, { titre: "Dernières séances" }, [...logs].sort((a, b) => b.dateISO.localeCompare(a.dateISO)).slice(0, 8).map(l => h("div.histo", { key: l.id }, h("span", dateMini(l.dateISO)), h("b", entier(l.distance) + " m en " + dureeS(l.duree)), sortieDeNage(l) && h("button.mini-x", { "aria-label": "Données de la montre", onClick: () => Nav.sheet("sortie", { id: sortieDeNage(l).id }) }, h(Icone, { n: "coeur", t: 16 })), h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("natation-logs", DB.get("natation-logs").filter(x => x.id !== l.id), "Séance supprimée") }, h(Icone, { n: "fermer", t: 16 })))))));
+      logs.length > 0 && h(Section, { titre: "Dernières séances" }, [...logs].sort((a, b) => b.dateISO.localeCompare(a.dateISO)).slice(0, 8).map(l => h("div.histo", { key: l.id }, h("button.histo-b", { onClick: () => Nav.sheet("nage", { id: l.id }), "aria-label": "Corriger cette nage" }, h("span", dateMini(l.dateISO)), h("b", entier(l.distance) + " m en " + dureeS(l.duree))), sortieDeNage(l) && h("button.mini-x", { "aria-label": "Données de la montre", onClick: () => Nav.sheet("sortie", { id: sortieDeNage(l).id }) }, h(Icone, { n: "coeur", t: 16 })), h("button.mini-x", { "aria-label": "Supprimer", onClick: () => avecAnnuler("natation-logs", DB.get("natation-logs").filter(x => x.id !== l.id), "Séance supprimée") }, h(Icone, { n: "fermer", t: 16 })))))));
+}
+
+/* CORRIGER UNE NAGE — distance, durée, effort, date ; les calories suivent */
+function FeuilleNage({ id }) {
+  useDB();
+  const l0 = DB.get("natation-logs").find(x => x.id === id);
+  const [l, setL] = useState(l0 ? { ...l0 } : null);
+  if (!l) return h(Feuille, { titre: "Nage" }, h(Vide, null, "Nage supprimée."));
+  const maj = o => setL(x => ({ ...x, ...o }));
+  const enregistrer = async () => {
+    const kg = moyenneRecente(pesees(), 7) || 100;
+    const n = { ...l, date: dateCourte(l.dateISO), kcal: nageKcal(l.distance, l.duree, l.rpe || 6, kg) };
+    await DB.set("natation-logs", DB.get("natation-logs").map(x => x.id === id ? n : x));
+    Nav.fermer();
+    toast("Nage corrigée");
+  };
+  const suppr = () => { Nav.fermer(); avecAnnuler("natation-logs", DB.get("natation-logs").filter(x => x.id !== id), "Nage supprimée"); };
+  return h(Feuille, { titre: "Corriger la nage", ton: "sport" },
+    h("div.date-op",
+      h("button.mini", { onClick: () => maj({ dateISO: decale(l.dateISO, -1) }) }, "Veille"),
+      h("span", l.dateISO === aujourdhui() ? "Aujourd'hui" : dateLongue(l.dateISO)),
+      l.dateISO < aujourdhui() && h("button.mini", { onClick: () => maj({ dateISO: decale(l.dateISO, 1) }) }, "Lendemain")),
+    h("div.deux",
+      h(Champ, { etiquette: "Distance", valeur: l.distance, mode: "ent", unite: "m", pas: [50, 100], min: 0, onChange: v => maj({ distance: v }) }),
+      h(Champ, { etiquette: "Durée", valeur: l.duree, texte: dureeS(l.duree), mode: "ms", unite: "min:s", pas: [30, 60], min: 0, onChange: v => maj({ duree: v }) })),
+    h(Champ, { etiquette: "Difficulté ressentie", valeur: l.rpe || 6, mode: "ent", unite: "/10", pas: [1], min: 1, max: 10, onChange: v => maj({ rpe: v }) }),
+    l.distance > 0 && l.duree > 0 && h("p.note", "Allure : " + mmss(Math.round(allure(l.distance, l.duree))) + " aux 100 m. Les calories de la nage sont recalculées."),
+    h(Bouton, { cl: "plein grand", onClick: enregistrer }, "Enregistrer"),
+    h(Bouton, { cl: "contour danger-t", onClick: suppr }, "Supprimer"));
 }
 
 /* PROGRÈS EN NATATION : meilleurs temps, volume, allure au fil des semaines */
@@ -198,14 +227,15 @@ function FeuilleNageProgres() {
 }
 
 /* DOULEURS */
-function FeuilleDouleur() {
-  const [zone, setZone] = useState(ZONES_DOULEUR[0]), [note, setNote] = useState(""), auj = aujourdhui();
+function FeuilleDouleur({ iso }) {
+  const [zone, setZone] = useState(ZONES_DOULEUR[0]), [note, setNote] = useState(""), auj = iso || aujourdhui();
   const noter = async n => {
     await DB.set("douleur-logs", [...DB.get("douleur-logs"), { id: Date.now(), dateISO: auj, date: dateCourte(auj), zone, intensite: n, note: note.trim() }]);
     Nav.fermer();
     toast(n >= 4 ? "Noté : les exercices concernés sont signalés dans ta séance" : "Noté. Surveille cette zone");
   };
   return h(Feuille, { titre: "J'ai mal", ton: "sport" },
+    auj !== aujourdhui() && h("p.sous-t", "Pour le " + dateLongue(auj).toLowerCase()),
     h(Section, { titre: "Où ?" }, h(Puces, null, ZONES_DOULEUR.map(z => h(Puce, { key: z, actif: zone === z, onClick: () => setZone(z) }, z)))),
     h("input.recherche", { value: note, onChange: e => setNote(e.target.value), placeholder: "Note facultative : pic en bas du squat…", "aria-label": "Note" }),
     h(Section, { titre: "À quel point ?" }, h("div.choix", [[2, "Gêne"], [4, "Douleur"], [6, "Forte"], [8, "Très forte"]].map(([n, l]) => h("button", { key: n, onClick: () => noter(n) }, h("b", l), h("small", n + "/10"))))));

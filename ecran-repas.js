@@ -93,6 +93,7 @@ function FeuilleAliment({ iso }) {
   };
   const recents = alimentsRecents();
   return h(Feuille, { titre: "Ajouter", ton: "repas" },
+    jour !== aujourdhui() && h("p.sous-t", "Pour le " + dateLongue(jour).toLowerCase()),
     h("input.recherche", { value: q, onChange: e => { setQ(e.target.value); setCreer(false); }, placeholder: "Chercher un aliment", "aria-label": "Chercher un aliment" }),
     !ql && h(Bouton, { cl: "contour", ico: "plus", onClick: direct }, "Juste des calories"),
     ql ? h(Fragment, null,
