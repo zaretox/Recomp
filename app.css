@@ -709,3 +709,7 @@ p.note.mal b { color: var(--rouge); }
    Celle du dessus est au moins aussi haute, pour ne pas laisser dépasser la feuille d'en dessous. */
 .pile-f { position: relative; z-index: 50; }
 .pile-f ~ .pile-f > .feuille:not(.plein) { height: 93%; }
+/* Bandeau « nouvelle version prête » */
+.maj-p { position: fixed; top: calc(10px + var(--haut)); left: 12px; right: 12px; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 12px; background: var(--encre); color: var(--fond); font-size: 14px; font-weight: 700; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); animation: tombe .25s ease-out; }
+.maj-p span { flex: 1; min-width: 0; }
+.maj-p button { flex: none; padding: 9px 14px; border-radius: 999px; background: var(--fond); color: var(--encre); font-weight: 800; }

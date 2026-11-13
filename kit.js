@@ -278,6 +278,32 @@ function useRubrique(cle, liste) {
   const choisir = v => { setR(v); try { localStorage.setItem("recomp_rubrique_" + cle, v); } catch (e) { /* facultatif */ } };
   return [valide(r) ? r : liste[0][0], choisir];
 }
+/* MISE À JOUR — le service worker retélécharge l'app en arrière-plan. Dès qu'une nouvelle version est prête,
+ * un bandeau propose de l'afficher (sinon elle n'apparaîtrait qu'après avoir vraiment fermé l'app). */
+const MiseAJour = { prete: false, demande: null };
+navigator.serviceWorker?.addEventListener("message", e => {
+  const t = e.data?.type;
+  if (t === "nouvelle-version") { MiseAJour.prete = true; bus.emit("maj"); }
+  if (MiseAJour.demande && (t === "nouvelle-version" || t === "a-jour" || t === "maj-impossible")) { const f = MiseAJour.demande; MiseAJour.demande = null; f(t); }
+});
+let derniereVerif = 0;
+function verifierMaj(demande) {
+  const sw = navigator.serviceWorker;
+  if (!sw?.controller) return Promise.resolve("sans");
+  if (!demande && Date.now() - derniereVerif < 10 * 60000) return Promise.resolve("recent");
+  derniereVerif = Date.now();
+  sw.getRegistration?.().then(r => r?.update()).catch(() => {});
+  sw.controller.postMessage({ type: "rafraichir", demande: !!demande });
+  if (!demande) return Promise.resolve("lance");
+  return new Promise(res => { MiseAJour.demande = res; setTimeout(() => { if (MiseAJour.demande === res) { MiseAJour.demande = null; res("delai"); } }, 30000); });
+}
+function PastilleMaj() {
+  const [prete, setPrete] = useState(MiseAJour.prete);
+  useEffect(() => bus.on("maj", () => setPrete(true)), []);
+  if (!prete) return null;
+  return h("div.maj-p", { role: "status" }, h("span", "Nouvelle version de RECOMP prête"), h("button", { onClick: () => location.reload() }, "Afficher"));
+}
+
 /* Ouvre un onglet directement sur une de ses rubriques */
 const allerRubrique = (tab, rub) => { try { localStorage.setItem("recomp_rubrique_" + tab, rub); } catch (e) { /* on ouvre l'onglet quand même */ } Nav.tab(tab); };
 /* Fait défiler pour que la barre des rubriques soit pile en haut, au début de la rubrique */

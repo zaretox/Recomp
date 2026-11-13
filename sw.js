@@ -60,22 +60,36 @@ self.addEventListener("activate", e => {
   );
 });
 
-/* Remplacement d'un seul bloc : si un fichier manque, on garde la version en place */
+/* Remplacement d'un seul bloc : si un fichier manque, on garde la version en place.
+ * Si quelque chose a changé, les pages ouvertes sont prévenues : elles proposent d'afficher la nouvelle version. */
 let enCours = null;
 function rafraichir() {
   if (enCours) return enCours;
   enCours = (async () => {
+    const c = await caches.open(VERSION);
+    let change = false;
     const recus = await Promise.all(FICHIERS.map(async u => {
       const r = await fetch(u, { cache: "no-store" });
       if (!r.ok) throw new Error(u);
+      const avant = await c.match(u);
+      if (!avant || (await avant.text()) !== (await r.clone().text())) change = true;
       return [u, r];
     }));
-    const c = await caches.open(VERSION);
     await Promise.all(recus.map(([u, r]) => c.put(u, r)));
     await Promise.all(FACULTATIFS.map(u => fetch(u, { cache: "no-store" }).then(r => r.ok ? c.put(u, r) : null).catch(() => {})));
-  })().catch(() => {}).finally(() => { enCours = null; });
+    return change;
+  })().finally(() => { enCours = null; });
   return enCours;
 }
+const prevenir = async msg => (await self.clients.matchAll({ type: "window", includeUncontrolled: true })).forEach(cl => cl.postMessage(msg));
+const rafraichirEtPrevenir = (demande) => rafraichir()
+  .then(change => { if (change || demande) return prevenir({ type: change ? "nouvelle-version" : "a-jour", demande }); })
+  .catch(() => demande ? prevenir({ type: "maj-impossible" }) : null);
+
+// La page demande une vérification (retour au premier plan, ou bouton des réglages)
+self.addEventListener("message", e => {
+  if (e.data?.type === "rafraichir") e.waitUntil(rafraichirEtPrevenir(!!e.data.demande));
+});
 
 self.addEventListener("fetch", e => {
   const req = e.request;
@@ -102,7 +116,7 @@ self.addEventListener("fetch", e => {
   if (req.mode === "navigate") {
     e.respondWith((async () => {
       const cache = (await caches.match("./index.html")) || (await caches.match("./"));
-      if (cache) { e.waitUntil(rafraichir()); return cache; }
+      if (cache) { e.waitUntil(rafraichirEtPrevenir(false)); return cache; }
       try { return await fetch(req); }
       catch (err) {
         return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><body style="margin:0;background:#FF5A2B;color:#0E0E0C;font-family:system-ui;display:flex;flex-direction:column;justify-content:flex-end;height:100vh;gap:12px;padding:24px 20px 48px;box-sizing:border-box"><div style="font:900 56px/.9 Impact,sans-serif">PAS DE RÉSEAU</div><div style="font-weight:700">Le tout premier chargement a besoin d\'internet.</div><button onclick="location.reload()" style="padding:13px 22px;border:0;border-radius:6px;background:#0E0E0C;color:#fff;font-weight:800">Réessayer</button></body>', { headers: { "Content-Type": "text/html; charset=utf-8" } });

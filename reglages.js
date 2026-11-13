@@ -202,7 +202,21 @@ function FeuilleReglages() {
   useDB();
   return h(Feuille, { titre: "Réglages" },
     RUBRIQUES_REGLAGES.map(([groupe, liste]) => h(Section, { key: groupe, titre: groupe },
-      h("div.menu-r", liste.map(([k, titre, ico]) => h(Rangee, { key: k, ico, titre, sous: etatReglage(k), cl: k === "donnees" && (ageSauvegarde() == null || ageSauvegarde() > 7) ? "alerte-r" : "", onClick: () => Nav.sheet("reglage", { rub: k }) }))))));
+      h("div.menu-r", liste.map(([k, titre, ico]) => h(Rangee, { key: k, ico, titre, sous: etatReglage(k), cl: k === "donnees" && (ageSauvegarde() == null || ageSauvegarde() > 7) ? "alerte-r" : "", onClick: () => Nav.sheet("reglage", { rub: k }) }))))),
+    h(VerifMaj));
+}
+/* « Mettre à jour » : retélécharge l'app et l'affiche aussitôt */
+function VerifMaj() {
+  const [etat, setEtat] = useState(null);
+  const lancer = async () => {
+    setEtat("cherche");
+    const r = await verifierMaj(true);
+    if (r === "nouvelle-version" || r === "a-jour") { location.reload(); return; }
+    setEtat(null);
+    toast(r === "sans" ? "Mise à jour impossible ici : ouvre RECOMP depuis l'écran d'accueil" : "Pas de réseau pour vérifier : réessaie plus tard", { danger: true });
+  };
+  return h("div.synchro", h("span", "RECOMP se met à jour tout seul. Si une nouveauté n'apparaît pas, touche ce bouton."),
+    h("button.mini", { disabled: etat === "cherche", onClick: lancer }, etat === "cherche" ? "Recherche…" : "Mettre à jour"));
 }
 // Une rubrique des réglages, sur sa propre page
 function FeuilleReglage({ rub }) {

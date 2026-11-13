@@ -23,6 +23,8 @@ Sous le bandeau, Sport, Repas, Argent et Corps sont découpés en rubriques (bar
 | Argent | Budget · Épargne · Opérations · Tendances |
 | Corps | Poids (courbe, objectif, dernières pesées) · Forme (score, facteurs, sommeil) · Mesures (composition, mensurations, photos) |
 
+Mise à jour : à chaque ouverture et à chaque retour au premier plan (au plus toutes les 10 min), le service worker retélécharge tous les fichiers, tout ou rien. S'il a trouvé du nouveau, il prévient la page, qui affiche le bandeau « Nouvelle version de RECOMP prête · Afficher » (`PastilleMaj`, `verifierMaj` dans `kit.js`). Réglages → « Mettre à jour » force la vérification puis recharge.
+
 Les catégories de dépenses sont une seule liste, `CATEGORIES` dans `libelles.js`, utilisée partout (classement, filtres, budget, plafonds). On peut en ajouter, jamais en renommer : les opérations gardent le nom de leur catégorie. Les règles de classement automatique sont `REGLES_DEFAUT` dans `banque.js`.
 
 Les feuilles « Ta forme », « Ta cible », « Courses » et « Mes programmes » existent toujours (coach, recherche, Réglages) et affichent le même contenu que la rubrique : `ContenuForme`, `ContenuCalories`, `ContenuCourses`, `ContenuProgrammes`.
