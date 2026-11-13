@@ -104,6 +104,7 @@ function SportSemaine() {
           cardio > 0 && h(Tuile, { key: "c", v: kmDe(cardio), l: "km de cardio" })].filter(Boolean);
         return h("div.tuiles", { className: tu.length === 4 ? "deux-c" : "" }, tu);
       })()),
+    h(PasSemaine),
     h(Section, { titre: "Séries par muscle", droite: h("span.compte", "7 derniers jours") }, h(VolumeMuscles), h("p.note", "La bande claire est ta zone utile. Dessous, le muscle ne progresse pas assez ; au-dessus, tu récupères moins bien.")),
     h(Section, { titre: "Réglages de la semaine" },
       h("div.interrupteurs",

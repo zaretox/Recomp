@@ -152,8 +152,20 @@ function ContenuCalories({ milieu }) {
         h(Champ, { etiquette: "Âge", valeur: c.age, mode: "ent", unite: "ans", pas: [1], onChange: v => maj({ age: v }) }),
         h(Champ, { etiquette: "Taille", valeur: cm || null, mode: "ent", unite: "cm", pas: [1], onChange: v => DB.set("taille-corps", v) })),
       h(Puces, null, [["Homme", "H"], ["Femme", "F"]].map(([l, v]) => h(Puce, { key: v, actif: c.sex === v, onClick: () => maj({ sex: v }) }, l)))),
-    h(Section, { titre: "Activité hors séances" }, h(Puces, null, ACTIVITES.map(([l, v]) => h(Puce, { key: v, actif: c.activity === v, onClick: () => maj({ activity: v }) }, l)))),
+    h(Section, { titre: "Activité hors séances" }, h(Puces, null, ACTIVITES.map(([l, v]) => h(Puce, { key: v, actif: c.activity === v, onClick: () => maj({ activity: v }) }, l))), h(ActiviteMontre, { c, maj })),
     h(Section, { titre: "Protéines" }, h(Puces, null, MODES_PROT.map(([l, v]) => h(Puce, { key: v, actif: c.protMode === v, onClick: () => maj({ protMode: v }) }, l)))));
+}
+
+/* Le niveau d'activité qui correspond à tes vrais pas (repères usuels : moins de 5 000, 7 500, 10 000 par jour).
+ * Rien ne change tant que tu ne touches pas le bouton. */
+const niveauPas = p => p < 5000 ? 1.2 : p < 7500 ? 1.375 : p < 10000 ? 1.55 : 1.725;
+function ActiviteMontre({ c, maj }) {
+  const m = moyennePas(14, decale(aujourdhui(), -1));
+  if (!m || m.jours < 5) return lienPolar()?.jeton ? h("p.note", "Avec 5 jours de pas comptés par ta montre, je te dirai quel niveau te correspond.") : null;
+  const niv = niveauPas(m.moy), nom = ACTIVITES.find(a => a[1] === niv)[0];
+  return h(Fragment, null,
+    h("p.note", "Ta montre : " + entier(m.moy) + " pas par jour en moyenne sur " + m.jours + " jours, ce qui correspond à « " + nom + " »." + (c.depense ? " Tant que ta dépense réelle est adoptée, ce réglage ne change pas ta cible." : "")),
+    niv !== c.activity && !c.depense && h(Bouton, { cl: "contour", onClick: () => { maj({ activity: niv }); toast("Activité réglée sur « " + nom + " »"); } }, "Choisir « " + nom + " »"));
 }
 
 /* COURSES — calculées depuis tes menus. On coche en magasin, on note le ticket à la fin. */

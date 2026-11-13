@@ -158,6 +158,7 @@ function SectionPolar() {
     l?.jeton ? h(Fragment, null,
       h("p.texte-p", h("b", "Montre reliée"), " depuis le " + dateJour(l.depuis) + ". Dans « Forme du matin », un bouton remplit SNA, VFC, FC et sommeil depuis ta Recharge nocturne."),
       h("p.note", "Ta montre doit d'abord avoir synchronisé la nuit avec l'app Polar Flow."),
+      h(EtatPas),
       h(InterNotifs),
       h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier la montre Polar ?", message: "RECOMP ne pourra plus lire tes nuits. Tes saisies déjà faites restent.", oui: "Délier" })) delierPolar(); } }, "Délier la montre"))
     : h(Fragment, null,
@@ -165,6 +166,15 @@ function SectionPolar() {
       h("div.deux-b",
         h(Bouton, { cl: "plein", onClick: relierPolar }, "Relier ma montre"),
         h(Bouton, { cl: "contour", onClick: collerCodePolar }, "J'ai un code"))));
+}
+
+/* Où en est la lecture des pas : utile pour vérifier que Polar les donne bien */
+function EtatPas() {
+  const { err } = usePasPolar(), [charge, setCharge] = useState(false), d = DB.get("polar-pas") || {}, jours = Object.keys(d).sort(), der = jours[jours.length - 1], lu = luPasA();
+  const relire = async () => { setCharge(true); try { const n = await importerPasPolar(true); toast(n ? pluriel(n, "jour") + " de pas relus" : "Polar n'a renvoyé aucun jour de pas"); } catch (e) { toast("Pas : " + e.message, { danger: true }); } finally { setCharge(false); } };
+  return h("div.synchro",
+    h("span", err ? "Pas : Polar a répondu « " + err + " »." : der ? "Pas : " + pluriel(jours.length, "jour") + " lus, le dernier le " + dateMini(der) + (lu ? ", relus à " + new Date(lu).toTimeString().slice(0, 5) : "") + "." : "Pas : pas encore lus."),
+    h("button.mini", { disabled: charge, onClick: relire }, charge ? "Lecture…" : "Relire"));
 }
 
 /* RÉGLAGES — une page menu, comme sur l'iPhone : chaque rubrique avec son état, et sa propre page */

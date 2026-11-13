@@ -278,6 +278,8 @@ function useRubrique(cle, liste) {
   const choisir = v => { setR(v); try { localStorage.setItem("recomp_rubrique_" + cle, v); } catch (e) { /* facultatif */ } };
   return [valide(r) ? r : liste[0][0], choisir];
 }
+/* Ouvre un onglet directement sur une de ses rubriques */
+const allerRubrique = (tab, rub) => { try { localStorage.setItem("recomp_rubrique_" + tab, rub); } catch (e) { /* on ouvre l'onglet quand même */ } Nav.tab(tab); };
 /* Fait défiler pour que la barre des rubriques soit pile en haut, au début de la rubrique */
 function remonterRubrique(ancre, doux) {
   const barre = ancre?.nextElementSibling, scene = ancre?.closest(".scene");

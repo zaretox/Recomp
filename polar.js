@@ -421,3 +421,46 @@ async function diagnosticSortie(id) {
   } catch (e) { l.push("Fichier FIT : erreur " + e.message); }
   return "Diagnostic RECOMP, séance " + id + "\n" + l.join("\n");
 }
+
+/* PAS — le résumé d'activité de chaque jour, lu chez Polar (il garde les 28 derniers jours).
+ * « polar-pas » = { "AAAA-MM-JJ": { pas, kcal, actives, actif (s), km, lu (horodatage) } }.
+ * Les pas avancent à chaque synchronisation de la montre avec Polar Flow. */
+const PAS_OBJECTIF = 8000;
+const objectifPas = () => profil().objectifPas || PAS_OBJECTIF;
+const pasDu = iso => { const j = (DB.get("polar-pas") || {})[iso]; return j && isFinite(j.pas) ? j.pas : null; };
+// Moyenne des jours où la montre a compté quelque chose, sur n jours finissant à « fin »
+const moyennePas = (n, fin) => { const v = Array.from({ length: n }, (_, i) => pasDu(decale(fin, -i))).filter(x => x > 0); return v.length ? { moy: Math.round(moyenne(v)), jours: v.length } : null; };
+const luPasA = () => { try { return +localStorage.getItem("recomp_polar_pas") || 0; } catch (e) { return 0; } };
+// Le jour d'un résumé : sa date, sinon son heure de début (locale si Polar ne donne pas de fuseau)
+const jourActivite = x => {
+  const d = champPolar(x, "date");
+  if (d) return String(d).slice(0, 10);
+  const t = String(champPolar(x, "start-time") || "");
+  if (!t) return null;
+  return /Z$|[+-]\d\d:?\d\d$/.test(t) ? isoDe(new Date(t)) : t.slice(0, 10);
+};
+let pasEnCours = null;
+function importerPasPolar(force) {
+  if (!lienPolar()?.jeton) return Promise.resolve(0);
+  if (!force && Date.now() - luPasA() < 15 * 60000) return Promise.resolve(0);
+  return pasEnCours || (pasEnCours = (async () => {
+    const auj = aujourdhui(), premier = !Object.keys(DB.get("polar-pas") || {}).length;
+    let l;
+    try { l = await polarLire("/v3/users/activities", "GET", { from: decale(auj, premier ? -27 : -6), to: auj }); }
+    catch (e) { if (!/ 400$/.test(e.message)) throw e; l = await polarLire("/v3/users/activities"); }
+    const liste = Array.isArray(l) ? l : l?.activities || l?.["activity-log"] || [];
+    const pas = { ...(DB.get("polar-pas") || {}) }, lu = Date.now();
+    let n = 0;
+    liste.forEach(x => {
+      const d = jourActivite(x), s = +(champPolar(x, "steps") ?? champPolar(x, "active-steps"));
+      if (!d || !isFinite(s)) return;
+      const actives = +champPolar(x, "active-calories"), kcal = +champPolar(x, "calories"), dist = +champPolar(x, "distance-from-steps");
+      pas[d] = { pas: Math.round(s), kcal: isFinite(kcal) ? Math.round(kcal) : null, actives: isFinite(actives) ? Math.round(actives) : null, actif: Math.round(dureeIso(champPolar(x, "active-duration"))) || null, km: isFinite(dist) ? arrondi(dist / 1000, 2) : null, lu };
+      n++;
+    });
+    try { localStorage.setItem("recomp_polar_pas", String(lu)); localStorage.removeItem("recomp_polar_pas_err"); } catch (e) { /* facultatif */ }
+    await DB.set("polar-pas", pas);
+    return n;
+  })().catch(e => { try { localStorage.setItem("recomp_polar_pas_err", e.message); } catch (x) { /* facultatif */ } throw e; }).finally(() => { pasEnCours = null; }));
+}
+const erreurPas = () => { try { return localStorage.getItem("recomp_polar_pas_err"); } catch (e) { return null; } };

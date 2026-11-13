@@ -90,6 +90,10 @@ function itemsDuJour(iso) {
   }
   autres.forEach(l => items.push({ cle: "en-plus-" + l.prog + l.id, h: seanceCreneau(), t: l.prog === "maison" ? "Maison " + l.seance : l.seance, s: "faite", fait: true, ouvre: () => ouvrirSeance(iso, { prog: l.prog, code: l.seance }), ton: "sport" }));
   if (nage || nages.length) items.push({ cle: "nage", h: "17h30", t: "Natation", s: nages.length ? entier(nages.reduce((a, l) => a + l.distance, 0)) + " m" : entier(nageDistance(nage)) + " m prévus", fait: nages.length > 0, ouvre: () => Nav.sheet("natation", { iso }), ton: "sport" });
+  // Les pas comptés par la montre, à atteindre avant le coucher : la ligne se coche seule à l'objectif
+  const auj = aujourdhui(), pas = pasDu(iso), obj = objectifPas();
+  if (iso <= auj && (pas != null || (iso === auj && lienPolar()?.jeton)))
+    items.push({ cle: "pas", h: sommeil().coucher, t: entier(obj) + " pas", s: pas == null ? "en attente de ta montre" : pas >= obj ? entier(pas) + ", objectif atteint" : entier(pas) + (iso === auj ? " pour l'instant, encore " + entier(obj - pas) : ""), fait: pas != null && pas >= obj, ouvre: () => allerRubrique("sport", "semaine"), ton: "sport" });
   return items.sort((a, b) => hEnMin(a.h) - hEnMin(b.h));
 }
 function LigneJour({ it, futur }) {
@@ -133,7 +137,7 @@ function Petits({ iso }) {
 }
 
 function EcranJour() {
-  useDB();
+  useDB(); usePasPolar();
   const auj = aujourdhui(), [iso, setIso] = useState(auj), r = iso === auj;
   return h("div.page", { "data-t": "jour" },
     h("header.entete",

@@ -120,6 +120,28 @@ const LigneSortie = ({ s }) => h("button.ligne", { onClick: () => Nav.sheet("sor
   h("span", h("b", nomSortie(s)), h("small", dateMini(s.dateISO) + (s.debut ? " à " + s.debut.slice(11, 16) : ""))),
   h("b", resumeSortie(s)));
 
+/* Les pas : relus chez Polar en ouvrant Jour ou Sport, au plus tous les quarts d'heure */
+function usePasPolar() {
+  const relie = !!lienPolar()?.jeton, [err, setErr] = useState(erreurPas);
+  useEffect(() => { if (relie) importerPasPolar(false).then(() => setErr(null), e => setErr(e.message)); }, [relie]);
+  return { relie, err };
+}
+/* Section « Tes pas » de Sport → Semaine : la semaine de lundi à dimanche face à ton objectif */
+function PasSemaine() {
+  const { relie, err } = usePasPolar(), auj = aujourdhui(), lundi = lundiDe(auj), obj = objectifPas();
+  if (!relie && !Object.keys(DB.get("polar-pas") || {}).length) return null;
+  const jours = ORDRE_JOURS.map((_, i) => decale(lundi, i)), passes = jours.filter(d => d <= auj);
+  const m = moyennePas(7, decale(auj, -1)), atteints = passes.filter(d => (pasDu(d) || 0) >= obj).length, lu = luPasA();
+  const changer = async () => { const v = await saisir({ titre: "Objectif de pas par jour", valeur: obj, mode: "ent", unite: "pas", pas: [500, 1000], min: 1000, max: 50000 }); if (v) setProfil({ objectifPas: v }); };
+  return h(Section, { titre: "Tes pas", droite: h(Lien, { onClick: changer }, "Objectif " + entier(obj)) },
+    h("div.tuiles",
+      h(Tuile, { v: pasDu(auj) != null ? entier(pasDu(auj)) : "—", l: "aujourd'hui" }),
+      h(Tuile, { v: m ? entier(m.moy) : "—", l: "par jour, sur les 7 derniers" }),
+      h(Tuile, { v: atteints + "/" + passes.length, l: "jours à l'objectif" })),
+    h(Barres, { pts: jours.map((d, i) => ({ l: JOURS_L[i], v: pasDu(d) || 0 })), ton: "sport", haut: 100, unite: " pas", cible: obj }),
+    h("p.note", err && relie ? "Polar n'a pas donné tes pas (" + err + "). Réessaie plus tard, ou envoie-moi ce message." : "Comptés par ta montre jusqu'à sa dernière synchronisation avec Polar Flow" + (lu ? ", relus à " + new Date(lu).toTimeString().slice(0, 5) : "") + ". Le trait est ton objectif."));
+}
+
 /* Bloc de l'onglet Sport */
 function SectionSorties() {
   useDB();
