@@ -78,6 +78,9 @@ function App() {
   await DB.init();
   if (window.RECOMP_DEMO) await window.RECOMP_DEMO();
   codePolarDansAdresse();
+  // Mode discret : montants cachés au démarrage, et de nouveau quand l'app passe en arrière-plan
+  Discret.appliquer();
+  document.addEventListener("visibilitychange", () => { if (document.hidden) Discret.cacher(); });
   codeBanqueDansAdresse();
   const notif = new URLSearchParams(location.search).get("ouvrir");
   if (notif) history.replaceState(null, "", location.pathname);

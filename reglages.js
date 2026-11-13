@@ -94,6 +94,28 @@ function appliquerTheme(t) {
   else document.documentElement.dataset.theme = t;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", t === "papier" ? "#F0F1EC" : "#0E0E0C");
 }
+/* Confidentialité : montants cachés par défaut, Face ID pour les afficher */
+function SectionDiscret() {
+  useDiscret();
+  const pr = profil(), actif = pr.discret !== false, avecFaceId = !!(pr.faceIdActif && pr.faceId);
+  const [possible, setPossible] = useState(null), [charge, setCharge] = useState(false);
+  useEffect(() => { faceIdPossible().then(setPossible); }, []);
+  const basculerFaceId = async () => {
+    if (charge) return;
+    if (avecFaceId) return setProfil({ faceIdActif: false });
+    setCharge(true);
+    try {
+      if (pr.faceId) { if (await verifierFaceId()) await setProfil({ faceIdActif: true }); }
+      else await configurerFaceId();
+      toast("Face ID activé : il te sera demandé pour afficher tes montants");
+    } catch (e) { toast(e?.name === "NotAllowedError" ? "Face ID annulé" : "Face ID impossible : " + (e?.message || e), { danger: true }); }
+    finally { setCharge(false); }
+  };
+  return h(Section, { titre: "Confidentialité" },
+    h("div.interrupteurs",
+      h(Interrupteur, { actif, titre: "Masquer mes montants", sous: "Flous par défaut dans Argent, sur l'écran Jour, dans le coach et le bilan. L'œil les affiche.", onClick: async () => { await setProfil({ discret: !actif }); Discret.appliquer(); } }),
+      actif && h(Interrupteur, { actif: avecFaceId, titre: charge ? "Un instant…" : "Avec Face ID", sous: possible === false ? "Pas disponible ici : ouvre RECOMP depuis son icône sur l'écran d'accueil." : "Demandé pour afficher, pas plus d'une fois toutes les 5 minutes", onClick: basculerFaceId })));
+}
 /* Banque : liaison en lecture seule, pour que tes opérations arrivent toutes seules dans Argent */
 function SectionBanque() {
   const l = lienBanque(), reste = accesBanqueExpire();
@@ -161,6 +183,7 @@ function FeuilleReglages() {
       h("p.sous-t", "Charges de départ, pour un exercice jamais fait"),
       h(Puces, null, PHASES.map((p, i) => h(Puce, { key: i, actif: (+DB.get("sport-phase") || 0) === i, onClick: () => DB.set("sport-phase", i) }, p.ph + " · " + p.sem)))),
     h(Section, { titre: "Apparence" }, h(Puces, null, [["auto", "Comme le téléphone"], ["nuit", "Nuit"], ["papier", "Papier"]].map(([k, l]) => h(Puce, { key: k, actif: theme === k, onClick: () => { setProfil({ theme: k }); appliquerTheme(k); } }, l)))),
+    h(SectionDiscret),
     h(SectionPolar),
     h(SectionBanque),
     h(Section, { titre: "Rappels" },

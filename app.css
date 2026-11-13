@@ -474,6 +474,12 @@ h1, h2, h3, p { margin: 0; }
 .notes-jour button { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r); background: var(--fond2); text-align: left; font-size: 13.5px; color: var(--mou); }
 .notes-jour .ico { flex: none; }
 .rattrape { margin-top: 8px; }
+/* Mode discret : les montants marqués « mt » sont floutés tant que la page porte data-discret="1" */
+:root[data-discret="1"] .mt, :root[data-discret="1"] .mt-champ .champ b { filter: blur(7px); -webkit-user-select: none; user-select: none; transition: filter .2s; }
+.mt { transition: filter .2s; }
+.oeil { flex: none; align-self: center; margin-left: auto; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: transparent; color: var(--sur); box-shadow: inset 0 0 0 2px var(--sur); -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; touch-action: manipulation; }
+.oeil-l { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--mou); }
+.oeil-l .oeil { color: var(--encre); box-shadow: inset 0 0 0 2px var(--trait); }
 /* Banque */
 .synchro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 13px; color: var(--mou); }
 .synchro span { flex: 1; min-width: 0; }

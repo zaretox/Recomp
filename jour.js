@@ -34,6 +34,7 @@ const Affiche = ({ ton, etiquette, grand, unite, texte, onClick, action }) => h(
   action && h("span.affiche-a", action, h(Icone, { n: "fleche", t: 16 })));
 
 function Affiches() {
+  useDiscret();
   const auj = aujourdhui(), r = recuperation(auj), n = jourNutrition(auj), prog = programmeEnCours(), sess = seanceDuJour(auj, prog);
   const b = bilanCourant(), faite = seanceFaite(auj);
   const nage = nagePrevue(auj), nageFaite = DB.get("natation-logs").filter(l => l.dateISO === auj);
@@ -49,11 +50,12 @@ function Affiches() {
     forme,
     h(Affiche, { ton: "repas", etiquette: n.reste >= 0 ? "Reste à manger" : "Au-dessus de ta cible", grand: h(Compteur, { v: entier(Math.abs(n.reste)) }), unite: "kcal", texte: entier(n.mange.kcal) + " sur " + entier(n.menu.dayTgt) + " kcal · " + Math.round(n.mange.p) + " g de protéines sur " + n.menu.dayMacros.p, onClick: () => Nav.tab("repas"), action: "Mes repas" }),
     seance,
-    h(Affiche, { ton: "argent", etiquette: b.civil ? "Reste ce mois-ci" : "Reste jusqu'à ta paye", grand: h(Compteur, { v: entier(Math.max(0, b.reste)) }), unite: "€", texte: !b.rev ? "Ajoute ta paye pour voir ce qu'il reste." : b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : "Soit " + Math.round(b.parJour) + " € par jour " + (b.civil ? "jusqu'à la fin de " + nomMois(moisDe(b.debut)) : "pendant " + pluriel(b.restants, "jour")), onClick: () => Nav.tab("argent"), action: "Mes comptes" }));
+    h(Affiche, { ton: "argent", etiquette: b.civil ? "Reste ce mois-ci" : "Reste jusqu'à ta paye", grand: Discret.cache() ? "•••" : h(Compteur, { v: entier(Math.max(0, b.reste)) }), unite: "€", texte: !b.rev ? "Ajoute ta paye pour voir ce qu'il reste." : b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : "Soit " + eurosD(Math.round(b.parJour)) + " par jour " + (b.civil ? "jusqu'à la fin de " + nomMois(moisDe(b.debut)) : "pendant " + pluriel(b.restants, "jour")), onClick: () => Nav.tab("argent"), action: "Mes comptes" }));
 }
 
 /* Le coach : ce qu'il a à dire, puis les imprévus en deux touches */
 function Coach() {
+  useDiscret();
   const [tout, setTout] = useState(false);
   const [rep, setRep] = useState(null);
   const msgs = messagesCoach(), vus = tout ? msgs : msgs.slice(0, 3);

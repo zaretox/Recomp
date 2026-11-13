@@ -45,6 +45,8 @@ const ICONES = {
   ruban: "M3 8h18v8H3zM7 8v3M11 8v4M15 8v3M19 8v4",
   panier: "M3 5h3l2.5 11h10L21 8H7M10 20h.01M17 20h.01",
   trace: "M6 19a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM18 9a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM8 17h7a3 3 0 0 0 0-6H9a3 3 0 0 1 0-6h7",
+  oeil: "M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z",
+  "oeil-barre": "M3 3l18 18M10.6 5.1A10.6 10.6 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6C3.9 8.4 2 12 2 12s3.5 7 10 7c1.9 0 3.6-.6 5-1.4M9.9 9.9a3 3 0 0 0 4.2 4.2",
   coeur: "M12 20S4 14.5 4 9a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 9c0 5.5-8 11-8 11z",
   fiole: "M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3",
   liste: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
@@ -174,4 +176,78 @@ class Filet extends React.Component {
       h("small", String(this.state.err?.message || this.state.err)),
       h(Bouton, { cl: "plein", onClick: () => this.setState({ err: null }) }, "Réessayer"));
   }
+}
+
+/* MODE DISCRET — les montants sont cachés par défaut (flou, ou points pour les grands chiffres).
+ * L'œil de l'onglet Argent les affiche, avec Face ID si tu l'as activé. Ils se recachent en quittant l'onglet ou l'app ;
+ * pendant 5 minutes après un Face ID réussi, l'œil les affiche sans le redemander.
+ * Ce n'est qu'un écran de confidentialité : les données restent sur ce téléphone comme le reste. */
+const Discret = (() => {
+  let visible = false, deverrouille = 0;
+  const ab = new Set();
+  const actif = () => profil().discret !== false;
+  const appliquer = () => { document.documentElement.dataset.discret = actif() && !visible ? "1" : "0"; ab.forEach(f => f()); };
+  return {
+    actif, appliquer,
+    cache: () => actif() && !visible,
+    montrer: () => { visible = true; appliquer(); },
+    cacher: () => { if (visible) { visible = false; appliquer(); } },
+    noterDeverrouillage: () => { deverrouille = Date.now(); },
+    recent: () => Date.now() - deverrouille < 5 * 60000,
+    abonner: f => { ab.add(f); return () => ab.delete(f); },
+    lire: () => visible + "|" + actif(),
+  };
+})();
+const useDiscret = () => useSyncExternalStore(Discret.abonner, Discret.lire);
+// Un montant dans une phrase : « ••• € » tant que c'est caché
+const eurosD = (v, d) => Discret.cache() ? "••• €" : euros(v, d);
+// Un montant à flouter (le flou ne demande pas de redessiner : il suit l'attribut posé sur la page)
+const Mt = ({ children }) => h("span.mt", children);
+
+/* Face ID : une clé d'accès « RECOMP » créée sur ce téléphone (trousseau iCloud), puis demandée pour afficher.
+ * Aucun serveur : on vérifie seulement que l'iPhone a bien confirmé que c'est toi. */
+const faceIdPossible = async () => { try { return !!window.PublicKeyCredential && await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable(); } catch (e) { return false; } };
+async function configurerFaceId() {
+  if (!(await faceIdPossible())) throw new Error("Face ID n'est pas disponible dans cette app sur ce téléphone");
+  const c = await navigator.credentials.create({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)), rp: { name: "RECOMP" },
+    user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "RECOMP", displayName: "RECOMP (montants)" },
+    pubKeyCredParams: [{ type: "public-key", alg: -7 }, { type: "public-key", alg: -257 }],
+    authenticatorSelection: { authenticatorAttachment: "platform", userVerification: "required", residentKey: "preferred" },
+    attestation: "none", timeout: 60000,
+  } });
+  await setProfil({ faceId: texteB64u(c.rawId), faceIdActif: true });
+}
+async function verifierFaceId() {
+  const a = await navigator.credentials.get({ publicKey: {
+    challenge: crypto.getRandomValues(new Uint8Array(32)), userVerification: "required", timeout: 60000,
+    allowCredentials: [{ type: "public-key", id: octetsB64u(profil().faceId), transports: ["internal"] }],
+  } });
+  // Octet 32 des données de l'authentificateur : le bit 4 dit que l'iPhone a vérifié l'utilisateur (Face ID ou code)
+  return !!a && (new Uint8Array(a.response.authenticatorData)[32] & 0x04) !== 0;
+}
+/* L'œil : toucher pour afficher ou cacher ; sans Face ID, appui long pour un coup d'œil */
+function Oeil() {
+  useDiscret();
+  const pr = profil(), cache = Discret.cache(), avecFaceId = !!(pr.faceIdActif && pr.faceId);
+  const appui = useRef({ minuteur: null, coupDoeil: false });
+  if (!Discret.actif()) return null;
+  const basculer = async () => {
+    if (!cache) return Discret.cacher();
+    if (!avecFaceId || Discret.recent()) return Discret.montrer();
+    try {
+      if (await verifierFaceId()) { Discret.noterDeverrouillage(); Discret.montrer(); }
+      else toast("Face ID n'a pas confirmé : montants toujours cachés", { danger: true });
+    } catch (e) {
+      if (e?.name === "NotAllowedError" || e?.name === "AbortError") toast("Montants toujours cachés. Si Face ID ne se lance plus, désactive-le dans Réglages.", { danger: true });
+      else { toast("Face ID indisponible : montants affichés sans", { danger: true }); Discret.montrer(); }
+    }
+  };
+  // Appui long (sans Face ID seulement) : visible tant que le doigt reste posé
+  const debut = () => { if (avecFaceId || !cache) return; appui.current.minuteur = setTimeout(() => { appui.current.coupDoeil = true; vibre(); Discret.montrer(); }, 350); };
+  const fin = () => { clearTimeout(appui.current.minuteur); if (appui.current.coupDoeil) { setTimeout(() => { appui.current.coupDoeil = false; }, 0); Discret.cacher(); } };
+  return h("button.oeil", { onPointerDown: debut, onPointerUp: fin, onPointerLeave: fin, onPointerCancel: fin, onContextMenu: e => e.preventDefault(),
+    onClick: () => { if (appui.current.coupDoeil) return; vibre(); basculer(); },
+    "aria-label": cache ? "Afficher les montants" : "Cacher les montants", "aria-pressed": !cache },
+    h(Icone, { n: cache ? "oeil-barre" : "oeil", t: 22 }));
 }

@@ -240,6 +240,7 @@ function FeuillePhotos() {
 /* BILAN DE LA SEMAINE — plein écran, une idée par écran, on touche pour avancer */
 function FeuilleBilan() {
   useDB();
+  useDiscret();
   const b = bilanSemaine(), [i, setI] = useState(0), cal = cfgCalories(), dep = b.depenseReelle, ry = b.rythme;
   const decision = (() => {
     if (ry.nouveau != null) return { g: signe(cal.deficit - ry.nouveau, 0), u: "kcal", t: (ry.etat === "vite" ? "Tu perds un peu vite." : "Ta perte ralentit trop.") + " Je passe ton déficit de " + cal.deficit + " à " + ry.nouveau + " kcal.", l: "Oui, ajuste", run: () => appliquerDeficit(ry.nouveau) };
@@ -251,7 +252,7 @@ function FeuilleBilan() {
     { ton: "sport", e: "Tes séances", g: b.seances + "/" + b.prevues, p: nb(b.volume / 1000) + " tonnes soulevées" + (b.volumePrec ? " (" + signe((b.volume - b.volumePrec) / b.volumePrec * 100, 0) + " %)" : "") + (b.records.length ? ", " + pluriel(b.records.length, "record") + " : " + b.records.slice(0, 2).map(r => r.nom + " " + nb(r.kg) + " kg").join(", ") : "") + "." },
     { ton: "repas", e: "Tes repas", g: b.suivi != null ? b.suivi + " %" : "—", p: (b.kcal ? entier(b.kcal) + " kcal par jour en moyenne. " : "") + (b.suivi >= 80 ? "Belle régularité." : b.suivi != null ? "Vise 80 % : c'est là que tout se joue." : "Coche tes repas pour que je suive.") },
     { ton: "papier", e: "Ta forme", g: b.forme != null ? b.forme : "—", u: "/100", p: (b.formePrec != null && b.forme != null ? signe(b.forme - b.formePrec, 0) + " par rapport à la semaine d'avant. " : "") + (b.sommeil ? "Sommeil moyen : " + dureeHM(b.sommeil) + "." : "") },
-    { ton: "argent", e: "Ton argent", g: entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + euros(Math.max(0, bilanCourant().reste)) + (bilanCourant().civil ? " ce mois-ci." : " jusqu'à ta paye.") },
+    { ton: "argent", e: "Ton argent", g: Discret.cache() ? "•••" : entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + eurosD(Math.max(0, bilanCourant().reste)) + (bilanCourant().civil ? " ce mois-ci." : " jusqu'à ta paye.") },
     // Une fois par semaine, la sauvegarde (sauf si elle est récente)
     ...(ageSauvegarde() == null || ageSauvegarde() >= 6 ? [{ ton: "papier", e: "Ta sauvegarde", g: ageSauvegarde() == null ? "Jamais" : ageSauvegarde() + " j", u: ageSauvegarde() == null ? "" : "sans", sauve: true,
       p: "Tout RECOMP vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }] : []),

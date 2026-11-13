@@ -22,23 +22,23 @@ function messagesCoach() {
   // Épargne : le point de la paye passe avant le reste (une fois par mois, quelques jours)
   const pp = pointPaye(), plusTard = id => setProfil({ coachDismiss: { ...(pr.coachDismiss || {}), [id]: auj } });
   if (pp?.aVerser && pr.coachDismiss?.epargne !== auj) msgs.push({
-    id: "epargne", t: "Ta paye est arrivée. Tes " + euros(pp.montant) + " sont bien partis sur ton livret ?" + (etatEpargne().virement ? "" : " Si ton virement n'est pas encore automatique, fais-le maintenant dans l'appli de ta banque."),
+    id: "epargne", t: "Ta paye est arrivée. Tes " + eurosD(pp.montant) + " sont bien partis sur ton livret ?" + (etatEpargne().virement ? "" : " Si ton virement n'est pas encore automatique, fais-le maintenant dans l'appli de ta banque."),
     acts: [{ l: "Oui, c'est fait", run: async () => { await ajouterVersement(pp.montant, "paye"); toast(euros(pp.montant) + " de plus dans ta cagnotte"); } }, { l: "Pas encore", run: () => plusTard("epargne") }],
   });
   if (pp?.restePrec && pr.coachDismiss?.epargneReste !== auj) msgs.push({
-    id: "epargneReste", t: "D'après tes dépenses notées, il te restait " + euros(pp.restePrec) + " de ta paye d'avant. Si c'est bien sur ton compte, tu les mets de côté ?",
+    id: "epargneReste", t: "D'après tes dépenses notées, il te restait " + eurosD(pp.restePrec) + " de ta paye d'avant. Si c'est bien sur ton compte, tu les mets de côté ?",
     acts: [{ l: "Oui, je les vire", run: async () => { await ajouterVersement(pp.restePrec, "reste", pp.avant); toast("Fais le virement de " + euros(pp.restePrec) + " vers ton livret dans l'appli de ta banque"); } },
       { l: "Non, je les garde", run: () => majEpargne(e => ({ ...e, gardes: [...e.gardes, pp.avant] })) }],
   });
   if (pp?.palier && !pp.aVerser) msgs.push({
-    id: "epargnePalier", t: "Ça fait 3 mois que tu mets " + euros(pp.montant) + " de côté à chaque paye. On passe à " + euros(pp.nouveau) + " ? Tu le sentiras à peine.",
-    acts: [{ l: "Oui, " + euros(pp.nouveau), run: async () => { await DB.set("fin-goal", pp.nouveau); await majEpargne(e => ({ ...e, palier: auj })); toast("Pense à changer ton virement automatique : " + euros(pp.nouveau)); } },
+    id: "epargnePalier", t: "Ça fait 3 mois que tu mets " + eurosD(pp.montant) + " de côté à chaque paye. On passe à " + eurosD(pp.nouveau) + " ? Tu le sentiras à peine.",
+    acts: [{ l: "Oui, " + eurosD(pp.nouveau), run: async () => { await DB.set("fin-goal", pp.nouveau); await majEpargne(e => ({ ...e, palier: auj })); toast("Pense à changer ton virement automatique : " + euros(pp.nouveau)); } },
       { l: "Pas maintenant", run: () => majEpargne(e => ({ ...e, palier: auj })) }],
   });
 
   const bc = bilanCourant(), pv = prevision(bc);
   if (pv && pv.fin < 0 && pv.apres >= 3 && pr.coachDismiss?.rythme !== auj) msgs.push({
-    id: "rythme", t: "À ce rythme, tu finiras à −" + euros(-pv.fin) + " le jour de ta paye. Pour l'éviter, vise " + Math.round(pv.cible) + " € par jour jusqu'au " + dateJour(bc.fin) + ".",
+    id: "rythme", t: "À ce rythme, tu finiras à −" + eurosD(-pv.fin) + " le jour de ta paye. Pour l'éviter, vise " + eurosD(Math.round(pv.cible)) + " par jour jusqu'au " + dateJour(bc.fin) + ".",
     acts: [{ l: "Voir mon budget", run: () => Nav.tab("argent") }, { l: "Compris", run: () => plusTard("rythme") }],
   });
   const accesB = accesBanqueExpire();
