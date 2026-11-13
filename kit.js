@@ -226,11 +226,11 @@ async function verifierFaceId() {
   // Octet 32 des données de l'authentificateur : le bit 4 dit que l'iPhone a vérifié l'utilisateur (Face ID ou code)
   return !!a && (new Uint8Array(a.response.authenticatorData)[32] & 0x04) !== 0;
 }
-/* L'œil : toucher pour afficher ou cacher ; sans Face ID, appui long pour un coup d'œil */
+/* L'œil : toucher pour afficher ou cacher ; appui long pour un coup d'œil (avec Face ID : s'il a été validé il y a moins de 5 minutes) */
 function Oeil() {
   useDiscret();
   const pr = profil(), cache = Discret.cache(), avecFaceId = !!(pr.faceIdActif && pr.faceId);
-  const appui = useRef({ minuteur: null, coupDoeil: false });
+  const appui = useRef({ minuteur: null, coupDoeil: false, montre: false, ignorerJusqua: 0 });
   if (!Discret.actif()) return null;
   const basculer = async () => {
     if (!cache) return Discret.cacher();
@@ -243,11 +243,26 @@ function Oeil() {
       else { toast("Face ID indisponible : montants affichés sans", { danger: true }); Discret.montrer(); }
     }
   };
-  // Appui long (sans Face ID seulement) : visible tant que le doigt reste posé
-  const debut = () => { if (avecFaceId || !cache) return; appui.current.minuteur = setTimeout(() => { appui.current.coupDoeil = true; vibre(); Discret.montrer(); }, 350); };
-  const fin = () => { clearTimeout(appui.current.minuteur); if (appui.current.coupDoeil) { setTimeout(() => { appui.current.coupDoeil = false; }, 0); Discret.cacher(); } };
-  return h("button.oeil", { onPointerDown: debut, onPointerUp: fin, onPointerLeave: fin, onPointerCancel: fin, onContextMenu: e => e.preventDefault(),
-    onClick: () => { if (appui.current.coupDoeil) return; vibre(); basculer(); },
+  // Appui long : visible tant que le doigt reste posé. Le doigt est « capturé » par l'œil : même si l'écran bouge, il ne le perd pas.
+  const debut = e => {
+    if (!cache) return;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch (x) { /* facultatif */ }
+    const permis = !avecFaceId || Discret.recent();
+    appui.current.minuteur = setTimeout(() => {
+      appui.current.coupDoeil = true;
+      if (!permis) return toast("Avec Face ID : touche l'œil une fois, puis l'appui long marche pendant 5 minutes");
+      vibre(); appui.current.montre = true; Discret.montrer();
+    }, 350);
+  };
+  const fin = () => {
+    clearTimeout(appui.current.minuteur);
+    if (!appui.current.coupDoeil) return;
+    // Le « clic » que l'écran tactile envoie juste après le relâchement ne compte pas
+    appui.current.coupDoeil = false; appui.current.ignorerJusqua = Date.now() + 600;
+    if (appui.current.montre) { appui.current.montre = false; Discret.cacher(); }
+  };
+  return h("button.oeil", { onPointerDown: debut, onPointerUp: fin, onPointerCancel: fin, onContextMenu: e => e.preventDefault(),
+    onClick: () => { if (appui.current.coupDoeil || Date.now() < appui.current.ignorerJusqua) return; vibre(); basculer(); },
     "aria-label": cache ? "Afficher les montants" : "Cacher les montants", "aria-pressed": !cache },
     h(Icone, { n: cache ? "oeil-barre" : "oeil", t: 22 }));
 }
