@@ -171,11 +171,13 @@ class Filet extends React.Component {
   componentDidCatch(err, info) { console.error("RECOMP", err, info); }
   render() {
     if (!this.state.err) return this.props.children;
-    return h("div.filet",
+    // Dans une feuille : par-dessus tout l'écran, avec de quoi la fermer (sinon le message tombait au milieu de la page)
+    return h("div.filet", { className: this.props.feuille ? "filet-f" : "" },
       h("h2", "Un écran a planté"),
       h("p", "Tes données sont intactes."),
       h("small", String(this.state.err?.message || this.state.err)),
-      h(Bouton, { cl: "plein", onClick: () => this.setState({ err: null }) }, "Réessayer"));
+      h(Bouton, { cl: "plein", onClick: () => this.setState({ err: null }) }, "Réessayer"),
+      this.props.feuille && h(Bouton, { cl: "contour", onClick: () => { this.setState({ err: null }); Nav.fermer(); } }, "Fermer"));
   }
 }
 

@@ -261,6 +261,8 @@ function FeuilleBilan() {
   useDB();
   useDiscret();
   const b = bilanSemaine(), [i, setI] = useState(0), cal = cfgCalories(), dep = b.depenseReelle, ry = b.rythme;
+  // La liste des écrans est fixée à l'ouverture : sauvegarder pendant le bilan ne doit pas en retirer un sous tes doigts
+  const [avecSauve] = useState(() => ageSauvegarde() == null || ageSauvegarde() >= 6), sauveFaite = ageSauvegarde() === 0;
   const decision = (() => {
     if (ry.nouveau != null) return { g: signe(cal.deficit - ry.nouveau, 0), u: "kcal", t: (ry.etat === "vite" ? "Tu perds un peu vite." : "Ta perte ralentit trop.") + " Je passe ton déficit de " + cal.deficit + " à " + ry.nouveau + " kcal.", l: "Oui, ajuste", run: () => appliquerDeficit(ry.nouveau) };
     if (dep.pret && Math.abs(dep.ecart) >= 150 && cal?.depense !== dep.kcal) return { g: entier(dep.kcal), u: "kcal", t: "Ton corps dépense " + entier(dep.kcal) + " kcal, soit " + signe(dep.ecart, 0) + " par rapport à la formule. J'adopte ce chiffre pour ta cible ?", l: "Oui, adopte", run: () => DB.set("nutri-cal-cfg", { ...DB.get("nutri-cal-cfg"), depense: dep.kcal, lastAdjust: aujourdhui() }) };
@@ -273,11 +275,12 @@ function FeuilleBilan() {
     { ton: "papier", e: "Ta forme", g: b.forme != null ? b.forme : "—", u: "/100", p: (b.formePrec != null && b.forme != null ? signe(b.forme - b.formePrec, 0) + " par rapport à la semaine d'avant. " : "") + (b.sommeil ? "Sommeil moyen : " + dureeHM(b.sommeil) + "." : "") },
     { ton: "argent", e: "Ton argent", g: Discret.cache() ? h(PointsG) : entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + eurosD(Math.max(0, bilanCourant().reste)) + (bilanCourant().civil ? " ce mois-ci." : " jusqu'à ta paye.") },
     // Une fois par semaine, la sauvegarde (sauf si elle est récente)
-    ...(ageSauvegarde() == null || ageSauvegarde() >= 6 ? [{ ton: "papier", e: "Ta sauvegarde", g: ageSauvegarde() == null ? "Jamais" : ageSauvegarde() + " j", u: ageSauvegarde() == null ? "" : "sans", sauve: true,
-      p: "Tout Ensō vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }] : []),
+    ...(!avecSauve ? [] : sauveFaite ? [{ ton: "papier", e: "Ta sauvegarde", g: "Faite", p: "Sauvegarde du jour enregistrée. Si ce n'est pas déjà fait, range-la dans un dossier iCloud Drive." }]
+      : [{ ton: "papier", e: "Ta sauvegarde", g: ageSauvegarde() == null ? "Jamais" : ageSauvegarde() + " j", u: ageSauvegarde() == null ? "" : "sans", sauve: true,
+        p: "Tout Ensō vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }]),
     { ton: "noir", e: "Ma décision", g: decision.g, u: decision.u, p: decision.t, fin: true },
   ];
-  const e = ecrans[i];
+  const e = ecrans[Math.min(i, ecrans.length - 1)];
   return h(Feuille, { plein: true, sansTete: true },
     h("div.story", { "data-ton": e.ton, onClick: ev => { const g = ev.clientX < window.innerWidth * .3; setI(borne(i + (g ? -1 : 1), 0, ecrans.length - 1)); } },
       h("div.story-p", ecrans.map((_, k) => h("i", { key: k, className: k <= i ? "fait" : "" }))),
@@ -286,7 +289,7 @@ function FeuilleBilan() {
         h("span.affiche-e", e.e),
         e.g != null && h("div.affiche-g", h(Geant, null, e.g), e.u && h("em", e.u)),
         h("p", e.p),
-        e.sauve && h("div.hero-b", h(Bouton, { cl: "noir", onClick: async ev => { ev.stopPropagation(); const r = await exporter(); if (r === "partage" || r === "telecharge") setI(i + 1); } }, "Sauvegarder maintenant")),
+        e.sauve && h("div.hero-b", h(Bouton, { cl: "noir", onClick: async ev => { ev.stopPropagation(); const r = await exporter(); if (r === "partage" || r === "telecharge") setI(Math.min(i + 1, ecrans.length - 1)); } }, "Sauvegarder maintenant")),
         e.fin && h("div.hero-b", decision.l && h(Bouton, { cl: "plein", onClick: async ev => { ev.stopPropagation(); await decision.run(); toast("C'est fait : ton menu suit"); Nav.fermer(); } }, decision.l), h(Bouton, { cl: "contour", onClick: ev => { ev.stopPropagation(); Nav.fermer(); } }, decision.l ? "Pas cette fois" : "Fermer"))),
       i < ecrans.length - 1 && h("small.story-s", "Touche pour continuer")));
 }

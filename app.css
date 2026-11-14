@@ -235,6 +235,7 @@ button.plus:active { transform: scale(.92); }
 .filet { display: grid; gap: 10px; padding: 40px var(--gout); }
 .filet h2 { font-family: var(--an); font-weight: 400; font-size: 32px; text-transform: uppercase; }
 .filet small { color: var(--pale); }
+.filet.filet-f { position: fixed; inset: 0; z-index: 51; align-content: end; padding: calc(40px + var(--haut)) var(--gout) calc(30px + var(--bas)); background: var(--fond); }
 .confirm-fond { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-end; padding: 16px 16px calc(16px + var(--bas)); background: #000000B0; animation: voile .15s ease-out; }
 .confirm { width: 100%; padding: 18px; border-radius: 12px; background: var(--fond2); animation: monte .25s cubic-bezier(.2, .9, .2, 1); display: grid; gap: 12px; }
 .confirm h2 { font-family: var(--an); font-weight: 400; font-size: 26px; line-height: 1.1; text-transform: uppercase; }
