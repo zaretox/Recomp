@@ -64,7 +64,7 @@ function Coach() {
     ["J'ai mal", () => Nav.sheet("douleur")], ["Où j'en suis ?", () => Nav.sheet("bilan")], ["Quoi manger ?", () => setRep(repondre("manger"))], ["Je peux charger ?", () => setRep(repondre("charger"))], ["Changer de séance", () => Nav.sheet("choisir")],
   ];
   return h("section.coach",
-    h("header", h("i", "R"), h("b", "Ton coach")),
+    h("header", h("i", "E"), h("b", "Ton coach")),
     vus.map(m => h("div.msg", { key: m.id }, h("p", m.t), m.acts && h("div.msg-a", m.acts.map((a, i) => h("button", { key: i, className: i === 0 ? "pr" : "", onClick: a.run }, a.l))))),
     !tout && msgs.length > 3 && h("button.coach-plus", { onClick: () => setTout(true) }, pluriel(msgs.length - 3, "autre message", "autres messages")),
     rep && h("div.msg.rep", h("p", rep)),
@@ -141,7 +141,7 @@ function EcranJour() {
   const auj = aujourdhui(), [iso, setIso] = useState(auj), r = iso === auj;
   return h("div.page", { "data-t": "jour" },
     h("header.entete",
-      h("div", h("small", dateLongue(iso)), h("h1.logo", "RECOMP")),
+      h("div", h("small", dateLongue(iso)), h("h1.logo", "ENSO")),
       h("button.rond", { onClick: () => Nav.sheet("reglages"), "aria-label": "Réglages" }, h(Icone, { n: "reglages", t: 22 }))),
     h(BandeSemaine, { iso, setIso }),
     r && h(Affiches),

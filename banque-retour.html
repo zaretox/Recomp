@@ -27,7 +27,7 @@
   const m = document.getElementById("m");
   if (erreur || !code) {
     const detail = (p.get("error_description") || erreur || "").replace(/[<>&"]/g, "");
-    m.innerHTML = '<h1>Liaison bancaire</h1><p class="erreur">La liaison n\'a pas abouti' + (detail ? " (" + detail + ")" : "") + '.</p><p>Retourne dans RECOMP, Réglages, Banque, et relance « Relier ma banque ».</p>';
+    m.innerHTML = '<h1>Liaison bancaire</h1><p class="erreur">La liaison n\'a pas abouti' + (detail ? " (" + detail + ")" : "") + '.</p><p>Retourne dans Ensō, Réglages, Banque, et relance « Relier ma banque ».</p>';
     return;
   }
   let attendu = null;
@@ -35,7 +35,7 @@
   // Même contexte que l'app : on lui rend la main directement
   if (attendu && attendu === etat) { location.replace("./?banque_code=" + encodeURIComponent(code)); return; }
   // Navigateur séparé : le code est à recopier dans l'app (valable 10 minutes)
-  m.innerHTML = '<h1>Presque fini</h1><p>Ta banque a donné son accord. Ce navigateur est séparé de ton app : copie ce <b>code de liaison</b>, puis retourne dans <b>RECOMP → Réglages → Banque → « J\'ai un code »</b> et colle-le. Il n\'est valable que quelques minutes.</p><div class="code" id="c"></div><button id="b">Copier le code</button>';
+  m.innerHTML = '<h1>Presque fini</h1><p>Ta banque a donné son accord. Ce navigateur est séparé de ton app : copie ce <b>code de liaison</b>, puis retourne dans <b>Ensō → Réglages → Banque → « J\'ai un code »</b> et colle-le. Il n\'est valable que quelques minutes.</p><div class="code" id="c"></div><button id="b">Copier le code</button>';
   document.getElementById("c").textContent = code;
   document.getElementById("b").onclick = async () => {
     try { await navigator.clipboard.writeText(code); document.getElementById("b").textContent = "Code copié"; }

@@ -274,7 +274,7 @@ async function fusionnerDoublons() {
 function diagnosticArgent() {
   const b = bilanCourant(), l = lienBanque(), d = x => x.dateISO.slice(8) + "/" + x.dateISO.slice(5, 7), e = v => nb(v, 2) + " €";
   const origine = x => (x.banque ? "banque" : "à la main") + (x.attente ? ", en cours" : "");
-  const lignes = ["Diagnostic Argent RECOMP", "Période : " + nomPeriode(b) + (b.civil ? " (mois civil, aucune paye reconnue)" : "")];
+  const lignes = ["Diagnostic Argent Ensō", "Période : " + nomPeriode(b) + (b.civil ? " (mois civil, aucune paye reconnue)" : "")];
   const incs = DB.get("fin-income").filter(x => dansPeriode(x, b));
   lignes.push("Revenus de la période (" + e(b.rev) + ") :");
   incs.forEach(x => lignes.push("  " + d(x) + "  " + e(x.montant) + "  " + origine(x) + (x.paye ? ", paye" : "") + "  « " + String(x.source || "").slice(0, 14) + " »"));

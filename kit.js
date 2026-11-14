@@ -301,7 +301,7 @@ function PastilleMaj() {
   const [prete, setPrete] = useState(MiseAJour.prete);
   useEffect(() => bus.on("maj", () => setPrete(true)), []);
   if (!prete) return null;
-  return h("div.maj-p", { role: "status" }, h("span", "Nouvelle version de RECOMP prête"), h("button", { onClick: () => location.reload() }, "Afficher"));
+  return h("div.maj-p", { role: "status" }, h("span", "Nouvelle version d'Ensō prête"), h("button", { onClick: () => location.reload() }, "Afficher"));
 }
 
 /* Ouvre un onglet directement sur une de ses rubriques */

@@ -274,7 +274,7 @@ function FeuilleBilan() {
     { ton: "argent", e: "Ton argent", g: Discret.cache() ? h(PointsG) : entier(b.depense), u: "€", p: "dépensés en 7 jours. Il te reste " + eurosD(Math.max(0, bilanCourant().reste)) + (bilanCourant().civil ? " ce mois-ci." : " jusqu'à ta paye.") },
     // Une fois par semaine, la sauvegarde (sauf si elle est récente)
     ...(ageSauvegarde() == null || ageSauvegarde() >= 6 ? [{ ton: "papier", e: "Ta sauvegarde", g: ageSauvegarde() == null ? "Jamais" : ageSauvegarde() + " j", u: ageSauvegarde() == null ? "" : "sans", sauve: true,
-      p: "Tout RECOMP vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }] : []),
+      p: "Tout Ensō vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }] : []),
     { ton: "noir", e: "Ma décision", g: decision.g, u: decision.u, p: decision.t, fin: true },
   ];
   const e = ecrans[i];

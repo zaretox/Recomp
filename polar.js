@@ -236,10 +236,10 @@ const texteB64u = b => b ? btoa(String.fromCharCode(...new Uint8Array(b))).repla
 async function activerNotifs() {
   const l = lienPolar();
   if (!l?.jeton) return toast("Relie d'abord ta montre", { danger: true });
-  if (!notifsPossibles()) return toast("Ajoute d'abord RECOMP à ton écran d'accueil (Partager → Sur l'écran d'accueil), puis ouvre-la depuis l'icône.", { danger: true });
+  if (!notifsPossibles()) return toast("Ajoute d'abord Ensō à ton écran d'accueil (Partager → Sur l'écran d'accueil), puis ouvre-la depuis l'icône.", { danger: true });
   // La demande d'autorisation doit partir tout de suite après le toucher
   const perm = await Notification.requestPermission();
-  if (perm !== "granted") return toast("Notifications refusées. Tu peux les autoriser dans Réglages de l'iPhone → Notifications → RECOMP.", { danger: true });
+  if (perm !== "granted") return toast("Notifications refusées. Tu peux les autoriser dans Réglages de l'iPhone → Notifications → Enso.", { danger: true });
   try {
     const { cle } = await fetch(POLAR_FN + "?action=cle-push", { cache: "no-store" }).then(r => r.json());
     if (!cle) throw new Error("clé absente");
@@ -419,7 +419,7 @@ async function diagnosticSortie(id) {
       }
     }
   } catch (e) { l.push("Fichier FIT : erreur " + e.message); }
-  return "Diagnostic RECOMP, séance " + id + "\n" + l.join("\n");
+  return "Diagnostic Ensō, séance " + id + "\n" + l.join("\n");
 }
 
 /* PAS — le résumé d'activité de chaque jour, lu chez Polar (il garde les 28 derniers jours).

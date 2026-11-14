@@ -172,7 +172,7 @@ self.addEventListener("push", e => {
   try { m = e.data ? e.data.json() : {}; } catch (x) { /* message illisible : notification générique */ }
   e.waitUntil((async () => {
     if (m.seance) { const r = await resumeSeance(m.seance); if (r) Object.assign(m, r); }
-    await self.registration.showNotification(m.titre || "RECOMP", { body: m.corps || "", tag: m.tag || undefined, icon: "./icon-192.png", data: { ouvrir: m.ouvrir || "" } });
+    await self.registration.showNotification(m.titre || "Ensō", { body: m.corps || "", tag: m.tag || undefined, icon: "./icon-192.png", data: { ouvrir: m.ouvrir || "" } });
   })());
 });
 // Toucher la notification : ouvre l'app (ou la ramène devant) sur le bon écran

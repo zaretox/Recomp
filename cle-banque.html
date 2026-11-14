@@ -67,7 +67,7 @@
     r.appendChild(bloc("EB_APP_ID", "C'est le nom du fichier. Dans Netlify, colle-le comme valeur de <b>EB_APP_ID</b>.", id));
     r.appendChild(bloc("EB_PRIVATE_KEY", "Ta clé, mise sur une seule ligne pour que Netlify l'accepte. Dans Netlify, <b>remplace</b> la valeur de <b>EB_PRIVATE_KEY</b> par celle-ci (garde « Contains secret values » coché).", cle, cle.slice(0, 24) + "… (" + cle.length + " caractères)"));
     const fin = document.createElement("section"); fin.style.display = "grid"; fin.style.gap = "8px";
-    fin.innerHTML = "<h2>Ensuite</h2><ol><li>Dans Netlify : <b>Deploys → Trigger deploy → Deploy site</b>.</li><li>Attends une minute, puis dans RECOMP : <b>Réglages → Banque → Relier ma banque</b>.</li><li>Tu peux ensuite effacer le texte copié : colle n'importe quoi d'autre par-dessus.</li></ol>";
+    fin.innerHTML = "<h2>Ensuite</h2><ol><li>Dans Netlify : <b>Deploys → Trigger deploy → Deploy site</b>.</li><li>Attends une minute, puis dans Ensō : <b>Réglages → Banque → Relier ma banque</b>.</li><li>Tu peux ensuite effacer le texte copié : colle n'importe quoi d'autre par-dessus.</li></ol>";
     r.appendChild(fin);
   };
 })();

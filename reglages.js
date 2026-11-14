@@ -28,7 +28,7 @@ function FeuilleCapture() {
   const cherche = (t, kw) => sansAccent(t + " " + (kw || "")).includes(ql);
   const acts = ACTIONS.filter(a => !ql || cherche(a.t, a.kw)), dest = ql ? DESTINATIONS.filter(([t, , kw]) => cherche(t, kw)) : [];
   return h(Feuille, { titre: "Que veux-tu faire ?" },
-    h("input.recherche", { value: q, onChange: e => setQ(e.target.value), placeholder: "Chercher : poids, courses, sommeil…", "aria-label": "Chercher dans RECOMP", enterKeyHint: "search" }),
+    h("input.recherche", { value: q, onChange: e => setQ(e.target.value), placeholder: "Chercher : poids, courses, sommeil…", "aria-label": "Chercher dans Ensō", enterKeyHint: "search" }),
     h("div.gestes", acts.map(a => h("button", { key: a.t, onClick: () => lance(a.go) }, h(Icone, { n: a.i, t: 26 }), h("span", a.t)))),
     dest.length > 0 && h("div.liste", dest.map(([t, go]) => h("button.ligne", { key: t, onClick: () => lance(go) }, h("span", t), h(Icone, { n: "fleche", t: 16 })))),
     ql && !acts.length && !dest.length && h(Vide, null, "Rien pour « " + q.trim() + " ». Essaie poids, séance, courses ou sommeil."));
@@ -73,7 +73,7 @@ async function restaurer(fichier) {
 function calendrierIcs() {
   const pr = profil(), prog = programmeEnCours(), tDays = joursProgramme(prog), rDays = [0, 1, 2, 3, 4, 5, 6].filter(d => !tDays.includes(d));
   const CODES = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
-  const ev = [{ t: "Réveil + créatine", h: pr.reveil, days: [0, 1, 2, 3, 4, 5, 6] }, { t: "Séance RECOMP", h: CRENEAUX[pr.creneau].seance, days: tDays }];
+  const ev = [{ t: "Réveil + créatine", h: pr.reveil, days: [0, 1, 2, 3, 4, 5, 6] }, { t: "Séance Ensō", h: CRENEAUX[pr.creneau].seance, days: tDays }];
   planDuJour("training").meals.forEach(m => ev.push({ t: m.m, h: m.h, days: tDays }));
   planDuJour("rest").meals.forEach(m => ev.push({ t: m.m, h: m.h, days: rDays }));
   const now = new Date(), loc = d => d.getFullYear() + pad2(d.getMonth() + 1) + pad2(d.getDate()) + "T" + pad2(d.getHours()) + pad2(d.getMinutes()) + "00";
@@ -115,7 +115,7 @@ function SectionDiscret() {
   return h(Section, null,
     h("div.interrupteurs",
       h(Interrupteur, { actif, titre: "Masquer mes montants", sous: "Flous par défaut dans Argent, sur l'écran Jour, dans le coach et le bilan. L'œil les affiche.", onClick: async () => { await setProfil({ discret: !actif }); Discret.appliquer(); } }),
-      actif && h(Interrupteur, { actif: avecFaceId, titre: charge ? "Un instant…" : "Avec Face ID", sous: possible === false ? "Pas disponible ici : ouvre RECOMP depuis son icône sur l'écran d'accueil." : "Demandé pour afficher, pas plus d'une fois toutes les 5 minutes", onClick: basculerFaceId })));
+      actif && h(Interrupteur, { actif: avecFaceId, titre: charge ? "Un instant…" : "Avec Face ID", sous: possible === false ? "Pas disponible ici : ouvre Ensō depuis son icône sur l'écran d'accueil." : "Demandé pour afficher, pas plus d'une fois toutes les 5 minutes", onClick: basculerFaceId })));
 }
 /* Banque : liaison en lecture seule, pour que tes opérations arrivent toutes seules dans Argent */
 function SectionBanque() {
@@ -149,7 +149,7 @@ function InterNotifs() {
   const basculer = async () => { if (charge) return; setCharge(true); try { await (actif ? couperNotifs() : activerNotifs()); } finally { setCharge(false); } };
   return h(Fragment, null,
     h(Interrupteur, { actif, titre: charge ? "Un instant…" : "Me prévenir", sous: "Quand une séance ou ta nuit arrive de ta montre", onClick: basculer }),
-    !notifsPossibles() && h("p.note", "Sur iPhone, les notifications ne marchent que si RECOMP est ouverte depuis son icône sur l'écran d'accueil."));
+    !notifsPossibles() && h("p.note", "Sur iPhone, les notifications ne marchent que si Ensō est ouverte depuis son icône sur l'écran d'accueil."));
 }
 /* Montre Polar : liaison par le service AccessLink, pour remplir la saisie du matin */
 function SectionPolar() {
@@ -160,7 +160,7 @@ function SectionPolar() {
       h("p.note", "Ta montre doit d'abord avoir synchronisé la nuit avec l'app Polar Flow."),
       h(EtatPas),
       h(InterNotifs),
-      h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier la montre Polar ?", message: "RECOMP ne pourra plus lire tes nuits. Tes saisies déjà faites restent.", oui: "Délier" })) delierPolar(); } }, "Délier la montre"))
+      h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier la montre Polar ?", message: "Ensō ne pourra plus lire tes nuits. Tes saisies déjà faites restent.", oui: "Délier" })) delierPolar(); } }, "Délier la montre"))
     : h(Fragment, null,
       h("p.texte-p", "Relie ton compte Polar pour remplir la saisie du matin d'un geste. Polar te demandera ton accord ; tes données ne sont stockées que sur ce téléphone."),
       h("div.deux-b",
@@ -213,9 +213,9 @@ function VerifMaj() {
     const r = await verifierMaj(true);
     if (r === "nouvelle-version" || r === "a-jour") { location.reload(); return; }
     setEtat(null);
-    toast(r === "sans" ? "Mise à jour impossible ici : ouvre RECOMP depuis l'écran d'accueil" : "Pas de réseau pour vérifier : réessaie plus tard", { danger: true });
+    toast(r === "sans" ? "Mise à jour impossible ici : ouvre Ensō depuis l'écran d'accueil" : "Pas de réseau pour vérifier : réessaie plus tard", { danger: true });
   };
-  return h("div.synchro", h("span", "RECOMP se met à jour tout seul. Si une nouveauté n'apparaît pas, touche ce bouton."),
+  return h("div.synchro", h("span", "Ensō se met à jour tout seul. Si une nouveauté n'apparaît pas, touche ce bouton."),
     h("button.mini", { disabled: etat === "cherche", onClick: lancer }, etat === "cherche" ? "Recherche…" : "Mettre à jour"));
 }
 // Une rubrique des réglages, sur sa propre page
