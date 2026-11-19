@@ -36,7 +36,7 @@ function FeuilleCapture() {
 
 /* Sauvegarde complète, photos comprises. Même format que les versions précédentes. */
 // Les accès Polar et banque restent sur ce téléphone : ils ne partent jamais dans une sauvegarde
-const HORS_SAUVEGARDE = ["last-export", "polar-lien", "banque-lien"];
+const HORS_SAUVEGARDE = ["last-export", "polar-lien", "banque-lien", "coach-lien"];
 const CLES_SAUVEGARDE = Object.keys(DEFAUTS).filter(k => !HORS_SAUVEGARDE.includes(k));
 async function exporter() {
   let cles = [];
@@ -156,9 +156,9 @@ function SectionPolar() {
   const l = lienPolar();
   return h(Section, null,
     l?.jeton ? h(Fragment, null,
-      h("p.texte-p", h("b", "Montre reliée"), " depuis le " + dateJour(l.depuis) + ". Dans « Forme du matin », un bouton remplit SNA, VFC, FC et sommeil depuis ta Recharge nocturne."),
+      h("p.texte-p", h("b", "Montre reliée"), " depuis le " + dateJour(l.depuis) + ". Ta forme du matin se remplit toute seule dès que ta nuit arrive de ta montre (SNA, VFC, FC et sommeil)."),
       h("p.note", "Ta montre doit d'abord avoir synchronisé la nuit avec l'app Polar Flow."),
-      h(EtatPas),
+      h(EtatPolar),
       h(InterNotifs),
       h(Bouton, { cl: "danger-t", onClick: async () => { if (await confirmer({ titre: "Délier la montre Polar ?", message: "Ensō ne pourra plus lire tes nuits. Tes saisies déjà faites restent.", oui: "Délier" })) delierPolar(); } }, "Délier la montre"))
     : h(Fragment, null,
@@ -168,20 +168,72 @@ function SectionPolar() {
         h(Bouton, { cl: "contour", onClick: collerCodePolar }, "J'ai un code"))));
 }
 
-/* Où en est la lecture des pas : utile pour vérifier que Polar les donne bien */
-function EtatPas() {
-  const { err } = usePasPolar(), [charge, setCharge] = useState(false), d = DB.get("polar-pas") || {}, jours = Object.keys(d).sort(), der = jours[jours.length - 1], lu = luPasA();
-  const relire = async () => { setCharge(true); try { const n = await importerPasPolar(true); toast(n ? pluriel(n, "jour") + " de pas relus" : "Polar n'a renvoyé aucun jour de pas"); } catch (e) { toast("Pas : " + e.message, { danger: true }); } finally { setCharge(false); } };
-  return h("div.synchro",
-    h("span", err ? "Pas : Polar a répondu « " + err + " »." : der ? "Pas : " + pluriel(jours.length, "jour") + " lus, le dernier le " + dateMini(der) + (lu ? ", relus à " + new Date(lu).toTimeString().slice(0, 5) : "") + "." : "Pas : pas encore lus."),
-    h("button.mini", { disabled: charge, onClick: relire }, charge ? "Lecture…" : "Relire"));
+/* Ce que ta montre donne : une ligne par donnée, pour savoir ce que ta Polar fournit vraiment */
+const DONNEES_POLAR = [["sorties", "Séances"], ["pas", "Pas"], ["nuits", "Sommeil"], ["recharge", "Recharge nocturne"], ["charge", "Charge d'entraînement"], ["coucher", "Heure de coucher (SleepWise)"], ["physique", "Repères (FC de repos, seuils)"]];
+function EtatPolar() {
+  useDB();
+  const [charge, setCharge] = useState(false), [, maj] = useState(0), e = etatPolar(), pas = DB.get("polar-pas") || {};
+  const ligne = k => {
+    if (k === "sorties") { const n = sortiesPolar().length; return n ? [true, pluriel(n, "séance")] : [null, "aucune pour l'instant"]; }
+    if (k === "pas") { const n = Object.keys(pas).length, err = erreurPas(); return err ? [false, err] : n ? [true, pluriel(n, "jour")] : [null, "pas encore lus"]; }
+    const x = e[k];
+    if (!x) return [null, k === "coucher" || k === "physique" ? "touche « Tout relire »" : "pas encore lu"];
+    if (x.err) return [false, x.err];
+    return x.n ? [true, k === "physique" ? "disponibles" : k === "coucher" ? "disponible" : pluriel(x.n, "jour")] : [null, "rien reçu"];
+  };
+  const relire = async () => {
+    setCharge(true);
+    try { await Promise.allSettled([importerPasPolar(true), importerNuitsPolar(true), sonderPolar()]); await matinAuto(); toast("Montre relue"); }
+    finally { setCharge(false); maj(x => x + 1); }
+  };
+  return h("div.etat-polar",
+    h("div.synchro", h("span", h("b", "Ce que ta montre donne")), h("button.mini", { disabled: charge, onClick: relire }, charge ? "Lecture…" : "Tout relire")),
+    DONNEES_POLAR.map(([k, l]) => { const [ok, t] = ligne(k); return h("div.etat-l", { key: k, "data-ok": ok === true ? "1" : ok === false ? "0" : "" }, h("i", { "aria-hidden": true }, ok === true ? "✓" : ok === false ? "!" : "–"), h("span", l), h("small", t)); }),
+    h("p.note", "Un tiret : ta montre ne le mesure pas, ou rien n'est encore arrivé. Un point d'exclamation : envoie-moi une capture."));
+}
+
+/* COACH IA — la mise en place (compte Anthropic, clé et code dans Netlify), puis les réglages */
+function SectionCoachIA() {
+  useDB();
+  const l = lienCoach(), [test, setTest] = useState(null);
+  useEffect(() => { if (!lienCoach()?.code) DB.set("coach-lien", { code: nouveauCodeCoach(), actif: false, budget: true }); }, []);
+  if (!l?.code) return null;
+  const maj = p => DB.set("coach-lien", { ...lienCoach(), ...p });
+  const tester = async () => {
+    setTest({ t: "Vérification…" });
+    try { await demanderCoach({ mode: "test" }); await maj({ actif: true }); setTest({ ok: true, t: "Tout est prêt : ton coach t'écrira demain matin, ou dès maintenant dans l'écran Jour." }); }
+    catch (e) { setTest({ t: e.message.replace(/^./, c => c.toUpperCase()) + "." }); }
+  };
+  const copier = async () => { try { await navigator.clipboard.writeText(l.code); toast("Code copié"); } catch (e) { toast("Copie impossible : recopie-le à la main", { danger: true }); } };
+  const changerCode = async () => { if (await confirmer({ titre: "Créer un nouveau code ?", message: "L'ancien ne marchera plus. Il faudra remplacer COACH_CODE dans Netlify, puis relancer une mise en ligne.", oui: "Nouveau code" })) await maj({ code: nouveauCodeCoach(), actif: false }); };
+  const code = h(Fragment, null, h("div.valeur-c", l.code), h("div.deux-b", h(Bouton, { cl: "contour", onClick: copier }, "Copier mon code"), l.actif && h(Bouton, { cl: "contour", onClick: changerCode }, "Nouveau code")));
+  return h(Fragment, null,
+    h(Section, null,
+      h("p.texte-p", l.actif ? h(Fragment, null, h("b", "Coach IA activé. "), "Chaque matin, il t'écrit un mot dans l'écran Jour, et tu peux lui poser tes questions juste en dessous.")
+        : "Le coach IA, c'est Claude qui lit le résumé de tes données et te conseille comme un vrai coach. Suis ces étapes une seule fois, depuis ton téléphone."),
+      l.actif && h("div.interrupteurs",
+        h(Interrupteur, { actif: true, titre: "Coach IA", sous: "Désactivé, le coach habituel reste là", onClick: () => maj({ actif: false }) }),
+        h(Interrupteur, { actif: l.budget !== false, titre: "Partager mon budget", sous: "Reste à dépenser et grandes catégories, jamais le détail des opérations", onClick: () => maj({ budget: l.budget === false }) }))),
+    !l.actif && h(Section, { titre: "Mise en place" },
+      h("ol.etapes",
+        h("li", "Sur ", h("b", "platform.claude.com"), ", crée ton compte. Dans ", h("b", "Billing"), ", ajoute ta carte et un peu de crédit (5 $ suffisent pour commencer). Dans ", h("b", "Spend limits"), ", fixe un plafond mensuel, par exemple 10 $ : tu ne paieras jamais plus."),
+        h("li", "Dans ", h("b", "API keys"), ", touche ", h("b", "Create key"), ". Nomme-la « Ensō », choisis l'espace de travail ", h("b", "Default"), " et l'expiration ", h("b", "Never"), ". Copie la clé (elle commence par sk-ant-). Ne l'envoie à personne, pas même dans un chat."),
+        h("li", "Dans Netlify : ", h("b", "Site configuration → Environment variables → Add a variable"), ". Nom : ", h("b", "ANTHROPIC_API_KEY"), ", valeur : ta clé, et coche « Contains secret values »."),
+        h("li", "Ajoute une deuxième variable. Nom : ", h("b", "COACH_CODE"), ", valeur : ton code d'accès, juste en dessous. Il empêche quiconque d'autre de se servir de ta clé."),
+        h("li", "Toujours dans Netlify : ", h("b", "Deploys → Trigger deploy → Deploy site"), ". Attends une minute, puis reviens ici et touche « Tester et activer »."))),
+    h(Section, { titre: "Ton code d'accès" }, code),
+    !l.actif && h(Bouton, { cl: "plein", onClick: tester }, "Tester et activer"),
+    test && h("p.note", { className: test.ok ? "ok-t" : "" }, test.t),
+    h(Section, { titre: "Ce qu'il faut savoir" },
+      h("p.texte-p", "À chaque demande, un résumé de tes chiffres (forme, nuits, séances, repas, poids, pas" + (l.budget !== false ? ", budget" : "") + ") part chez Anthropic par ta fonction Netlify, qui ne garde rien. Anthropic ne s'en sert pas pour entraîner ses modèles. Tes opérations bancaires ne partent jamais une à une."),
+      h("p.texte-p", "Coût : environ 5 à 10 € par mois avec un mot chaque matin et quelques questions par jour, payés sur ton compte Anthropic. Ton abonnement Claude ne le couvre pas, sauf les abonnements Max, qui incluent des crédits API à réclamer dans claude.ai → Réglages → Facturation.")));
 }
 
 /* RÉGLAGES — une page menu, comme sur l'iPhone : chaque rubrique avec son état, et sa propre page */
 const RUBRIQUES_REGLAGES = [
   ["Toi", [["horaires", "Mes horaires", "chrono"], ["programme", "Programme et calories", "liste"]]],
   ["L'app", [["apparence", "Apparence", "jour"], ["confidentialite", "Confidentialité", "oeil-barre"], ["rappels", "Rappels", "calendrier"]]],
-  ["Connexions", [["polar", "Montre Polar", "coeur"], ["banque", "Banque", "argent"]]],
+  ["Connexions", [["polar", "Montre Polar", "coeur"], ["banque", "Banque", "argent"], ["coach", "Coach IA", "bulle"]]],
   ["Tes données", [["donnees", "Sauvegarde et données", "sauve"]]],
 ];
 const NOMS_THEME = { auto: "Comme le téléphone", nuit: "Nuit", papier: "Papier" };
@@ -194,6 +246,7 @@ function etatReglage(k) {
     confidentialite: pr.discret === false ? "Montants visibles" : pr.faceIdActif && pr.faceId ? "Montants cachés, avec Face ID" : "Montants cachés",
     rappels: "Calendrier de l'iPhone",
     polar: lp?.jeton ? "Reliée" + (lp.notifs ? ", notifications activées" : "") : "Pas reliée",
+    coach: lienCoach()?.actif ? "Activé" + (lienCoach().budget === false ? ", sans ton budget" : "") : "Pas activé",
     banque: lb?.session ? (lb.banque || "Banque") + " reliée" + (accesBanqueExpire() != null && accesBanqueExpire() <= 10 ? ", à renouveler" : "") : "Pas reliée",
     donnees: age == null ? "Aucune sauvegarde pour l'instant" : age === 0 ? "Sauvegarde faite aujourd'hui" : "Dernière sauvegarde il y a " + pluriel(age, "jour"),
   }[k];
@@ -245,6 +298,7 @@ function FeuilleReglage({ rub }) {
     rappels: () => h(Section, { titre: "Calendrier" },
       h(Rangee, { ico: "calendrier", titre: "Ajouter au calendrier", sous: "Réveil, repas et séances aux bonnes heures", onClick: async () => { const r = await partagerFichier("recomp-routine.ics", calendrierIcs(), "text/calendar"); if (r === "partage" || r === "telecharge") toast("Ouvre le fichier pour l'ajouter à ton calendrier"); } })),
     polar: () => h(SectionPolar),
+    coach: () => h(SectionCoachIA),
     banque: () => h(SectionBanque),
     donnees: () => h(Section, { titre: "Sauvegarde" },
       h("p.texte-p", "Tes données vivent uniquement sur ce téléphone. ", h("b", age == null ? "Aucune sauvegarde pour l'instant." : age === 0 ? "Sauvegarde faite aujourd'hui." : "Dernière sauvegarde il y a " + pluriel(age, "jour") + "."), espace?.usage ? " Espace utilisé : " + nb(espace.usage / 1048576) + " Mo." : ""),

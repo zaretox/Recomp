@@ -50,6 +50,27 @@ function messagesCoach() {
   if (r && r.score != null) msgs.push({ id: "forme", t: r.conseil, acts: [{ l: "Pourquoi ce score ?", run: () => Nav.sheet("forme") }] });
   else if (!DB.get("recup-logs").some(l => l.dateISO === auj) && heure < 16) msgs.push({ id: "matin", t: "Fais ta saisie du matin : j'adapte ta séance à ta forme.", acts: [{ l: "Saisir maintenant", run: () => Nav.sheet("matin") }] });
 
+  // La montre a rempli la forme du matin : une soirée particulière à signaler ?
+  const lMatin = DB.get("recup-logs").find(l => l.dateISO === auj);
+  if (lMatin?.auto === "polar" && !(lMatin.tags || []).length && !lMatin.vu && heure < 14) msgs.push({
+    id: "etiquettes", t: "Ta montre a rempli ta forme du matin. Hier soir, quelque chose de particulier (alcool, repas tardif, écrans, stress) ? Ça affine mes conseils.",
+    acts: [{ l: "Oui, je le note", run: () => Nav.sheet("matin", { etape: 4 }) }, { l: "Rien à signaler", run: () => DB.set("recup-logs", DB.get("recup-logs").map(l => l.dateISO === auj ? { ...l, vu: true } : l)) }],
+  });
+  // La nuit vue par la montre : couché bien après l'heure conseillée
+  const nuitP = derniereNuit(), debutN = nuitP?.date === auj ? heurePolar(nuitP.debut) : null;
+  if (debutN && heure < 14 && pr.coachDismiss?.coucher !== auj) {
+    const conseil = hEnMin(sommeil().coucher), couche = hEnMin(debutN), retard = ((couche - conseil + 1440 + 720) % 1440) - 720;
+    if (retard >= 45) msgs.push({ id: "coucher", t: "Couché à " + debutN + ", " + (retard >= 90 ? "bien " : "") + "après l'heure conseillée (" + hhmm(sommeil().coucher) + ")" + (nuitP.interruptions >= 1200 ? ", avec " + Math.round(nuitP.interruptions / 60) + " min de réveils" : "") + ". Ce soir, vise " + hhmm(sommeil().coucher) + " : c'est le levier le plus simple pour ta forme.",
+      acts: [{ l: "Voir ma nuit", run: () => allerRubrique("corps", "forme") }, { l: "Compris", run: () => setProfil({ coachDismiss: { ...(pr.coachDismiss || {}), coucher: auj } }) }] });
+  }
+  // La charge calculée par la montre
+  const chP = derniereCharge(), stP = chP && ecart(chP.date, auj) <= 2 ? statutCharge(chP.statut) : null;
+  if (stP?.t === "surcharge" && pr.coachDismiss?.surcharge !== auj) msgs.push({
+    id: "surcharge", t: "Ta montre voit une surcharge : ces derniers jours, tu en fais plus que ce que ton corps encaisse d'habitude. Garde la séance du jour facile" + (reglages().deload ? "." : ", ou passe en semaine légère."),
+    acts: [...(reglages().deload ? [] : [{ l: "Semaine légère", run: async () => { await DB.set("science-config", { ...reglages(), deload: true }); toast("Semaine légère activée : charges −40 %"); } }]),
+      { l: "Pas maintenant", run: () => setProfil({ coachDismiss: { ...(pr.coachDismiss || {}), surcharge: auj } }) }],
+  });
+
   const mal = DB.get("douleur-logs").filter(l => l.dateISO <= auj && ecart(l.dateISO, auj) <= 2 && l.intensite >= 4).sort((a, b) => b.intensite - a.intensite)[0];
   if (mal) msgs.push({ id: "mal", t: "Ton " + mal.zone.toLowerCase() + " te gêne (" + mal.intensite + "/10). Les exercices concernés sont signalés dans ta séance, avec un remplacement possible. Si ça pique, on arrête." });
 
@@ -149,3 +170,142 @@ const regularite = memo(semaines => {
   }
   return jours;
 });
+
+/* COACH IA — Claude, appelé par la fonction Netlify « coach » qui garde la clé.
+ * « coach-lien » = { code, actif, budget } : le code d'accès (jamais dans la sauvegarde), le coach activé, le budget partagé.
+ * « coach-ia » = { matin: { jour, texte }, bilan: { semaine, texte }, fil: { jour, contexte, messages: [{ role, content }] } }.
+ * Il propose seulement : ses actions deviennent des boutons, rien ne change sans toi. */
+const COACH_FN = "/.netlify/functions/coach";
+const lienCoach = () => DB.get("coach-lien");
+const coachIAActif = () => { const l = lienCoach(); return !!(l?.actif && l.code); };
+const nouveauCodeCoach = () => { const a = "abcdefghjkmnpqrstuvwxyz23456789", b = crypto.getRandomValues(new Uint8Array(24)); return [...b].map(x => a[x % a.length]).join("").replace(/(.{6})(?=.)/g, "$1-"); };
+
+/* Le résumé envoyé à chaque demande : seulement des chiffres et des noms tirés de l'app, jamais d'opération bancaire une à une */
+function contexteCoach() {
+  const auj = aujourdhui(), L = [], pr = profil(), lc = lienCoach();
+  const part = (titre, f) => { try { const t = [].concat(f()).filter(Boolean); if (t.length) L.push("## " + titre + "\n" + t.join("\n")); } catch (e) { /* une partie illisible n'empêche pas le reste */ } };
+  const jourDe = d => JOURS[jourSem(d)] + " " + dateMini(d);
+  part("Aujourd'hui", () => {
+    const sess = seanceDuJour(auj, programmeEnCours()), faite = seanceFaite(auj), cfg = reglages(), nage = nagePrevue(auj);
+    return [dateLongue(auj) + ", " + new Date().toTimeString().slice(0, 5) + ".",
+      "Programme : " + infoProgramme(programmeEnCours()).label + ", séances vers " + hhmm(seanceCreneau()) + ", réveil " + hhmm(pr.reveil) + ".",
+      sess ? "Séance prévue : " + sess.label + (faite ? " (faite)" : "") + "." : faite ? "Une séance a été faite aujourd'hui." : "Pas de muscu prévue aujourd'hui.",
+      nage ? "Natation prévue : " + nage.name + ", " + entier(nageDistance(nage)) + " m." : null,
+      cfg.deload ? "Semaine légère active (charges −40 %)." : null, cfg.recovery ? "Mode récup actif." : null];
+  });
+  part("Profil", () => { const c = cfgCalories() || {}, cm = parseFloat(DB.get("taille-corps")) || null;
+    return [(c.sex === "F" ? "Femme" : "Homme") + (c.age ? ", " + c.age + " ans" : "") + (cm ? ", " + cm + " cm" : "") + ".", pr.objectifKg ? "Poids visé : " + nb1(pr.objectifKg) + " kg." : null]; });
+  part("Forme du matin", () => {
+    const r = recuperation(auj), e = DB.get("recup-logs").find(l => l.dateISO === auj), s = sommeil();
+    const h14 = historiqueForme(14).filter(j => j.score != null).map(j => jourDe(j.iso) + " " + j.score).join(", ");
+    return [r?.score != null ? "Score : " + r.score + "/100 (" + r.verdict.t + "). Conseil affiché : " + r.conseil : "Pas encore de score aujourd'hui.",
+      r?.parts ? "Détail : " + ORDRE_FACTEURS.filter(k => r.parts[k] != null).map(k => NOM_FACTEUR[k] + " " + Math.round(r.parts[k])).join(", ") + "." : null,
+      e ? "Saisie" + (e.auto ? " (remplie par la montre)" : "") + " : SNA " + (e.ans ?? "—") + ", VFC " + (e.rmssd ?? "—") + " ms, FC nocturne " + (e.fc ?? "—") + ", sommeil " + (e.sleep ? dureeHM(e.sleep) : "—") + (e.tags?.length ? ", hier soir : " + e.tags.map(t => (ETIQUETTES.find(x => x[0] === t) || [t, t])[1].toLowerCase()).join(", ") : "") + "." : null,
+      h14 ? "Scores des 14 derniers jours : " + h14 + "." : null,
+      "Sommeil sur 7 nuits : moyenne " + (s.moyenne ? dureeHM(s.moyenne) : "—") + ", dette " + dureeHM(s.dette) + ", coucher conseillé " + hhmm(s.coucher) + "."];
+  });
+  part("Dernière nuit (montre)", () => { const n = derniereNuit(); if (!n || ecart(n.date, auj) > 2) return null;
+    const hm = x => x != null ? dureeHM(x / 3600) : "—";
+    return "Nuit du " + jourDe(n.date) + " : endormi " + (heurePolar(n.debut) || "—") + ", réveillé " + (heurePolar(n.fin) || "—") + ", score Polar " + (n.score ?? "—") + ", profond " + hm(n.profond) + ", paradoxal " + hm(n.paradoxal) + ", léger " + hm(n.leger) + ", réveils " + (n.interruptions != null ? Math.round(n.interruptions / 60) + " min" : "—") + (n.recharge ? ", Recharge nocturne " + STATUTS_RECHARGE[n.recharge] : "") + (n.respiration ? ", respiration " + nb(n.respiration) + "/min" : "") + "."; });
+  part("Charge d'entraînement (montre)", () => { const c = derniereCharge(); if (!c || ecart(c.date, auj) > 3) return null; const st = statutCharge(c.statut), d = DB.get("polar-charge") || {};
+    const j = Array.from({ length: 14 }, (_, i) => decale(auj, i - 13)).filter(x => d[x]?.charge > 0).map(x => jourDe(x) + " " + Math.round(d[x].charge));
+    return ["État : " + (st ? st.t : "inconnu") + ", effort 7 jours " + (c.effort != null ? Math.round(c.effort) : "—") + ", tolérance habituelle " + (c.tolerance != null ? Math.round(c.tolerance) : "—") + ".", j.length ? "Charge par jour : " + j.join(", ") + "." : null]; });
+  part("Poids", () => { const t = tendancePoids(), der = t[t.length - 1], ry = rythme(), cp = composition(), cl = cp[cp.length - 1];
+    if (!der) return null;
+    return ["Tendance " + nb1(der.t) + " kg" + (ry.kg != null ? ", rythme " + signe(ry.kg, 2) + " kg par semaine" : "") + ".",
+      "Pesées récentes : " + pesees().slice(-10).map(p => jourDe(p.dateISO) + " " + nb1(p.kg)).join(", ") + ".", cl?.bf != null ? "Masse grasse estimée : " + nb(cl.bf) + " % (" + dateMini(cl.dateISO) + ")." : null]; });
+  part("Repas aujourd'hui", () => { const n = jourNutrition(auj), m = n.menu.dayMacros;
+    return ["Cible " + entier(n.menu.dayTgt) + " kcal (jour " + (n.dayType === "training" ? "d'entraînement" : "de repos") + "), mangé " + entier(n.mange.kcal) + " kcal, reste " + entier(n.reste) + ".",
+      "Macros mangées / visées : protéines " + Math.round(n.mange.p) + "/" + m.p + " g, glucides " + Math.round(n.mange.g) + "/" + m.g + " g, lipides " + Math.round(n.mange.l) + "/" + m.l + " g.",
+      "Repas : " + n.lignes.map(l => l.m.h + " " + l.m.m + (l.fait ? " (coché)" : "")).join(", ") + ".",
+      n.horsMenu.length ? "Hors menu : " + n.horsMenu.map(f => f.nom + " " + (f.kcal || 0) + " kcal").join(", ") + "." : null]; });
+  part("Repas des 7 derniers jours", () => { const j = Array.from({ length: 7 }, (_, i) => decale(auj, i - 7)).map(d => ({ d, kc: apportsDu(d), c: jourNutrition(d).menu.dayTgt })).filter(x => x.kc);
+    const dep = depenseReelle();
+    return [j.length ? j.map(x => jourDe(x.d) + " " + entier(x.kc) + "/" + entier(x.c)).join(", ") + " (mangé/cible)." : "Aucun repas coché ces 7 jours.", dep.pret ? "Dépense réelle mesurée : " + entier(dep.kcal) + " kcal par jour sur " + dep.jours + " jours." : null]; });
+  part("Musculation des 14 derniers jours", () => {
+    const l = [...DB.get("sport-logs").map(x => ({ ...x, m: false })), ...DB.get("maison-logs").map(x => ({ ...x, m: true }))].filter(x => ecart(x.dateISO, auj) <= 13 && x.dateISO <= auj).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
+    if (!l.length) return "Aucune séance.";
+    const v = volumeMuscles(7), maux = douleursRecentes(10), rec = recordsDe(DB.get("sport-logs").filter(x => dansLes(x.dateISO, 30)));
+    return [...l.map((x, i) => jourDe(x.dateISO) + " : " + (x.m ? "Maison " : "") + x.seance + (x.m ? "" : ", " + nb(volumeSeance(x) / 1000) + " t") + (i >= l.length - 2 && x.exercices ? " (" + x.exercices.filter(e => e.weight || e.reps).map(e => e.nom + " " + (e.sets || "") + "×" + (e.reps || "") + (e.weight ? " à " + nb(e.weight) + " kg" : "")).join(", ") + ")" : "")),
+      Object.keys(v).length ? "Séries par muscle sur 7 jours : " + Object.entries(v).filter(([, n]) => n > 0).map(([k, n]) => k + " " + n).join(", ") + "." : null,
+      rec.length ? "Records du mois : " + [...new Set(rec.map(r => r.nom + " " + nb(r.kg) + " kg"))].slice(0, 6).join(", ") + "." : null,
+      Object.keys(maux).length ? "Douleurs récentes : " + Object.entries(maux).map(([z, x]) => z + " " + x.i + "/10").join(", ") + "." : null];
+  });
+  part("Natation", () => { const l = [...DB.get("natation-logs")].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).slice(-6);
+    return l.length ? l.map(x => jourDe(x.dateISO) + " : " + entier(x.distance) + " m en " + dureeS(x.duree) + (allure(x.distance, x.duree) ? ", " + mmss(Math.round(allure(x.distance, x.duree))) + " aux 100 m" : "") + (x.rpe ? ", effort " + x.rpe + "/10" : "")) : "Aucune nage notée."; });
+  part("Cardio de la montre (10 jours)", () => sortiesPolar().filter(x => ecart(x.dateISO, auj) <= 9 && !logDeSortie(x)).map(x => jourDe(x.dateISO) + " : " + nomSortie(x) + ", " + chrono(x.duree) + (x.distance > 0 ? ", " + kmDe(x.distance) + " km" : "") + (x.fcMoy ? ", FC moy. " + x.fcMoy : "")));
+  part("Pas", () => { const m = moyennePas(7, decale(auj, -1)), p = pasDu(auj); return p == null && !m ? null : "Aujourd'hui " + (p != null ? entier(p) : "—") + " pas, moyenne 7 jours " + (m ? entier(m.moy) : "—") + ", objectif " + entier(objectifPas()) + "."; });
+  if (lc?.budget !== false) part("Budget", () => { const b = bilanCourant(), pv = prevision(b);
+    if (!b.rev) return "Pas encore de paye notée.";
+    return ["Période de paye du " + dateMini(b.debut) + " au " + dateMini(b.fin) + " : revenus " + entier(b.rev) + " €, déjà dépensé " + entier(b.depenses) + " €, charges fixes à venir " + entier(b.aVenir) + " €, épargne prévue " + entier(b.objectif) + " €.",
+      "Reste à dépenser : " + entier(b.reste) + " €, soit " + entier(b.parJour) + " € par jour sur " + b.restants + " jours." + (pv ? " Au rythme actuel, il resterait " + entier(pv.fin) + " € le jour de la paye." : ""),
+      b.depasse?.length ? "Plafonds dépassés : " + b.depasse.join(", ") + "." : null,
+      "Principales dépenses de la période : " + Object.entries(b.parCat).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, v]) => k + " " + entier(v) + " €").join(", ") + "."]; });
+  part("Ce que l'application affiche déjà", () => messagesCoach().filter(m => m.id !== "jour").map(m => "- " + m.t));
+  return L.join("\n\n");
+}
+
+/* Les actions que le coach peut proposer : un bouton, et c'est toi qui touches */
+const ACTIONS_COACH = {
+  semaine_legere: ["Semaine légère", async () => { await DB.set("science-config", { ...reglages(), deload: true }); toast("Semaine légère activée : charges −40 %"); }],
+  mode_recup: ["Mode récup", async () => { await DB.set("science-config", { ...reglages(), recovery: true }); toast("Mode récup activé : aucune hausse de charge"); }],
+  saisie_matin: ["Ma forme du matin", () => Nav.sheet("matin")],
+  pesee: ["Me peser", () => Nav.sheet("pesee")],
+  ajouter_aliment: ["Noter un aliment", () => Nav.sheet("aliment", { iso: aujourdhui() })],
+  choisir_seance: ["Changer de séance", () => Nav.sheet("choisir")],
+  voir_forme: ["Voir ma forme", () => allerRubrique("corps", "forme")],
+  voir_semaine: ["Ma semaine de sport", () => allerRubrique("sport", "semaine")],
+  voir_repas: ["Mes repas", () => allerRubrique("repas", "jour")],
+  voir_budget: ["Mon budget", () => allerRubrique("argent", "budget")],
+};
+const RE_ACTION = /\[\[action:([a-z_]+)\]\]/g;
+const actionsDe = t => [...new Set([...String(t || "").matchAll(RE_ACTION)].map(m => m[1]))].filter(k => ACTIONS_COACH[k]).slice(0, 2);
+// Le texte affiché : sans les marques d'action (ni un début de marque pendant qu'elle arrive)
+const texteCoach = t => String(t || "").replace(RE_ACTION, "").replace(/\[\[[^\]]*$/, "").trim();
+
+const erreurCoach = (statut, d) => {
+  if (d?.message && (d.erreur === "config" || d.erreur === "code")) return d.message;
+  if (statut === 404) return "le coach n'est pas encore en ligne : attends la fin de la mise en ligne sur Netlify";
+  if (d?.erreur === "anthropic") {
+    const m = String(d.detail?.error?.message || "");
+    if (d.statut === 401 || d.statut === 403) return "clé Anthropic refusée : vérifie ANTHROPIC_API_KEY dans Netlify";
+    if (/credit|billing|balance/i.test(m)) return "plus de crédit sur ton compte Anthropic (ou plafond atteint)";
+    if (/workspace/i.test(m)) return "ta clé n'est liée à aucun espace de travail : recrée-la dans « Default »";
+    if (d.statut === 429) return "trop de demandes d'un coup : réessaie dans une minute";
+    if (d.statut >= 500) return "Claude est très demandé en ce moment : réessaie dans un instant";
+    return "Claude a répondu " + d.statut + (m ? " (" + m.slice(0, 120) + ")" : "");
+  }
+  return "le coach a répondu " + statut;
+};
+
+/* Une demande au coach. La réponse arrive par morceaux (onTexte reçoit le texte déjà arrivé). */
+async function demanderCoach({ mode, contexte, messages, onTexte }) {
+  const l = lienCoach();
+  if (!l?.code) throw new Error("coach IA pas encore configuré");
+  let r;
+  try { r = await fetch(COACH_FN, { method: "POST", cache: "no-store", headers: { "Content-Type": "application/json", "x-coach-code": l.code }, body: JSON.stringify({ mode, contexte, messages }) }); }
+  catch (e) { throw new Error("pas de réseau"); }
+  if (!r.ok) { const d = await r.json().catch(() => null); throw new Error(erreurCoach(r.status, d)); }
+  if (mode === "test") return r.json();
+  const lecteur = r.body.getReader(), dec = new TextDecoder();
+  let tampon = "", texte = "", fin = null;
+  const traiter = bloc => {
+    const ligne = bloc.split("\n").find(x => x.startsWith("data:"));
+    if (!ligne) return;
+    let ev; try { ev = JSON.parse(ligne.slice(5)); } catch (e) { return; }
+    if (ev.type === "content_block_delta" && ev.delta?.type === "text_delta") { texte += ev.delta.text; onTexte?.(texte); }
+    else if (ev.type === "message_delta" && ev.delta?.stop_reason) fin = ev.delta.stop_reason;
+    else if (ev.type === "error") throw new Error(/overload/i.test(ev.error?.type || "") ? "Claude est très demandé en ce moment : réessaie dans un instant" : "le coach s'est interrompu");
+  };
+  for (;;) {
+    const { value, done } = await lecteur.read();
+    if (done) break;
+    tampon += dec.decode(value, { stream: true }).replace(/\r\n/g, "\n");
+    let i;
+    while ((i = tampon.indexOf("\n\n")) >= 0) { traiter(tampon.slice(0, i)); tampon = tampon.slice(i + 2); }
+  }
+  if (tampon.trim()) traiter(tampon);
+  if (!texte.trim()) throw new Error(fin === "refusal" ? "le coach n'a pas pu répondre à cette demande" : "réponse vide, réessaie");
+  // Sans fin annoncée, la réponse a été coupée en route (délai de Netlify, réseau)
+  return { texte: texte.trim(), coupe: !fin || fin === "max_tokens" };
+}

@@ -84,12 +84,12 @@ const CHAMPS_MATIN = [
   { k: "fc", t: "FC nocturne", court: "FC", mode: "ent", u: "bpm", i: "Recharge nocturne, moyenne de la nuit", pas: [1], min: 25, max: 130 },
   { k: "sleep", t: "Sommeil", court: "Sommeil", mode: "hm", u: "", i: "Tape 7, 4, 5 pour 7 h 45", pas: [.25], min: 0, max: 15.9 },
 ];
-function FeuilleMatin({ iso, auto }) {
+function FeuilleMatin({ iso, auto, etape: depart }) {
   useDB();
   const jour = iso || aujourdhui(), ex = useMemo(() => DB.get("recup-logs").find(l => l.dateISO === jour), []);
   const veille = useMemo(() => [...DB.get("recup-logs")].filter(l => l.dateISO < jour).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0], []);
   const [vals, setVals] = useState({ ans: ex?.ans ?? null, rmssd: ex?.rmssd ?? null, fc: ex?.fc ?? null, sleep: ex?.sleep ?? null });
-  const [tags, setTags] = useState(ex?.tags || []), [etape, setEtape] = useState(0), [fini, setFini] = useState(false);
+  const [tags, setTags] = useState(ex?.tags || []), [etape, setEtape] = useState(depart ?? 0), [fini, setFini] = useState(false);
   const c = CHAMPS_MATIN[etape] || null, [txt, setTxt] = useState(texteDepuis(vals.ans, "signe")), [neuf, setNeuf] = useState(true);
   const lu = () => c ? valeurDepuis(txt, c.mode) : null;
   const garde = () => {
@@ -166,11 +166,62 @@ function ContenuForme() {
         r.det[k].map(([t, ty], i) => h("p", { key: i }, t, h("em", TAG[ty]))))))) : h(Bouton, { cl: "plein", onClick: () => { Nav.fermer(); Nav.sheet("matin"); } }, "Faire ma saisie du matin"),
     h(Section, { titre: "Ce qui joue sur ta forme" }, inf.liste.length ? h("div.liste", inf.liste.map(x => h("div.influence", { key: x.nom, "data-sens": x.ecart > 0 ? "plus" : "moins" }, h("b", (x.ecart > 0 ? "+" : "−") + Math.abs(x.ecart)), h("span", x.nom), h("small", x.n + " matins")))) : h(Vide, null, "Encore quelques matins et je te dirai ce qui fait monter ou baisser ton score (" + inf.matins + " pour l'instant).")),
     h(Section, { titre: "Sommeil" },
+      h(NuitPolar),
       h("div.tuiles", h(Tuile, { v: s.moyenne ? dureeHM(s.moyenne) : "—", l: "moyenne 7 nuits" }), h(Tuile, { v: dureeHM(s.dette), l: "dette sur 7 nuits" }), h(Tuile, { v: hhmm(s.coucher), l: "coucher conseillé" })),
       nuits.length >= 2 && h(Barres, { pts: nuits, ton: "corps", haut: 100, unite: " h", cible: SOMMEIL_CIBLE })),
+    h(ChargePolar),
     h(Section, { titre: "Score sur 14 jours" }, h(Barres, { pts: h14.map(j => ({ l: JOURS_L[(jourSem(j.iso) + 6) % 7], v: j.score || 0 })), ton: "corps", haut: 110 })),
     vfc.length >= 2 && h(Section, { titre: "VFC sur 30 jours" }, h(Courbe, { pts: vfc, unite: "ms", ton: "corps", haut: 120 })),
     h("p.note", "Ce score n'est pas un avis médical. Il résume tes mesures et tes données pour orienter ta séance."));
+}
+
+/* Le bilan de la semaine écrit par le coach IA, au fil de l'eau */
+function BilanIA() {
+  useDB();
+  const sem = lundiDe(aujourdhui()), ia = DB.get("coach-ia") || {}, fait = ia.bilan?.semaine === sem ? ia.bilan.texte : null;
+  const [flux, setFlux] = useState(null), [err, setErr] = useState(null);
+  useEffect(() => {
+    if (fait) return;
+    let parti = false;
+    demanderCoach({ mode: "bilan", contexte: contexteCoach(), onTexte: t => { if (!parti) setFlux(t); } })
+      .then(r => DB.set("coach-ia", { ...(DB.get("coach-ia") || {}), bilan: { semaine: sem, texte: r.texte } }))
+      .catch(e => { if (!parti) setErr(e.message); })
+      .finally(() => { if (!parti) setFlux(null); });
+    return () => { parti = true; };
+  }, []);
+  const t = flux || fait;
+  return h("div.story-ia", t ? h(Paragraphes, { t }) : h("p", err ? "Le coach n'a pas pu écrire : " + err + "." : "Le coach relit ta semaine…"));
+}
+
+/* La dernière nuit vue par la montre : heures, phases, réveils, Recharge nocturne */
+function NuitPolar() {
+  const n = derniereNuit(), auj = aujourdhui();
+  if (!n || ecart(n.date, auj) > 2) return null;
+  const hm = sec => sec != null ? dureeHM(sec / 3600) : "—", deb = heurePolar(n.debut), fin = heurePolar(n.fin);
+  const reveils = n.interruptions != null && n.interruptions >= 60 ? Math.round(n.interruptions / 60) + " min de réveils" : null;
+  return h("div.nuit-p",
+    h("p", h("b", n.date === auj ? "Cette nuit" : n.date === decale(auj, -1) ? "La nuit d'hier" : "Nuit du " + dateMini(n.date)), deb && fin ? " : endormi à " + deb + ", réveillé à " + fin + "." : "."),
+    h("div.tuiles",
+      n.score != null && h(Tuile, { v: Math.round(n.score), l: "score de sommeil Polar" }),
+      h(Tuile, { v: hm(n.profond), l: "sommeil profond" }),
+      h(Tuile, { v: hm(n.paradoxal), l: "sommeil paradoxal" })),
+    (reveils || n.recharge || n.respiration) && h("p.note", [reveils, n.recharge ? "Recharge nocturne " + STATUTS_RECHARGE[n.recharge] : null, n.respiration ? "respiration " + nb(n.respiration) + " par minute" : null].filter(Boolean).join(" · ").replace(/^./, c => c.toUpperCase()) + "."));
+}
+/* La charge d'entraînement calculée par Polar : l'effort des derniers jours face à ce que ton corps encaisse d'habitude */
+function ChargePolar() {
+  const c = derniereCharge(), auj = aujourdhui();
+  if (!c || ecart(c.date, auj) > 3) return null;
+  const st = statutCharge(c.statut), d = DB.get("polar-charge") || {};
+  const jours = Array.from({ length: 14 }, (_, i) => decale(auj, i - 13));
+  return h(Section, { titre: "Charge d'entraînement", droite: h("span.compte", "selon ta montre") },
+    st && h("div.charge-p", { "data-ton": st.ton }, h("b", st.t.replace(/^./, x => x.toUpperCase())),
+      h("span", st.t === "surcharge" ? "Tu en fais plus que ce que ton corps encaisse d'habitude : allège quelques jours." : st.t === "productive" ? "Tu progresses : l'effort est un peu au-dessus de ton habitude, c'est ce qu'il faut."
+        : st.t === "maintien" ? "Tu entretiens ta forme : effort proche de ton habitude." : "Tu en fais moins que d'habitude : ta forme physique va baisser si ça dure.")),
+    h("div.tuiles",
+      h(Tuile, { v: c.effort != null ? Math.round(c.effort) : "—", l: "effort, 7 derniers jours" }),
+      h(Tuile, { v: c.tolerance != null ? Math.round(c.tolerance) : "—", l: "ce que tu encaisses d'habitude" })),
+    jours.some(j => d[j]?.charge > 0) && h(Barres, { pts: jours.map(j => ({ l: JOURS_L[(jourSem(j) + 6) % 7], v: Math.round(d[j]?.charge || 0) })), ton: "corps", haut: 90 }),
+    h("p.note", "Calculée par Polar à partir du cardio de toutes tes séances. Elle ne change pas ton score de forme, qui compte déjà tes séances."));
 }
 
 function FeuilleMensurations({ voir }) {
@@ -263,6 +314,7 @@ function FeuilleBilan() {
   const b = bilanSemaine(), [i, setI] = useState(0), cal = cfgCalories(), dep = b.depenseReelle, ry = b.rythme;
   // La liste des écrans est fixée à l'ouverture : sauvegarder pendant le bilan ne doit pas en retirer un sous tes doigts
   const [avecSauve] = useState(() => ageSauvegarde() == null || ageSauvegarde() >= 6), sauveFaite = ageSauvegarde() === 0;
+  const [avecIA] = useState(() => coachIAActif());
   const decision = (() => {
     if (ry.nouveau != null) return { g: signe(cal.deficit - ry.nouveau, 0), u: "kcal", t: (ry.etat === "vite" ? "Tu perds un peu vite." : "Ta perte ralentit trop.") + " Je passe ton déficit de " + cal.deficit + " à " + ry.nouveau + " kcal.", l: "Oui, ajuste", run: () => appliquerDeficit(ry.nouveau) };
     if (dep.pret && Math.abs(dep.ecart) >= 150 && cal?.depense !== dep.kcal) return { g: entier(dep.kcal), u: "kcal", t: "Ton corps dépense " + entier(dep.kcal) + " kcal, soit " + signe(dep.ecart, 0) + " par rapport à la formule. J'adopte ce chiffre pour ta cible ?", l: "Oui, adopte", run: () => DB.set("nutri-cal-cfg", { ...DB.get("nutri-cal-cfg"), depense: dep.kcal, lastAdjust: aujourdhui() }) };
@@ -278,6 +330,8 @@ function FeuilleBilan() {
     ...(!avecSauve ? [] : sauveFaite ? [{ ton: "papier", e: "Ta sauvegarde", g: "Faite", p: "Sauvegarde du jour enregistrée. Si ce n'est pas déjà fait, range-la dans un dossier iCloud Drive." }]
       : [{ ton: "papier", e: "Ta sauvegarde", g: ageSauvegarde() == null ? "Jamais" : ageSauvegarde() + " j", u: ageSauvegarde() == null ? "" : "sans", sauve: true,
         p: "Tout Ensō vit sur ce téléphone. Sauvegarde, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout." }]),
+    // Le coach IA relit la semaine (une fois par semaine, gardé ensuite)
+    ...(avecIA ? [{ ton: "papier", e: "Le mot du coach", ia: true }] : []),
     { ton: "noir", e: "Ma décision", g: decision.g, u: decision.u, p: decision.t, fin: true },
   ];
   const e = ecrans[Math.min(i, ecrans.length - 1)];
@@ -288,7 +342,7 @@ function FeuilleBilan() {
       h("div.story-c", { key: i },
         h("span.affiche-e", e.e),
         e.g != null && h("div.affiche-g", h(Geant, null, e.g), e.u && h("em", e.u)),
-        h("p", e.p),
+        e.ia ? h(BilanIA) : h("p", e.p),
         e.sauve && h("div.hero-b", h(Bouton, { cl: "noir", onClick: async ev => { ev.stopPropagation(); const r = await exporter(); if (r === "partage" || r === "telecharge") setI(Math.min(i + 1, ecrans.length - 1)); } }, "Sauvegarder maintenant")),
         e.fin && h("div.hero-b", decision.l && h(Bouton, { cl: "plein", onClick: async ev => { ev.stopPropagation(); await decision.run(); toast("C'est fait : ton menu suit"); Nav.fermer(); } }, decision.l), h(Bouton, { cl: "contour", onClick: ev => { ev.stopPropagation(); Nav.fermer(); } }, decision.l ? "Pas cette fois" : "Fermer"))),
       i < ecrans.length - 1 && h("small.story-s", "Touche pour continuer")));

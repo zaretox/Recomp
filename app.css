@@ -714,3 +714,35 @@ p.note.mal b { color: var(--rouge); }
 .maj-p { position: fixed; top: calc(10px + var(--haut)); left: 12px; right: 12px; z-index: 96; display: flex; align-items: center; gap: 10px; padding: 10px 10px 10px 14px; border-radius: 12px; background: var(--encre); color: var(--fond); font-size: 14px; font-weight: 700; box-shadow: 0 8px 24px rgba(0, 0, 0, .35); animation: tombe .25s ease-out; }
 .maj-p span { flex: 1; min-width: 0; }
 .maj-p button { flex: none; padding: 9px 14px; border-radius: 999px; background: var(--fond); color: var(--encre); font-weight: 800; }
+/* Nuit et charge vues par la montre (Corps → Forme) */
+.nuit-p { display: grid; gap: 8px; margin-bottom: 8px; }
+.nuit-p > p:first-child { font-size: 15px; color: var(--mou); }
+.nuit-p > p:first-child b { color: var(--encre); }
+.charge-p { display: grid; gap: 2px; padding: 12px 14px; border-radius: var(--r); background: var(--fond2); box-shadow: inset 4px 0 0 var(--c, var(--pale)); }
+.charge-p[data-ton="rouge"] { --c: var(--rouge); } .charge-p[data-ton="vert"] { --c: var(--vert); } .charge-p[data-ton="jaune"] { --c: var(--jaune); }
+.charge-p b { font-size: 17px; font-weight: 800; }
+.charge-p span { font-size: 14px; color: var(--mou); line-height: 1.35; }
+.etat-polar { display: grid; gap: 4px; }
+.etat-l { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--trait); font-size: 14.5px; }
+.etat-l i { font-style: normal; font-weight: 800; color: var(--pale); text-align: center; }
+.etat-l[data-ok="1"] i { color: var(--vert); } .etat-l[data-ok="0"] i, .etat-l[data-ok="0"] small { color: var(--rouge); }
+.etat-l small { color: var(--mou); font-size: 13px; text-align: right; }
+/* Coach IA */
+.coach > header .ia-b { padding: 2px 7px; border-radius: 999px; background: var(--fond3); color: var(--mou); font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+.msg.ia { display: grid; gap: 8px; }
+.msg .ia-e { font-size: 11.5px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--mou); }
+.msg .ia-attente { color: var(--mou); }
+.ia-pied { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ia-pied small { color: var(--pale); font-size: 12.5px; }
+.ia-pied button { margin-left: auto; font-size: 13px; font-weight: 700; color: var(--mou); padding: 4px 2px; }
+.fil-ia { display: grid; gap: 6px; }
+.coach-q { display: flex; gap: 6px; }
+.coach-q input { flex: 1; min-width: 0; min-height: 44px; padding: 0 14px; border-radius: 999px; border: 0; background: var(--fond2); color: var(--encre); font: inherit; font-size: 16px; }
+.coach-q button { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--encre); color: var(--fond); }
+.coach-q button:disabled { opacity: .35; }
+.etapes { margin: 0; padding-left: 20px; display: grid; gap: 10px; font-size: 15px; line-height: 1.45; color: var(--mou); }
+.etapes b { color: var(--encre); }
+.valeur-c { padding: 14px; border-radius: var(--r); background: var(--fond2); font: 700 16px/1.4 ui-monospace, Menlo, monospace; letter-spacing: .02em; word-break: break-all; }
+.note.ok-t { color: var(--vert); font-weight: 700; }
+.story-ia { display: grid; gap: 10px; max-height: 62vh; overflow-y: auto; }
+.story-ia p { font-size: 16px; font-weight: 600; }

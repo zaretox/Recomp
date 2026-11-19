@@ -464,3 +464,103 @@ function importerPasPolar(force) {
   })().catch(e => { try { localStorage.setItem("recomp_polar_pas_err", e.message); } catch (x) { /* facultatif */ } throw e; }).finally(() => { pasEnCours = null; }));
 }
 const erreurPas = () => { try { return localStorage.getItem("recomp_polar_pas_err"); } catch (e) { return null; } };
+
+/* NUITS ET CHARGE — sommeil détaillé, Recharge nocturne et charge cardio, lus chez Polar (28 derniers jours).
+ * « polar-nuits » = { "AAAA-MM-JJ" (jour du réveil) : { debut, fin (heures ISO), leger, profond, paradoxal, interruptions (s),
+ *   score, chargeSommeil, cycles, continuite, ans, recharge (1 à 6), vfc, fc, respiration, lu } }
+ * « polar-charge » = { "AAAA-MM-JJ" : { charge, statut, ratio, effort, tolerance, lu } }
+ * Chaque lecture garde son état (nombre de jours, erreur) pour la liste « Ce que ta montre donne » des réglages. */
+const listePolar = (d, ...cles) => Array.isArray(d) ? d : cles.map(k => d?.[k]).find(Array.isArray) || [];
+const positifOuNul = v => v == null || v === "" || !isFinite(+v) || +v < 0 ? null : +v;
+const nbPolar = (o, k) => { const v = champPolar(o, k); return v == null || v === "" || !isFinite(+v) ? null : +v; };
+// Heure locale « 23:42 » d'une heure ISO de Polar (avec ou sans fuseau)
+const heurePolar = t => !t ? null : /Z$/.test(t) ? new Date(t).toTimeString().slice(0, 5) : String(t).slice(11, 16);
+const STATUTS_RECHARGE = [null, "très faible", "faible", "compromise", "correcte", "bonne", "très bonne"];
+const statutCharge = s => /OVERREACH/i.test(s || "") ? { t: "surcharge", ton: "rouge" } : /PRODUCTIVE/i.test(s || "") ? { t: "productive", ton: "vert" }
+  : /MAINTAIN/i.test(s || "") ? { t: "maintien", ton: "papier" } : /DETRAIN/i.test(s || "") ? { t: "désentraînement", ton: "jaune" } : null;
+
+const ETAT_POLAR = "recomp_polar_etat";
+const etatPolar = () => { try { return JSON.parse(localStorage.getItem(ETAT_POLAR) || "{}"); } catch (e) { return {}; } };
+const noterEtatPolar = (k, v) => { try { localStorage.setItem(ETAT_POLAR, JSON.stringify({ ...etatPolar(), [k]: { ...v, lu: Date.now() } })); } catch (e) { /* facultatif */ } };
+
+let nuitsEnCours = null;
+function importerNuitsPolar(force) {
+  if (!lienPolar()?.jeton) return Promise.resolve(0);
+  if (!force && Date.now() - (etatPolar().nuits?.lu || 0) < 15 * 60000) return Promise.resolve(0);
+  return nuitsEnCours || (nuitsEnCours = (async () => {
+    const [s, rc, ch] = await Promise.allSettled([polarLire("/v3/users/sleep"), polarLire("/v3/users/nightly-recharge"), polarLire("/v3/users/cardio-load")]);
+    const nuits = { ...(DB.get("polar-nuits") || {}) }, lu = Date.now();
+    let nS = 0, nR = 0, nC = 0;
+    if (s.status === "fulfilled") listePolar(s.value, "nights").forEach(x => {
+      const d = String(champPolar(x, "date") || "").slice(0, 10);
+      if (!d) return;
+      nuits[d] = { ...nuits[d], debut: champPolar(x, "sleep-start-time") || null, fin: champPolar(x, "sleep-end-time") || null,
+        leger: positifOuNul(champPolar(x, "light-sleep")), profond: positifOuNul(champPolar(x, "deep-sleep")), paradoxal: positifOuNul(champPolar(x, "rem-sleep")),
+        interruptions: positifOuNul(champPolar(x, "total-interruption-duration")), score: positifOuNul(champPolar(x, "sleep-score")),
+        chargeSommeil: positifOuNul(champPolar(x, "sleep-charge")), cycles: positifOuNul(champPolar(x, "sleep-cycles")), continuite: positifOuNul(champPolar(x, "continuity")), lu };
+      nS++;
+    });
+    if (rc.status === "fulfilled") listePolar(rc.value, "recharges").forEach(x => {
+      const d = String(champPolar(x, "date") || "").slice(0, 10);
+      if (!d) return;
+      const st = nbPolar(x, "nightly-recharge-status");
+      nuits[d] = { ...nuits[d], ans: nbPolar(x, "ans-charge"), recharge: st >= 1 && st <= 6 ? st : null, vfc: positifOuNul(champPolar(x, "heart-rate-variability-avg")),
+        fc: positifOuNul(champPolar(x, "heart-rate-avg")), respiration: positifOuNul(champPolar(x, "breathing-rate-avg")), lu };
+      nR++;
+    });
+    noterEtatPolar("nuits", s.status === "fulfilled" ? { n: nS } : { err: s.reason?.message });
+    noterEtatPolar("recharge", rc.status === "fulfilled" ? { n: nR } : { err: rc.reason?.message });
+    if (nS || nR) await DB.set("polar-nuits", nuits);
+    if (ch.status === "fulfilled") {
+      const charge = { ...(DB.get("polar-charge") || {}) };
+      listePolar(ch.value, "cardio_load", "cardio-load").forEach(x => {
+        const d = String(champPolar(x, "date") || "").slice(0, 10);
+        if (!d) return;
+        charge[d] = { charge: positifOuNul(champPolar(x, "cardio-load")), statut: champPolar(x, "cardio-load-status") || null, ratio: positifOuNul(champPolar(x, "cardio-load-ratio")),
+          effort: positifOuNul(champPolar(x, "strain")), tolerance: positifOuNul(champPolar(x, "tolerance")), lu };
+        nC++;
+      });
+      noterEtatPolar("charge", { n: Object.values(charge).filter(c => c.lu === lu && (c.charge != null || statutCharge(c.statut))).length, jours: nC });
+      if (nC) await DB.set("polar-charge", charge);
+    } else noterEtatPolar("charge", { err: ch.reason?.message });
+    return nS + nR + nC;
+  })().finally(() => { nuitsEnCours = null; }));
+}
+
+/* La forme du matin remplie seule dès que la nuit du jour est chez Polar.
+ * Une saisie faite à la main n'est jamais touchée ; une saisie automatique se complète si un chiffre arrive plus tard. */
+async function matinAuto() {
+  const auj = aujourdhui(), n = (DB.get("polar-nuits") || {})[auj], ex = DB.get("recup-logs").find(l => l.dateISO === auj);
+  if (!lienPolar()?.jeton || !n || (ex && ex.auto !== "polar")) return null;
+  const dormi = [n.leger, n.profond, n.paradoxal].some(v => v != null) ? ((n.leger || 0) + (n.profond || 0) + (n.paradoxal || 0)) / 3600 : null;
+  const lu = { ans: n.ans != null ? arrondi(borne(n.ans, -10, 10), 1) : null, rmssd: n.vfc != null ? Math.round(n.vfc) : null, fc: n.fc != null ? Math.round(n.fc) : null, sleep: dormi > 0 ? arrondi(dormi, 2) : null };
+  const e = ex ? { ...ex } : { id: Date.now(), dateISO: auj, ans: null, rmssd: null, fc: null, sleep: null, tags: [], auto: "polar" };
+  let change = !ex;
+  for (const k of Object.keys(lu)) if (e[k] == null && lu[k] != null) { e[k] = lu[k]; change = true; }
+  if (!change || [e.ans, e.rmssd, e.fc, e.sleep].every(v => v == null)) return null;
+  await DB.set("recup-logs", [...DB.get("recup-logs").filter(l => l.dateISO !== auj), e].sort((a, b) => a.dateISO.localeCompare(b.dateISO)));
+  return ex ? null : e;
+}
+
+/* Tout ce qui se relit en ouvrant l'app : pas, nuits, charge, puis la forme du matin */
+let synchroJourEnCours = null;
+function synchroPolarJour(force) {
+  if (!lienPolar()?.jeton) return Promise.resolve(null);
+  return synchroJourEnCours || (synchroJourEnCours = (async () => {
+    await Promise.allSettled([importerPasPolar(force), importerNuitsPolar(force)]);
+    const e = await matinAuto();
+    if (e) { const r = recuperation(aujourdhui()); toast("Ta nuit est arrivée de ta montre" + (r?.score != null ? " : forme " + r.score + "/100" : "")); }
+    return e;
+  })().catch(() => null).finally(() => { synchroJourEnCours = null; }));
+}
+
+/* Les dernières nuits et la charge, pour l'écran Forme et le coach */
+const derniereNuit = () => { const d = DB.get("polar-nuits") || {}, k = Object.keys(d).filter(x => d[x].debut || d[x].leger != null).sort().pop(); return k ? { date: k, ...d[k] } : null; };
+const derniereCharge = () => { const d = DB.get("polar-charge") || {}, k = Object.keys(d).filter(x => d[x].charge != null || statutCharge(d[x].statut)).sort().pop(); return k ? { date: k, ...d[k] } : null; };
+
+/* Sonde ce que Polar donne en plus (heure de coucher SleepWise, repères physiques), pour la liste des réglages */
+async function sonderPolar() {
+  const [b, p] = await Promise.allSettled([polarLire("/v3/users/sleepwise/circadian-bedtime"), polarLire("/v3/users/physical-info")]);
+  noterEtatPolar("coucher", b.status === "fulfilled" ? { n: Array.isArray(b.value) ? b.value.length : b.value ? 1 : 0 } : { err: b.reason?.message });
+  noterEtatPolar("physique", p.status === "fulfilled" ? { n: p.value ? 1 : 0 } : { err: p.reason?.message });
+}

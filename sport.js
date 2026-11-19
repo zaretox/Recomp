@@ -103,7 +103,10 @@ function SportSemaine() {
           (m > 0 || DB.get("natation-modeles").some(x => x.days?.length)) && h(Tuile, { key: "n", v: entier(m), l: "mètres nagés" }),
           cardio > 0 && h(Tuile, { key: "c", v: kmDe(cardio), l: "km de cardio" })].filter(Boolean);
         return h("div.tuiles", { className: tu.length === 4 ? "deux-c" : "" }, tu);
-      })()),
+      })(),
+      // La charge vue par la montre, en une ligne ; le détail est dans Corps → Forme
+      (() => { const c = derniereCharge(), st = c && ecart(c.date, auj) <= 3 && statutCharge(c.statut);
+        return st && h("button.ligne", { onClick: () => allerRubrique("corps", "forme") }, h("span", h("b", "Charge d'entraînement : " + st.t), h("small", "selon ta montre, le détail dans Corps → Forme")), h(Icone, { n: "fleche", t: 16 })); })()),
     h(PasSemaine),
     h(Section, { titre: "Séries par muscle", droite: h("span.compte", "7 derniers jours") }, h(VolumeMuscles), h("p.note", "La bande claire est ta zone utile. Dessous, le muscle ne progresse pas assez ; au-dessus, tu récupères moins bien.")),
     h(Section, { titre: "Réglages de la semaine" },

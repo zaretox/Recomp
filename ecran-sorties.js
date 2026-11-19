@@ -126,6 +126,11 @@ function usePasPolar() {
   useEffect(() => { if (relie) importerPasPolar(false).then(() => setErr(null), e => setErr(e.message)); }, [relie]);
   return { relie, err };
 }
+/* À l'ouverture de Jour : pas, nuit, charge, puis la forme du matin remplie seule */
+function useSynchroPolar() {
+  const relie = !!lienPolar()?.jeton;
+  useEffect(() => { if (relie) synchroPolarJour(false); }, [relie]);
+}
 /* Section « Tes pas » de Sport → Semaine : la semaine de lundi à dimanche face à ton objectif */
 function PasSemaine() {
   const { relie, err } = usePasPolar(), auj = aujourdhui(), lundi = lundiDe(auj), obj = objectifPas();
