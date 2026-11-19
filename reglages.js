@@ -196,7 +196,7 @@ function EtatPolar() {
 function SectionCoachIA() {
   useDB();
   const l = lienCoach(), [test, setTest] = useState(null);
-  useEffect(() => { if (!lienCoach()?.code) DB.set("coach-lien", { code: nouveauCodeCoach(), actif: false, budget: true }); }, []);
+  useEffect(() => { if (!lienCoach()?.code) DB.set("coach-lien", { code: nouveauCodeCoach(), actif: false }); }, []);
   if (!l?.code) return null;
   const maj = p => DB.set("coach-lien", { ...lienCoach(), ...p });
   const tester = async () => {
@@ -211,9 +211,7 @@ function SectionCoachIA() {
     h(Section, null,
       h("p.texte-p", l.actif ? h(Fragment, null, h("b", "Coach IA activé. "), "Chaque matin, il t'écrit un mot dans l'écran Jour, et tu peux lui poser tes questions juste en dessous.")
         : "Le coach IA, c'est Claude qui lit le résumé de tes données et te conseille comme un vrai coach. Suis ces étapes une seule fois, depuis ton téléphone."),
-      l.actif && h("div.interrupteurs",
-        h(Interrupteur, { actif: true, titre: "Coach IA", sous: "Désactivé, le coach habituel reste là", onClick: () => maj({ actif: false }) }),
-        h(Interrupteur, { actif: l.budget !== false, titre: "Partager mon budget", sous: "Reste à dépenser et grandes catégories, jamais le détail des opérations", onClick: () => maj({ budget: l.budget === false }) }))),
+      l.actif && h("div.interrupteurs", h(Interrupteur, { actif: true, titre: "Coach IA", sous: "Désactivé, le coach habituel reste là", onClick: () => maj({ actif: false }) }))),
     !l.actif && h(Section, { titre: "Mise en place" },
       h("ol.etapes",
         h("li", "Sur ", h("b", "platform.claude.com"), ", crée ton compte. Dans ", h("b", "Billing"), ", ajoute ta carte et un peu de crédit (5 $ suffisent pour commencer). Dans ", h("b", "Spend limits"), ", fixe un plafond mensuel, par exemple 10 $ : tu ne paieras jamais plus."),
@@ -225,7 +223,8 @@ function SectionCoachIA() {
     !l.actif && h(Bouton, { cl: "plein", onClick: tester }, "Tester et activer"),
     test && h("p.note", { className: test.ok ? "ok-t" : "" }, test.t),
     h(Section, { titre: "Ce qu'il faut savoir" },
-      h("p.texte-p", "À chaque demande, un résumé de tes chiffres (forme, nuits, séances, repas, poids, pas" + (l.budget !== false ? ", budget" : "") + ") part chez Anthropic par ta fonction Netlify, qui ne garde rien. Anthropic ne s'en sert pas pour entraîner ses modèles. Tes opérations bancaires ne partent jamais une à une."),
+      h("p.texte-p", "À chaque demande, un résumé de tes chiffres (forme, nuits, séances, repas, poids, pas) part chez Anthropic par ta fonction Netlify, qui ne garde rien. Anthropic ne s'en sert pas pour entraîner ses modèles."),
+      h("p.texte-p", h("b", "Ton budget reste sur ton téléphone. "), "Ni ton solde, ni tes dépenses, ni ton épargne, ni ta paye ne partent chez le coach IA. Seul ce que tu écris toi-même dans une question est envoyé."),
       h("p.texte-p", "Coût : environ 5 à 10 € par mois avec un mot chaque matin et quelques questions par jour, payés sur ton compte Anthropic. Ton abonnement Claude ne le couvre pas, sauf les abonnements Max, qui incluent des crédits API à réclamer dans claude.ai → Réglages → Facturation.")));
 }
 
@@ -246,7 +245,7 @@ function etatReglage(k) {
     confidentialite: pr.discret === false ? "Montants visibles" : pr.faceIdActif && pr.faceId ? "Montants cachés, avec Face ID" : "Montants cachés",
     rappels: "Calendrier de l'iPhone",
     polar: lp?.jeton ? "Reliée" + (lp.notifs ? ", notifications activées" : "") : "Pas reliée",
-    coach: lienCoach()?.actif ? "Activé" + (lienCoach().budget === false ? ", sans ton budget" : "") : "Pas activé",
+    coach: lienCoach()?.actif ? "Activé, sans ton budget" : "Pas activé",
     banque: lb?.session ? (lb.banque || "Banque") + " reliée" + (accesBanqueExpire() != null && accesBanqueExpire() <= 10 ? ", à renouveler" : "") : "Pas reliée",
     donnees: age == null ? "Aucune sauvegarde pour l'instant" : age === 0 ? "Sauvegarde faite aujourd'hui" : "Dernière sauvegarde il y a " + pluriel(age, "jour"),
   }[k];

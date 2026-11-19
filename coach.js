@@ -172,7 +172,7 @@ const regularite = memo(semaines => {
 });
 
 /* COACH IA — Claude, appelé par la fonction Netlify « coach » qui garde la clé.
- * « coach-lien » = { code, actif, budget } : le code d'accès (jamais dans la sauvegarde), le coach activé, le budget partagé.
+ * « coach-lien » = { code, actif } : le code d'accès (jamais dans la sauvegarde) et le coach activé. Le budget n'est jamais envoyé.
  * « coach-ia » = { matin: { jour, texte }, bilan: { semaine, texte }, fil: { jour, contexte, messages: [{ role, content }] } }.
  * Il propose seulement : ses actions deviennent des boutons, rien ne change sans toi. */
 const COACH_FN = "/.netlify/functions/coach";
@@ -180,9 +180,10 @@ const lienCoach = () => DB.get("coach-lien");
 const coachIAActif = () => { const l = lienCoach(); return !!(l?.actif && l.code); };
 const nouveauCodeCoach = () => { const a = "abcdefghjkmnpqrstuvwxyz23456789", b = crypto.getRandomValues(new Uint8Array(24)); return [...b].map(x => a[x % a.length]).join("").replace(/(.{6})(?=.)/g, "$1-"); };
 
-/* Le résumé envoyé à chaque demande : seulement des chiffres et des noms tirés de l'app, jamais d'opération bancaire une à une */
+const MESSAGES_ARGENT = ["epargne", "epargneReste", "epargnePalier", "rythme", "banque", "enveloppe"];
+/* Le résumé envoyé à chaque demande : forme, nuits, séances, repas, poids, pas. Jamais rien du budget. */
 function contexteCoach() {
-  const auj = aujourdhui(), L = [], pr = profil(), lc = lienCoach();
+  const auj = aujourdhui(), L = [], pr = profil();
   const part = (titre, f) => { try { const t = [].concat(f()).filter(Boolean); if (t.length) L.push("## " + titre + "\n" + t.join("\n")); } catch (e) { /* une partie illisible n'empêche pas le reste */ } };
   const jourDe = d => JOURS[jourSem(d)] + " " + dateMini(d);
   part("Aujourd'hui", () => {
@@ -235,13 +236,10 @@ function contexteCoach() {
     return l.length ? l.map(x => jourDe(x.dateISO) + " : " + entier(x.distance) + " m en " + dureeS(x.duree) + (allure(x.distance, x.duree) ? ", " + mmss(Math.round(allure(x.distance, x.duree))) + " aux 100 m" : "") + (x.rpe ? ", effort " + x.rpe + "/10" : "")) : "Aucune nage notée."; });
   part("Cardio de la montre (10 jours)", () => sortiesPolar().filter(x => ecart(x.dateISO, auj) <= 9 && !logDeSortie(x)).map(x => jourDe(x.dateISO) + " : " + nomSortie(x) + ", " + chrono(x.duree) + (x.distance > 0 ? ", " + kmDe(x.distance) + " km" : "") + (x.fcMoy ? ", FC moy. " + x.fcMoy : "")));
   part("Pas", () => { const m = moyennePas(7, decale(auj, -1)), p = pasDu(auj); return p == null && !m ? null : "Aujourd'hui " + (p != null ? entier(p) : "—") + " pas, moyenne 7 jours " + (m ? entier(m.moy) : "—") + ", objectif " + entier(objectifPas()) + "."; });
-  if (lc?.budget !== false) part("Budget", () => { const b = bilanCourant(), pv = prevision(b);
-    if (!b.rev) return "Pas encore de paye notée.";
-    return ["Période de paye du " + dateMini(b.debut) + " au " + dateMini(b.fin) + " : revenus " + entier(b.rev) + " €, déjà dépensé " + entier(b.depenses) + " €, charges fixes à venir " + entier(b.aVenir) + " €, épargne prévue " + entier(b.objectif) + " €.",
-      "Reste à dépenser : " + entier(b.reste) + " €, soit " + entier(b.parJour) + " € par jour sur " + b.restants + " jours." + (pv ? " Au rythme actuel, il resterait " + entier(pv.fin) + " € le jour de la paye." : ""),
-      b.depasse?.length ? "Plafonds dépassés : " + b.depasse.join(", ") + "." : null,
-      "Principales dépenses de la période : " + Object.entries(b.parCat).sort((x, y) => y[1] - x[1]).slice(0, 5).map(([k, v]) => k + " " + entier(v) + " €").join(", ") + "."]; });
-  part("Ce que l'application affiche déjà", () => messagesCoach().filter(m => m.id !== "jour").map(m => "- " + m.t));
+  // Le budget reste sur le téléphone : aucun montant, aucune dépense, aucune épargne ne part chez le coach IA
+  part("Budget", () => "Non transmis : l'utilisateur garde son budget sur son téléphone. N'en parle pas de toi-même ; s'il te pose une question d'argent, réponds en principes, sans inventer de chiffres.");
+  // Les messages d'argent du coach habituel restent eux aussi sur le téléphone (et, par sécurité, tout texte avec un montant en euros)
+  part("Ce que l'application affiche déjà", () => messagesCoach().filter(m => m.id !== "jour" && !MESSAGES_ARGENT.includes(m.id) && !/€|\bpaye\b|épargne|livret|banque|budget/i.test(m.t)).map(m => "- " + m.t));
   return L.join("\n\n");
 }
 
