@@ -38,7 +38,7 @@ Tout est à la racine, sauf `vendor/` et `netlify/functions/`. Pas d'autre sous-
 
 | Fichiers | Rôle |
 | --- | --- |
-| `stockage.js`, `base.js` | IndexedDB ; `h()`, le magasin `DB`, les dates et les formats. |
+| `stockage.js`, `base.js` | IndexedDB ; `h()`, le magasin `DB`, les dates et les formats. Si iOS a coupé la connexion à la base (app restée en arrière-plan), elle est rouverte et l'écriture retentée une fois. Si la base ne répond toujours pas, la valeur attend dans `localStorage` (`recomp_attente:<clé>`) et rejoint la base au démarrage suivant. Chaque incident est noté dans `recomp_journal_stockage`, visible dans Réglages → Sauvegarde et données avec l'espace utilisé. |
 | `programmes.js`, `fiches.js`, `repas.js`, `libelles.js`, `courses.js` | Données pures : programmes, fiches d'exercices et techniques, menus, listes, prix. Aucune logique. |
 | `programme.js`, `entrainement.js`, `nutrition.js`, `recuperation.js`, `argent.js`, `coach.js` | Tous les calculs, sans interface. |
 | `kit.js`, `pave.js`, `graphiques.js`, `schemas.js`, `mouvements.js`, `repos.js` | Briques d'écran : pavé numérique, courbes, schémas animés d'exercices (moteur dans `schemas.js`, un schéma par exercice dans `mouvements.js`), minuteur. |

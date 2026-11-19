@@ -63,7 +63,7 @@ const DB = (() => {
         console.error("Échec d'enregistrement : " + k, e);
         if (avant === undefined) data.delete(k); else data.set(k, avant);
         notifier();
-        toast("Enregistrement impossible : le stockage du téléphone est plein ou refusé.", { danger: true });
+        toast("Enregistrement impossible : le stockage du téléphone ne répond pas. Ferme complètement l'app et rouvre-la ; le détail est dans Réglages → Sauvegarde et données.", { danger: true });
         return false;
       }
     },

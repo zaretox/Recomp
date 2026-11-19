@@ -228,6 +228,20 @@ function SectionCoachIA() {
       h("p.texte-p", "Coût : environ 5 à 10 € par mois avec un mot chaque matin et quelques questions par jour, payés sur ton compte Anthropic. Ton abonnement Claude ne le couvre pas, sauf les abonnements Max, qui incluent des crédits API à réclamer dans claude.ai → Réglages → Facturation.")));
 }
 
+/* Les incidents d'enregistrement, pour comprendre une alerte « Enregistrement impossible » */
+function JournalStockage({ espace }) {
+  const [, maj] = useState(0);
+  let j = []; try { j = JSON.parse(localStorage.getItem("recomp_journal_stockage") || "[]"); } catch (e) { /* facultatif */ }
+  const mo = o => o >= 1e9 ? nb(o / 1e9, 1) + " Go" : Math.round(o / 1e6) + " Mo";
+  return h(Fragment, null,
+    espace?.quota > 0 && h("p.note", "Espace utilisé par Ensō : " + mo(espace.usage || 0) + " sur " + mo(espace.quota) + " permis par le téléphone."),
+    j.length > 0 && h(Fragment, null,
+      h("p.note", h("b", "Derniers incidents d'enregistrement"), " (le plus récent en bas) :"),
+      h("div.liste", j.map((x, i) => h("div.etat-l", { key: i, "data-ok": x.secours ? "" : "0" }, h("i", { "aria-hidden": true }, x.secours ? "–" : "!"), h("span", new Date(x.t).toLocaleString("fr-FR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) + " · " + x.k), h("small", x.secours ? "gardé en secours" : "perdu")))),
+      h("p.note", j.map(x => x.e).filter((x, i, a) => a.indexOf(x) === i).slice(-3).join(" / ")),
+      h(Bouton, { cl: "contour", onClick: () => { try { localStorage.removeItem("recomp_journal_stockage"); } catch (e) { /* facultatif */ } maj(x => x + 1); } }, "Effacer le journal")));
+}
+
 /* RÉGLAGES — une page menu, comme sur l'iPhone : chaque rubrique avec son état, et sa propre page */
 const RUBRIQUES_REGLAGES = [
   ["Toi", [["horaires", "Mes horaires", "chrono"], ["programme", "Programme et calories", "liste"]]],
@@ -304,7 +318,8 @@ function FeuilleReglage({ rub }) {
       h("p.note", "Sauvegarde une fois par semaine, puis choisis « Enregistrer dans Fichiers » et un dossier iCloud Drive : même si tu perds ton téléphone, tu retrouves tout."),
       h("div.deux-b",
         h(Bouton, { cl: "plein", onClick: exporter }, "Sauvegarder"),
-        h("label.bouton.contour", "Restaurer", h("input", { type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: e => { restaurer(e.target.files?.[0]); e.target.value = ""; } })))),
+        h("label.bouton.contour", "Restaurer", h("input", { type: "file", accept: "application/json,.json", style: { display: "none" }, onChange: e => { restaurer(e.target.files?.[0]); e.target.value = ""; } }))),
+      h(JournalStockage, { espace })),
   }[rub];
   return h(Feuille, { titre: nom }, contenu ? contenu() : h(Vide, null, "Rubrique introuvable."));
 }
