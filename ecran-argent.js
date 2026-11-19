@@ -68,6 +68,8 @@ function EcranArgent() {
             h("div", h("span", "− Déjà dépensé"), h("b.mt", euros(b.depenses))),
             h("div.total", h("span", b.reste < 0 ? "= Dépassement" : "= Reste à dépenser"), h("b.mt", euros(b.reste)))),
           prev && prev.apres > 0 && h("p.note", { className: prev.fin < 0 ? "mal" : "" }, "À ce rythme (" + eurosD(Math.round(prev.rythme)) + " par jour), il te restera ", h("b", Discret.cache() ? "•••" : (prev.fin < 0 ? "−" : "") + euros(Math.abs(prev.fin))), " le " + dateJour(b.fin) + "." + (prev.fin < 0 ? " Vise " + eurosD(Math.round(prev.cible)) + " par jour." : ""))),
+        // Le coach IA, s'il est activé : seulement des pourcentages, jamais un montant
+        cour && b.rev > 0 && coachIAActif() && h("button.ligne.coach-argent", { onClick: parlerArgentAuCoach }, h("span", h("b", "En parler au coach"), h("small", "Il ne reçoit que des pourcentages, aucun montant")), h(Icone, { n: "bulle", t: 18 })),
         h(Section, { titre: "Où va ton argent", droite: h("span.compte", "touche pour le détail") },
           cats.length ? h("div.enveloppes", cats.map(c => {
             const v = Math.round(b.parCat[c] || 0), cap = b.caps[c] || 0;

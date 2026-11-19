@@ -7,7 +7,7 @@
 :root {
   --fond: #0E0E0C; --fond2: #191916; --fond3: #26261F; --trait: #34342C;
   --encre: #F5F3EB; --mou: #B4B2A6; --pale: #827F73;
-  --sport: #FF5A2B; --repas: #2FD27C; --argent: #8CA0FF; --corps: #FFD43B; --papier: #F5F3EB;
+  --sport: #FF5A2B; --repas: #2FD27C; --argent: #8CA0FF; --corps: #FFD43B; --coach: #FF8CC6; --papier: #F5F3EB;
   --vert: #2FD27C; --jaune: #FFD43B; --rouge: #FF6257;
   --sur: #0E0E0C;
   --an: "Anton", Impact, "Arial Narrow", sans-serif;
@@ -22,7 +22,7 @@
   :root:not([data-theme="nuit"]):not([data-theme="dark"]) {
     --fond: #F0F1EC; --fond2: #FFFFFF; --fond3: #E6E7E0; --trait: #D3D4CB;
     --encre: #121210; --mou: #54544D; --pale: #74746B;
-    --sport: #FF5A2B; --repas: #1FBF6C; --argent: #7B92FF; --corps: #FFD43B; --papier: #121210;
+    --sport: #FF5A2B; --repas: #1FBF6C; --argent: #7B92FF; --corps: #FFD43B; --coach: #F470B4; --papier: #121210;
     --vert: #1FBF6C; --jaune: #F5C518; --rouge: #F0483E;
     --carte-filtre: none;
     color-scheme: light;
@@ -31,7 +31,7 @@
 :root[data-theme="papier"], :root[data-theme="light"] {
   --fond: #F0F1EC; --fond2: #FFFFFF; --fond3: #E6E7E0; --trait: #D3D4CB;
   --encre: #121210; --mou: #54544D; --pale: #74746B;
-  --sport: #FF5A2B; --repas: #1FBF6C; --argent: #7B92FF; --corps: #FFD43B; --papier: #121210;
+  --sport: #FF5A2B; --repas: #1FBF6C; --argent: #7B92FF; --corps: #FFD43B; --coach: #F470B4; --papier: #121210;
   --vert: #1FBF6C; --jaune: #F5C518; --rouge: #F0483E;
   --carte-filtre: none;
   color-scheme: light;
@@ -40,11 +40,13 @@
 [data-t="repas"] { --ton: var(--repas); }
 [data-t="argent"] { --ton: var(--argent); }
 [data-t="corps"] { --ton: var(--corps); }
+[data-t="coach"] { --ton: var(--coach); }
 [data-t="jour"] { --ton: var(--encre); }
 [data-ton="sport"] { --c: var(--sport); }
 [data-ton="repas"] { --c: var(--repas); }
 [data-ton="argent"] { --c: var(--argent); }
 [data-ton="corps"] { --c: var(--corps); }
+[data-ton="coach"] { --c: var(--coach); }
 [data-ton="vert"] { --c: var(--vert); }
 [data-ton="jaune"] { --c: var(--jaune); }
 [data-ton="rouge"] { --c: var(--rouge); }
@@ -746,3 +748,22 @@ p.note.mal b { color: var(--rouge); }
 .note.ok-t { color: var(--vert); font-weight: 700; }
 .story-ia { display: grid; gap: 10px; max-height: 62vh; overflow-y: auto; }
 .story-ia p { font-size: 16px; font-weight: 600; }
+/* Onglet Coach : la conversation, et la zone où l'on écrit, collée en bas */
+.page-coach { min-height: 100%; display: flex; flex-direction: column; }
+.page-coach .entete .ia-b, .apercu-coach .ia-b { align-self: center; padding: 3px 8px; border-radius: 999px; background: var(--coach); color: var(--sur); font-size: 11px; font-weight: 800; letter-spacing: .06em; }
+.coach.coach-plein { flex: 1; align-content: start; gap: 8px; margin-bottom: 12px; }
+.coach-plein > .msg.ia:first-child { box-shadow: inset 3px 0 0 var(--coach); }
+.coach-bas { height: 1px; scroll-margin-bottom: 140px; }
+.compose { position: sticky; bottom: 0; z-index: 3; display: grid; gap: 8px; padding: 8px var(--gout) 10px; background: var(--fond); box-shadow: 0 -10px 14px -12px rgba(0, 0, 0, .55); }
+.compose .puces.defile { min-height: 36px; }
+.coach-q .micro { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; background: var(--fond3); color: var(--encre); }
+.coach-q .micro.actif { background: var(--rouge); color: #fff; animation: pulse-micro 1.2s ease-in-out infinite; }
+@keyframes pulse-micro { 50% { box-shadow: 0 0 0 7px color-mix(in oklab, var(--rouge) 30%, transparent); } }
+.msg.rep .cadenas { display: flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 12px; color: var(--mou); }
+.apercu-coach { display: grid; gap: 6px; width: calc(100% - 2 * var(--gout)); margin: 16px var(--gout) 0; padding: 12px 14px; border-radius: 4px 14px 14px 14px; background: var(--fond2); text-align: left; color: var(--encre); box-shadow: inset 3px 0 0 var(--coach); }
+.apercu-coach header { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 800; }
+.apercu-coach header i { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 50%; background: var(--corps); color: var(--sur); font-family: var(--an); font-style: normal; font-size: 16px; }
+.apercu-coach header em { margin-left: auto; padding: 3px 8px; border-radius: 999px; background: var(--jaune); color: var(--sur); font-style: normal; font-size: 11.5px; font-weight: 800; }
+.apercu-coach p { font-size: 15px; font-weight: 500; line-height: 1.38; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.apercu-coach .affiche-a { display: flex; align-items: center; gap: 4px; font-size: 13.5px; font-weight: 800; color: var(--mou); }
+.coach-argent { margin: -4px 0 4px; }

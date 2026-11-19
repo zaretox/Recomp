@@ -38,7 +38,7 @@ const FICHIERS = [
   "./ecran-sorties.js",
   "./corps.js",
   "./reglages.js",
-  "./app.js",
+  "./ecran-coach.js", "./app.js",
 ];
 const FACULTATIFS = ["./manifest.json"]; // ton fichier : son absence ne bloque rien
 

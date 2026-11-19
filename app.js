@@ -1,16 +1,18 @@
 "use strict";
-/* APPLICATION — cinq onglets, cinq questions, et une pile de feuilles par-dessus.
+/* APPLICATION — six onglets, six questions, et une pile de feuilles par-dessus.
  *   Jour    Qu'est-ce que je fais maintenant ?
  *   Sport   Qu'est-ce que je soulève ?
  *   Repas   Qu'est-ce que je mange ?
  *   Argent  Combien il me reste ?
- *   Corps   Est-ce que ça marche ? */
+ *   Corps   Est-ce que ça marche ?
+ *   Coach   Qu'est-ce que tu en penses ? */
 const ONGLETS = [
   { id: "jour", nom: "Jour", ico: "jour", E: EcranJour },
   { id: "sport", nom: "Sport", ico: "sport", E: EcranSport },
   { id: "repas", nom: "Repas", ico: "repas", E: EcranRepas },
   { id: "argent", nom: "Argent", ico: "argent", E: EcranArgent },
   { id: "corps", nom: "Corps", ico: "corps", E: EcranCorps },
+  { id: "coach", nom: "Coach", ico: "bulle", E: EcranCoach },
 ];
 const FEUILLES = {
   matin: FeuilleMatin, pesee: FeuillePesee, forme: FeuilleForme, bilan: FeuilleBilan, seance: FeuilleSeance, exercice: FeuilleExercice,
@@ -81,7 +83,8 @@ function App() {
   const enSeance = nav.pile.some(f => f.nom === "seance");
   return h("div.app", { "data-t": nav.tab },
     h("main.scene", { ref: page, key: nav.tab + jour, "aria-hidden": nav.pile.length > 0 }, h(Filet, null, h(O.E))),
-    h("button.plus", { ref: plus, onClick: () => { vibre(); Nav.sheet("capture"); }, "aria-label": "Que veux-tu faire ?" }, h(Icone, { n: "plus", t: 30 })),
+    // Sur l'onglet Coach, le « + » gênerait la zone où l'on écrit
+    nav.tab !== "coach" && h("button.plus", { ref: plus, onClick: () => { vibre(); Nav.sheet("capture"); }, "aria-label": "Que veux-tu faire ?" }, h(Icone, { n: "plus", t: 30 })),
     h("nav.barre", { "aria-label": "Sections" }, ONGLETS.map(o => h("button", { key: o.id, className: nav.tab === o.id ? "actif" : "", "data-ton": o.id, "aria-current": nav.tab === o.id ? "page" : undefined, "aria-label": o.nom, onClick: () => { vibre(); Nav.tab(o.id); } },
       h(Icone, { n: o.ico, t: 22 }), h("b", o.nom)))),
     h(PastilleRepos, { cache: enSeance }),

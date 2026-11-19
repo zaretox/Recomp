@@ -237,10 +237,41 @@ function contexteCoach() {
   part("Cardio de la montre (10 jours)", () => sortiesPolar().filter(x => ecart(x.dateISO, auj) <= 9 && !logDeSortie(x)).map(x => jourDe(x.dateISO) + " : " + nomSortie(x) + ", " + chrono(x.duree) + (x.distance > 0 ? ", " + kmDe(x.distance) + " km" : "") + (x.fcMoy ? ", FC moy. " + x.fcMoy : "")));
   part("Pas", () => { const m = moyennePas(7, decale(auj, -1)), p = pasDu(auj); return p == null && !m ? null : "Aujourd'hui " + (p != null ? entier(p) : "—") + " pas, moyenne 7 jours " + (m ? entier(m.moy) : "—") + ", objectif " + entier(objectifPas()) + "."; });
   // Le budget reste sur le téléphone : aucun montant, aucune dépense, aucune épargne ne part chez le coach IA
-  part("Budget", () => "Non transmis : l'utilisateur garde son budget sur son téléphone. N'en parle pas de toi-même ; s'il te pose une question d'argent, réponds en principes, sans inventer de chiffres.");
+  part("Budget", () => "Non transmis : l'utilisateur garde son budget sur son téléphone. Il peut le partager dans la conversation, en pourcentages seulement. Sinon, n'en parle pas de toi-même et n'invente aucun chiffre.");
   // Les messages d'argent du coach habituel restent eux aussi sur le téléphone (et, par sécurité, tout texte avec un montant en euros)
   part("Ce que l'application affiche déjà", () => messagesCoach().filter(m => m.id !== "jour" && !MESSAGES_ARGENT.includes(m.id) && !/€|\bpaye\b|épargne|livret|banque|budget/i.test(m.t)).map(m => "- " + m.t));
   return L.join("\n\n");
+}
+
+/* L'argent pour le coach IA, seulement quand tu le demandes : en pourcentages, sans aucun montant ni nom de commerce */
+function argentEnPourcentages() {
+  const b = bilanCourant(), auj = aujourdhui(), pct = (a, t) => t > 0 ? Math.round(a / t * 100) : 0, L = [];
+  if (!b.rev) return "Pas encore de paye notée pour cette période.";
+  const total = ecart(b.debut, b.fin) + 1, jour = Math.max(1, Math.min(total, ecart(b.debut, auj) + 1)), dispo = b.rev - b.objectif;
+  L.push("Période de paye : jour " + jour + " sur " + total + " (" + pct(jour, total) + " % du temps écoulé).");
+  if (dispo > 0) {
+    L.push("Engagé : " + pct(b.depenses + b.aVenir, dispo) + " % de ce qui est disponible après l'épargne (dépenses faites et charges fixes à venir).");
+    const pv = prevision(b);
+    if (pv) L.push(pv.fin >= 0 ? "À ce rythme, il resterait environ " + pct(pv.fin, dispo) + " % du disponible le jour de la paye." : "À ce rythme, il manquerait environ " + pct(-pv.fin, dispo) + " % du disponible avant la paye.");
+  }
+  const fixes = DB.get("fin-fixes").reduce((a, f) => a + (+f.montant || 0), 0);
+  if (fixes > 0) L.push("Charges fixes : " + pct(fixes, b.rev) + " % de la paye.");
+  if (b.objectif > 0) {
+    const verse = etatEpargne().versements.filter(v => v.dateISO >= b.debut && v.dateISO <= b.fin).reduce((a, v) => a + (+v.montant || 0), 0);
+    L.push("Épargne prévue : " + pct(b.objectif, b.rev) + " % de la paye ; versée sur cette période : " + (verse >= b.objectif - 1 ? "en totalité" : verse > 0 ? "en partie (" + pct(verse, b.objectif) + " %)" : "pas encore") + ".");
+  }
+  const cats = Object.entries(b.parCat).filter(([, v]) => v > 0).sort((x, y) => y[1] - x[1]), tot = cats.reduce((a, [, v]) => a + v, 0);
+  if (cats.length) L.push("Répartition des dépenses : " + cats.slice(0, 6).map(([c, v]) => c + " " + pct(v, tot) + " %" + (b.caps?.[c] > 0 ? " (" + pct(v, b.caps[c]) + " % de son plafond)" : "")).join(", ") + ".");
+  // Comparé au même moment de la paye d'avant
+  const ps = periodes(), avant = ps[ps.length - 2];
+  if (avant) {
+    const jusqua = decale(avant.debut, jour - 1), prec = DB.get("fin-expenses").filter(e => e.dateISO >= avant.debut && e.dateISO <= jusqua && e.dateISO <= avant.fin).reduce((a, e) => a + (+e.montant || 0), 0);
+    if (prec > 0) L.push("Par rapport au même moment de la paye d'avant : " + signe(pct(b.depenses - prec, prec), 0) + " % de dépenses.");
+  }
+  const ab = abonnementsReperes().length, rd = repasDehors(b);
+  if (ab) L.push(pluriel(ab, "abonnement repéré", "abonnements repérés") + ".");
+  if (rd.fois) L.push("Repas commandés ou au restaurant : " + rd.fois + " fois sur cette période.");
+  return L.join("\n");
 }
 
 /* Les actions que le coach peut proposer : un bouton, et c'est toi qui touches */

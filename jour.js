@@ -53,86 +53,7 @@ function Affiches() {
     h(Affiche, { ton: "argent", etiquette: b.civil ? "Reste ce mois-ci" : "Reste jusqu'à ta paye", grand: Discret.cache() ? h(PointsG) : h(Compteur, { v: entier(Math.max(0, b.reste)) }), unite: "€", texte: !b.rev ? "Ajoute ta paye pour voir ce qu'il reste." : b.enRetard ? "Ta paye était attendue le " + dateJour(b.prevue) + "." : "Soit " + eurosD(Math.round(b.parJour)) + " par jour " + (b.civil ? "jusqu'à la fin de " + nomMois(moisDe(b.debut)) : "pendant " + pluriel(b.restants, "jour")), onClick: () => Nav.tab("argent"), action: "Mes comptes" }));
 }
 
-/* Le coach IA : le mot du jour, puis une conversation. Tout s'écrit dans « coach-ia » ; la réponse s'affiche au fil de l'eau. */
-let essaiMatinIA = 0;
-function useCoachIA() {
-  useDB();
-  const actif = coachIAActif(), auj = aujourdhui(), ia = DB.get("coach-ia") || {};
-  const [flux, setFlux] = useState(null), [err, setErr] = useState(null), [occupe, setOccupe] = useState(null);
-  const matin = ia.matin?.jour === auj ? ia.matin : null, fil = ia.fil?.jour === auj ? ia.fil : null;
-  const ecrire = p => DB.set("coach-ia", { ...(DB.get("coach-ia") || {}), ...p });
-  const lancerMatin = async () => {
-    if (occupe) return;
-    setOccupe("matin"); setErr(null); essaiMatinIA = Date.now();
-    try { const r = await demanderCoach({ mode: "matin", contexte: contexteCoach(), onTexte: t => setFlux({ cle: "matin", texte: t }) }); await ecrire({ matin: { jour: auj, texte: r.texte, coupe: r.coupe } }); }
-    catch (e) { setErr({ cle: "matin", t: e.message }); }
-    finally { setFlux(null); setOccupe(null); }
-  };
-  // Une fois par jour, tout seul : dès que la nuit est arrivée, ou à partir de 10 h
-  const nuitLa = DB.get("recup-logs").some(l => l.dateISO === auj);
-  useEffect(() => { if (actif && !matin && !occupe && (nuitLa || new Date().getHours() >= 10) && Date.now() - essaiMatinIA > 15 * 60000) lancerMatin(); }, [actif, !!matin, nuitLa]);
-  // Une question : la conversation du jour garde le même résumé de données, pour que le coach s'y retrouve
-  const envoyer = async q => {
-    q = String(q || "").trim();
-    if (!q || occupe) return null;
-    setOccupe("fil"); setErr(null);
-    const f = fil || { jour: auj, contexte: contexteCoach(), messages: [] }, messages = [...f.messages, { role: "user", content: q }];
-    await ecrire({ fil: { ...f, messages } });
-    try {
-      const r = await demanderCoach({ mode: "question", contexte: f.contexte, messages, onTexte: t => setFlux({ cle: "fil", texte: t }) });
-      await ecrire({ fil: { ...f, messages: [...messages, { role: "assistant", content: r.texte + (r.coupe ? "\n\n(réponse coupée en route)" : "") }] } });
-      return null;
-    } catch (e) { setErr({ cle: "fil", t: e.message }); await ecrire({ fil: { ...f } }); return q; }
-    finally { setFlux(null); setOccupe(null); }
-  };
-  return { actif, matin, fil, flux, err, occupe, lancerMatin, envoyer };
-}
-const Paragraphes = ({ t }) => h(Fragment, null, texteCoach(t).split(/\n{2,}/).filter(Boolean).map((p, i) => h("p", { key: i }, p)));
-const ActionsCoach = ({ t }) => { const l = actionsDe(t); return l.length > 0 && h("div.msg-a", l.map((k, i) => h("button", { key: k, className: i === 0 ? "pr" : "", onClick: ACTIONS_COACH[k][1] }, ACTIONS_COACH[k][0]))); };
-function MotCoachIA({ ia }) {
-  const enCours = ia.flux?.cle === "matin" ? ia.flux.texte : null, t = enCours || ia.matin?.texte, e = ia.err?.cle === "matin" ? ia.err.t : null;
-  return h("div.msg.ia",
-    h("span.ia-e", "Le mot du coach"),
-    t ? h(Paragraphes, { t }) : h("p.ia-attente", e ? "Le coach n'a pas pu écrire : " + e + "." : ia.occupe === "matin" ? "Le coach lit tes données…" : "Ton mot du jour arrive dès que ta nuit est là."),
-    !enCours && t && h(ActionsCoach, { t }),
-    ia.occupe !== "matin" && h("div.ia-pied", ia.matin?.coupe && h("small", "Réponse coupée en route."), h("button", { disabled: !!ia.occupe, onClick: ia.lancerMatin }, t ? "Réécrire" : e ? "Réessayer" : "L'écrire maintenant")));
-}
-function FilCoachIA({ ia }) {
-  const m = ia.fil?.messages || [], enCours = ia.flux?.cle === "fil" ? ia.flux.texte : null, e = ia.err?.cle === "fil" ? ia.err.t : null;
-  if (!m.length && ia.occupe !== "fil" && !e) return null;
-  return h("div.fil-ia",
-    m.map((x, i) => x.role === "user" ? h("div.msg.rep", { key: i }, h("p", x.content))
-      : h("div.msg.ia", { key: i }, h(Paragraphes, { t: x.content }), i === m.length - 1 && h(ActionsCoach, { t: x.content }))),
-    ia.occupe === "fil" && h("div.msg.ia", enCours ? h(Paragraphes, { t: enCours }) : h("p.ia-attente", "Le coach réfléchit…")),
-    e && h("p.note", "Pas de réponse : " + e + ". Ta question est restée dans le champ."));
-}
-
-/* Le coach : ce qu'il a à dire, puis les imprévus en deux touches. Avec le coach IA, le mot du jour et la conversation en plus. */
-function Coach() {
-  useDiscret();
-  const [tout, setTout] = useState(false), [rep, setRep] = useState(null), [q, setQ] = useState("");
-  const ia = useCoachIA();
-  // Avec le coach IA, son mot du jour remplace la phrase d'accueil
-  const msgs = messagesCoach().filter(m => !(ia.actif && m.id === "jour")), vus = tout ? msgs : msgs.slice(0, 3);
-  const demander = async t => { const reste = await ia.envoyer(t); if (reste) setQ(reste); };
-  const questions = [
-    ["Je me pèse", () => Nav.sheet("pesee")], ["J'ai mangé autre chose", () => Nav.sheet("aliment", { iso: aujourdhui() })], ["J'ai dépensé", () => Nav.sheet("operation")],
-    ["J'ai mal", () => Nav.sheet("douleur")], ["Où j'en suis ?", () => Nav.sheet("bilan")],
-    ["Quoi manger ?", () => ia.actif ? demander("Qu'est-ce que je mange maintenant, avec ce qu'il me reste aujourd'hui ?") : setRep(repondre("manger"))],
-    ["Je peux charger ?", () => ia.actif ? demander("Je peux charger plus lourd à ma prochaine séance ?") : setRep(repondre("charger"))], ["Changer de séance", () => Nav.sheet("choisir")],
-  ];
-  return h("section.coach",
-    h("header", h("i", "E"), h("b", "Ton coach"), ia.actif && h("small.ia-b", "IA")),
-    ia.actif && h(MotCoachIA, { ia }),
-    vus.map(m => h("div.msg", { key: m.id }, h("p", m.t), m.acts && h("div.msg-a", m.acts.map((a, i) => h("button", { key: i, className: i === 0 ? "pr" : "", onClick: a.run }, a.l))))),
-    !tout && msgs.length > 3 && h("button.coach-plus", { onClick: () => setTout(true) }, pluriel(msgs.length - 3, "autre message", "autres messages")),
-    rep && h("div.msg.rep", h("p", rep)),
-    ia.actif && h(FilCoachIA, { ia }),
-    ia.actif && h("form.coach-q", { onSubmit: e => { e.preventDefault(); const t = q; setQ(""); demander(t); } },
-      h("input", { value: q, onChange: e => setQ(e.target.value), placeholder: "Pose ta question au coach…", enterKeyHint: "send", "aria-label": "Question au coach", maxLength: 1500 }),
-      h("button", { type: "submit", disabled: !!ia.occupe || !q.trim(), "aria-label": "Envoyer" }, h(Icone, { n: "fleche", t: 18 }))),
-    h(Puces, { defile: true }, questions.map(([l, f]) => h(Puce, { key: l, onClick: f }, l))));
-}
+/* Le coach a son propre onglet (ecran-coach.js) : Jour n'en montre qu'un aperçu, ApercuCoach. */
 
 /* Tout ce qu'il y a à faire un jour donné, dans l'ordre des heures */
 function itemsDuJour(iso) {
@@ -208,7 +129,7 @@ function EcranJour() {
       h("button.rond", { onClick: () => Nav.sheet("reglages"), "aria-label": "Réglages" }, h(Icone, { n: "reglages", t: 22 }))),
     h(BandeSemaine, { iso, setIso }),
     r && h(Affiches),
-    r && h(Coach),
+    r && h(ApercuCoach),
     !r && h("div.retour-jour", h(Bouton, { cl: "contour", onClick: () => setIso(auj) }, "Revenir à aujourd'hui")),
     h(Journee, { iso }),
     iso <= auj && h(Petits, { iso }),

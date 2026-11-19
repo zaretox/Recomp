@@ -53,6 +53,9 @@ const ICONES = {
   liste: "M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01",
   calendrier: "M4 6h16v14H4zM4 10h16M8 3v4M16 3v4",
   bulle: "M4 5h16v11H9l-5 4V5z",
+  micro: "M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3zM5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21",
+  stop: "M7 7h10v10H7z",
+  envoyer: "M12 19V5M5.5 11.5L12 5l6.5 6.5",
 };
 const Icone = ({ n, t }) => h("svg.ico", { viewBox: "0 0 24 24", width: t || 24, height: t || 24, "aria-hidden": true },
   h("path", { d: ICONES[n] || "", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" }));
