@@ -31,7 +31,7 @@ const bus = (() => {
 const DEFAUTS = {
   "sport-logs": [], "maison-logs": [], "nutri-logs": [], "food-log": {}, "foods-custom": [], "mensurations": [],
   "photos-index": [], "douleur-logs": [], "budget-logs": [], "fin-income": [], "fin-expenses": [], "fin-caps": {},
-  "fin-goal": 0, "fin-fixes": [], "nutri-cal-cfg": null, "science-config": { weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false },
+  "fin-goal": 0, "fin-fixes": [], "nutri-cal-cfg": null, "nutri-cal-historique": [], "science-config": { weightOverrides: {}, caloricAdjust: 0, deload: false, recovery: false },
   "sport-phase": 0, "profil": null, "repas-alts": {}, "taille-corps": "", "last-export": null, "programmes": [],
   "exos-perso": [], "natation-modeles": [], "natation-logs": [], "recup-logs": [], "bilans": [], "courses-etat": null,
   "polar-lien": null, "polar-seances": [], "polar-pas": {}, "polar-nuits": {}, "polar-charge": {}, "coach-lien": null, "coach-ia": null, "epargne": null, "banque-lien": null, "banque-regles": null, "notes-exos": {},

@@ -317,7 +317,7 @@ function FeuilleBilan() {
   const [avecIA] = useState(() => coachIAActif());
   const decision = (() => {
     if (ry.nouveau != null) return { g: signe(cal.deficit - ry.nouveau, 0), u: "kcal", t: (ry.etat === "vite" ? "Tu perds un peu vite." : "Ta perte ralentit trop.") + " Je passe ton déficit de " + cal.deficit + " à " + ry.nouveau + " kcal.", l: "Oui, ajuste", run: () => appliquerDeficit(ry.nouveau) };
-    if (dep.pret && Math.abs(dep.ecart) >= 150 && cal?.depense !== dep.kcal) return { g: entier(dep.kcal), u: "kcal", t: "Ton corps dépense " + entier(dep.kcal) + " kcal, soit " + signe(dep.ecart, 0) + " par rapport à la formule. J'adopte ce chiffre pour ta cible ?", l: "Oui, adopte", run: () => DB.set("nutri-cal-cfg", { ...DB.get("nutri-cal-cfg"), depense: dep.kcal, lastAdjust: aujourdhui() }) };
+    if (dep.pret && Math.abs(dep.ecart) >= 150 && cal?.depense !== dep.kcal) return { g: entier(dep.kcal), u: "kcal", t: "Ton corps dépense " + entier(dep.kcal) + " kcal, soit " + signe(dep.ecart, 0) + " par rapport à " + (cal?.depense ? "ta dépense adoptée" : "la formule") + ". J'adopte ce chiffre pour ta cible ?", l: "Oui, adopte", run: () => majCalories({ depense: dep.kcal, lastAdjust: aujourdhui() }) };
     return { g: "Cap", t: "Rien à changer : ton rythme est bon. On garde le cap." };
   })();
   const ecrans = [

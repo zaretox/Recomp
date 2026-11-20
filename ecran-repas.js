@@ -55,12 +55,13 @@ function FeuilleRepas({ iso, id }) {
   useDB();
   const n = jourNutrition(iso), l = n.lignes.find(x => x.id === id);
   if (!l) return h(Feuille, { titre: "Repas" }, h(Vide, null, "Ce repas n'est pas prévu ce jour-là."));
-  const fr = l.fait ? (n.nlog?.mealScale?.[id] || 1) : n.facteurReste;
+  // Un repas coché montre ce qui a été mangé (calories figées) ; un repas à venir, les portions recalées
+  const fr = l.fait ? l.facteur : n.facteurReste;
   const base = (n.dayType === "training" ? REPAS_ENTRAINEMENT : REPAS_REPOS).find(m => m.m === l.m.m);
   const alts = DB.get("repas-alts"), cle = n.dayType + ":" + l.m.m, choix = alts[cle] || 0;
   const qte = it => { const f = n.menu.itemF(it) * (it.fix ? 1 : fr); return it.fix ? (it.u || it.cru + " g") : Math.round(it.cru * f / 5) * 5 + " g" + (it.cuit ? " (cuit " + Math.round(it.cuit * f / 5) * 5 + " g)" : "") + (it.u ? ", " + it.u : ""); };
   return h(Feuille, { titre: l.m.m, ton: "repas" },
-    h("p.sous-t", hhmm(l.m.h) + ", " + Math.round(l.kcal * fr / (l.fait ? (n.nlog?.mealScale?.[id] || 1) : 1)) + " kcal, " + Math.round(l.macros.p * fr) + " g de protéines"),
+    h("p.sous-t", hhmm(l.m.h) + ", " + (l.fait ? l.kcal : Math.round(l.kcal * fr)) + " kcal, " + Math.round(l.fait ? l.macros.p : l.macros.p * fr) + " g de protéines"),
     base.alts && h(Section, { titre: "Plat" }, h(Puces, { defile: true },
       h(Puce, { actif: choix === 0, onClick: () => DB.set("repas-alts", { ...alts, [cle]: 0 }) }, "Plat de base"),
       base.alts.map((a, i) => h(Puce, { key: i, actif: choix === i + 1, onClick: () => DB.set("repas-alts", { ...alts, [cle]: i + 1 }) }, a.label)))),
@@ -130,31 +131,77 @@ function FeuilleCalories() {
   return h(Feuille, { titre: "Ta cible", ton: "repas" }, h(ContenuCalories));
 }
 function ContenuCalories({ milieu }) {
-  const brut = DB.get("nutri-cal-cfg") || {}, c = cfgCalories() || { sex: "H", age: "", activity: 1.55, deficit: 700, protMode: "lean" };
-  const bt = objectifs(), dep = depenseReelle(), cm = parseFloat(DB.get("taille-corps")) || 0;
-  const maj = p => DB.set("nutri-cal-cfg", { ...brut, sex: c.sex, age: c.age || null, activity: c.activity, deficit: c.deficit, protMode: c.protMode, ...p });
+  const c = cfgCalories() || { sex: "H", age: "", activity: 1.55, deficit: 700, protMode: "lean" };
+  const bt = objectifs(), dep = depenseReelle(), cm = parseFloat(DB.get("taille-corps")) || 0, cal = bt.cal;
+  const maj = p => majCalories({ sex: c.sex, age: c.age || null, activity: c.activity, deficit: c.deficit, protMode: c.protMode, ...p });
+  const nomAct = (ACTIVITES.find(a => a[1] === c.activity) || ["?"])[0], repos = cal ? Math.max(cal.target - COUPE_REPOS, cal.bmr) : null;
+  const ecartMesure = dep.pret && c.depense ? dep.kcal - c.depense : null;
   return h(Fragment, null,
-    bt.cal ? h("div.tuiles",
-      h(Tuile, { v: entier(bt.cal.target), l: "kcal par jour" }),
-      h(Tuile, { v: bt.macros.p + " g", l: "protéines" }),
-      h(Tuile, { v: entier(bt.cal.tdee), l: c.depense ? "dépense mesurée" : "dépense estimée" }))
+    // 1. La cible, et d'où elle vient : un seul endroit, un seul calcul
+    cal ? h("div.cible-c",
+      h("span.affiche-e", "Ta cible"),
+      h("div.cible-g", h("b", entier(cal.target)), h("em", "kcal par jour")),
+      h("p", "Ta dépense " + (c.depense ? "mesurée " : "estimée ") + entier(cal.tdee) + (c.deficit > 0 ? " − ton objectif " + entier(c.deficit) : c.deficit < 0 ? " + " + entier(-c.deficit) : "") + (cal.clamped ? ", arrêtée au plancher." : ".")),
+      cal.clamped && h("p.cible-alerte", "Plancher : ta cible ne descend jamais sous ton métabolisme de base (" + entier(cal.bmr) + " kcal). Avec cette dépense, un objectif au-delà de −" + entier(cal.deficitMax) + " ne change plus rien."),
+      h("div.cible-j",
+        h("span", h("small", "Jours d'entraînement"), h("b", entier(cal.target))),
+        h("span", h("small", "Jours de repos"), h("b", entier(repos))),
+        h("span", h("small", "Protéines"), h("b", bt.macros.p + " g"))),
+      h("p.note", "Les jours de natation, ta nage s'ajoute. Changer un réglage ne touche pas aux repas déjà cochés."))
       : h(Vide, null, "Il manque ton âge, ta taille ou une pesée pour calculer ta cible."),
+    h(CiblePassee),
     milieu,
-    h(Section, { titre: "Dépense réelle" }, dep.pret
-      ? h(Fragment, null,
-        h("p.texte-p", "Sur " + dep.notes + " jours complets (repas tous cochés), tu as mangé " + entier(dep.apports) + " kcal par jour en moyenne, et ta tendance a bougé de " + signe(dep.pente, 2) + " kg par semaine. Ton corps dépense donc environ ", h("b", entier(dep.kcal) + " kcal"), ", contre " + entier(dep.formule) + " d'après la formule" + (c.depense ? " (ta dépense adoptée sert déjà de base)." : ".")),
-        h("p.note", "La formule est une estimation de départ ; cette mesure-ci vient de ta balance et de tes repas. Les jours où des repas ne sont pas cochés, et aujourd'hui, ne comptent pas : ils feraient croire que tu manges moins."),
-        h(Bouton, { cl: c.depense === dep.kcal ? "contour" : "plein", onClick: () => { maj({ depense: dep.kcal, lastAdjust: aujourdhui() }); toast("Cible recalculée sur ta dépense réelle"); } }, c.depense === dep.kcal ? "Dépense réelle adoptée" : "Adopter " + entier(dep.kcal) + " kcal"),
-        c.depense && h(Bouton, { cl: "contour", onClick: () => maj({ depense: null }) }, "Revenir à la formule"))
-      : h(Vide, null, "Je mesure ta vraie dépense à partir de ce que tu manges et de ton poids. Il me faut 14 jours avec des pesées régulières et des repas cochés.")),
-    h(Section, { titre: "Objectif (kcal par jour)" }, h(Puces, null, OBJECTIFS.map(([l, v]) => h(Puce, { key: v, actif: c.deficit === v, onClick: () => maj({ deficit: v }) }, l)))),
+    // 2. Ta dépense : la formule ou la mesure, et l'on voit laquelle sert
+    cal && h(Section, { titre: "Ta dépense" },
+      h("div.choix-v",
+        h("button.choix-l", { className: !c.depense ? "actif" : "", onClick: () => { if (c.depense) { maj({ depense: null }); toast("Ta cible repart de la formule"); } } },
+          h("span", h("b", "Formule : " + entier(cal.formule) + " kcal"), h("small", "Métabolisme de base " + entier(cal.bmr) + " × activité « " + nomAct + " ». Une estimation de départ.")), !c.depense && h(Icone, { n: "check", t: 20 })),
+        h("button.choix-l", { className: c.depense ? "actif" : "", disabled: !dep.pret && !c.depense, onClick: () => { if (dep.pret && !c.depense) { maj({ depense: dep.kcal, lastAdjust: aujourdhui() }); toast("Ta cible part maintenant de ta dépense mesurée"); } } },
+          h("span", h("b", "Mesurée : " + (c.depense ? entier(c.depense) : dep.pret ? entier(dep.kcal) : "pas encore") + (c.depense || dep.pret ? " kcal" : "")),
+            h("small", !dep.pret ? (c.depense ? "Adoptée le " + dateMini(c.lastAdjust || aujourdhui()) + ". Pas assez de jours complets pour la remesurer." : "Il faut 14 jours avec des pesées et des repas tous cochés.")
+              : (ecartMesure != null && Math.abs(ecartMesure) >= 100 ? "Dernière mesure : " + entier(dep.kcal) + " kcal. " : "") + "Sur " + dep.notes + " jours complets : " + entier(dep.apports) + " kcal mangées par jour, tendance " + signe(dep.pente, 2) + " kg par semaine.")),
+          c.depense && h(Icone, { n: "check", t: 20 }))),
+      ecartMesure != null && Math.abs(ecartMesure) >= 100 && h(Bouton, { cl: "contour", onClick: () => { maj({ depense: dep.kcal, lastAdjust: aujourdhui() }); toast("Dépense mise à jour : " + entier(dep.kcal) + " kcal"); } }, "Mettre à jour : dernière mesure " + entier(dep.kcal) + " kcal"),
+      h("p.note", "Touche celle qui doit servir de base. La mesurée vient de ta balance et de tes repas cochés : plus fiable que la formule si tu coches tout ce que tu manges. Elle se recalcule chaque jour ; je te proposerai de la mettre à jour seulement si elle bouge de plus de 100 kcal.")),
+    // 3. L'objectif : ce que chaque choix donne vraiment
+    cal && h(Section, { titre: "Ton objectif" },
+      h("div.objectifs", OBJECTIFS.map(([l, v]) => {
+        const cible = Math.max(cal.tdee - v, cal.bmr), bloque = v > 0 && cal.tdee - v < cal.bmr, eff = cal.tdee - cible;
+        return h("button", { key: v, className: (c.deficit === v ? "actif " : "") + (bloque ? "bloque" : ""), onClick: () => maj({ deficit: v }) },
+          h("b", l), h("span", entier(cible)), h("small", v === 0 ? "maintien" : v < 0 ? "prise" : bloque ? "plancher" : "≈ −" + nb(eff * 7 / KCAL_PAR_KG, 1) + " kg/sem"));
+      })),
+      h("p.note", "Kilos par semaine estimés si ta dépense est juste ; ta balance tranchera en deux à trois semaines.")),
+    // 4. Les réglages qui servent au calcul
     h(Section, { titre: "Toi" },
       h("div.quatre",
         h(Champ, { etiquette: "Âge", valeur: c.age, mode: "ent", unite: "ans", pas: [1], onChange: v => maj({ age: v }) }),
         h(Champ, { etiquette: "Taille", valeur: cm || null, mode: "ent", unite: "cm", pas: [1], onChange: v => DB.set("taille-corps", v) })),
       h(Puces, null, [["Homme", "H"], ["Femme", "F"]].map(([l, v]) => h(Puce, { key: v, actif: c.sex === v, onClick: () => maj({ sex: v }) }, l)))),
-    h(Section, { titre: "Activité hors séances" }, h(Puces, null, ACTIVITES.map(([l, v]) => h(Puce, { key: v, actif: c.activity === v, onClick: () => maj({ activity: v }) }, l))), h(ActiviteMontre, { c, maj })),
+    h(Section, { titre: "Activité hors séances", droite: c.depense ? h("span.compte", "sert à la formule") : null },
+      h(Puces, null, ACTIVITES.map(([l, v]) => h(Puce, { key: v, actif: c.activity === v, onClick: () => maj({ activity: v }) }, l))),
+      c.depense ? h("p.note", "Ta cible part de ta dépense mesurée : ce réglage ne change que la formule.") : h(ActiviteMontre, { c, maj })),
     h(Section, { titre: "Protéines" }, h(Puces, null, MODES_PROT.map(([l, v]) => h(Puce, { key: v, actif: c.protMode === v, onClick: () => maj({ protMode: v }) }, l)))));
+}
+
+/* Une seule fois : quelle cible suivais-tu avant ? Les jours passés se recalculent avec elle (et la dépense mesurée avec eux). */
+function CiblePassee() {
+  const hs = historiqueCibles(), p = hs[0], bt = objectifs(), cfg = cfgCalories();
+  if (!p?.devine || !bt.cal || !cfg || DB.get("nutri-logs").filter(l => l.meals && Object.values(l.meals).some(Boolean)).length < 10) return null;
+  const cm = parseFloat(DB.get("taille-corps")) || 0, base = calculCible({ ...cfg, depense: p.depense || null, deficit: 0, activity: p.activity || cfg.activity }, bt.curW, cm, bt.age), auj = aujourdhui();
+  const choisir = async patch => {
+    const reste = hs.slice(1), l = [{ ...p, ...patch, devine: false }, ...reste];
+    // Les réglages d'aujourd'hui valent à partir d'aujourd'hui
+    if (!reste.length && (patch.cible || (patch.deficit != null && patch.deficit !== cfg.deficit))) l.push({ depuis: auj, depense: cfg.depense || null, deficit: cfg.deficit, activity: cfg.activity });
+    await DB.set("nutri-cal-historique", l);
+    if (Object.keys(patch).length) toast("Merci : tes semaines passées sont recalculées");
+  };
+  const autre = async () => { const r = await saisir({ titre: "Ta cible d'avant", court: "Cible", valeur: Math.max(base.tdee - cfg.deficit, base.bmr), mode: "ent", unite: "kcal", pas: [50, 100], min: 1200, max: 5000, indice: "Celle des jours d'entraînement" }); if (r) choisir({ cible: r, deficit: cfg.deficit }); };
+  return h(Section, { titre: "Une question, une seule fois" },
+    h("p.texte-p", "Pour recalculer juste ce que tu as mangé ces dernières semaines" + (hs[1] ? ", avant le " + dateMini(hs[1].depuis) : "") + " : quelle était ta cible les jours d'entraînement ?"),
+    h(Puces, null,
+      OBJECTIFS.filter(([, v]) => v >= 0).map(([l, v]) => h(Puce, { key: v, onClick: () => choisir({ deficit: v, cible: null }) }, l + " · " + entier(Math.max(base.tdee - v, base.bmr)))),
+      h(Puce, { onClick: autre }, "Autre chiffre")),
+    h("button.lien", { onClick: () => choisir({}) }, "Je ne sais plus"));
 }
 
 /* Le niveau d'activité qui correspond à tes vrais pas (repères usuels : moins de 5 000, 7 500, 10 000 par jour).

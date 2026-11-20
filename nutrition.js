@@ -53,16 +53,52 @@ const objectifs = memo(() => {
     if (lf) lean = lf.lean;
   }
   const ready = !!(curW && cm && age && cfg);
-  let cal = null;
-  if (ready) {
-    const bmr = metabolisme(curW, cm, age, cfg.sex);
-    const tdee = cfg.depense || Math.round(bmr * cfg.activity);  // dépense mesurée si tu l'as adoptée au bilan, sinon formule
-    const t = tdee - (cfg.deficit || 0), target = Math.max(t, bmr);
-    cal = { bmr, tdee, target, clamped: target !== t };
-  }
+  const cal = ready ? calculCible(cfg, curW, cm, age) : null;
   const prot = ready ? proteinesPour(curW, lean, cfg.protMode || "lean") : 0;
   return { curW, age, lean, ready, cal, prot, macros: cal ? macrosPour(cal.target, prot) : null };
 });
+// La cible : dépense (mesurée si tu l'as adoptée, sinon formule) moins ton objectif, jamais sous le métabolisme de base
+function calculCible(cfg, curW, cm, age) {
+  const bmr = metabolisme(curW, cm, age, cfg.sex), formule = Math.round(bmr * cfg.activity);
+  const tdee = cfg.depense || formule;
+  const t = tdee - (cfg.deficit || 0), target = Math.max(t, bmr);
+  return { bmr, tdee, formule, target, clamped: target !== t, deficitMax: Math.max(0, tdee - bmr) };
+}
+
+/* HISTORIQUE DES RÉGLAGES — « nutri-cal-historique » = [{ depuis, depense, deficit, activity, devine? }].
+ * Un jour passé se recalcule avec les réglages qui étaient en place ce jour-là : changer de cible aujourd'hui
+ * ne réécrit pas ce que tu as mangé hier (sinon ta dépense réelle bougeait à chaque changement). */
+const historiqueCibles = () => [...(DB.get("nutri-cal-historique") || [])].sort((a, b) => a.depuis.localeCompare(b.depuis));
+const configAu = iso => { const l = historiqueCibles().filter(x => x.depuis <= iso); return l[l.length - 1] || null; };
+const objectifsAu = memo(iso => {
+  const bt = objectifs(), h = configAu(iso), cfg = cfgCalories();
+  if (!h || !bt.ready || !cfg) return bt;
+  const c = { ...cfg, depense: h.depense || null, deficit: h.deficit ?? cfg.deficit, activity: h.activity || cfg.activity };
+  if (!h.cible && (c.depense || null) === (cfg.depense || null) && c.deficit === cfg.deficit && c.activity === cfg.activity) return bt;
+  let cal = calculCible(c, bt.curW, parseFloat(DB.get("taille-corps")) || 0, bt.age);
+  // Une cible donnée telle quelle (« Autre chiffre » dans Ma cible) remplace le calcul pour ces jours-là
+  if (h.cible > 0) cal = { ...cal, target: Math.max(h.cible, cal.bmr), clamped: false };
+  return { ...bt, cal, macros: macrosPour(cal.target, bt.prot) };
+});
+// Seule façon de changer les réglages de la cible : l'historique suit
+async function majCalories(p) {
+  const brut = DB.get("nutri-cal-cfg") || {}, avant = cfgCalories(), neuf = { ...brut, ...p };
+  await DB.set("nutri-cal-cfg", neuf);
+  const apres = cfgCalories();
+  if (!apres || (avant && (avant.depense || null) === (apres.depense || null) && avant.deficit === apres.deficit && avant.activity === apres.activity)) return;
+  const auj = aujourdhui(), l = historiqueCibles().filter(x => x.depuis !== auj);
+  await DB.set("nutri-cal-historique", [...l, { depuis: auj, depense: apres.depense || null, deficit: apres.deficit, activity: apres.activity }]);
+}
+// Première fois : l'historique part des réglages actuels. Une dépense adoptée dans les 4 dernières semaines n'existait pas avant ;
+// l'objectif d'avant est deviné (le même qu'aujourd'hui) et Ma cible propose de le corriger une fois.
+async function assurerHistoriqueCibles() {
+  const cfg = cfgCalories();
+  if (!cfg || historiqueCibles().length) return;
+  const recente = cfg.depense && cfg.lastAdjust && ecart(cfg.lastAdjust, aujourdhui()) <= 28;
+  const l = [{ depuis: "2000-01-01", depense: recente ? null : cfg.depense || null, deficit: cfg.deficit, activity: cfg.activity, devine: true }];
+  if (recente) l.push({ depuis: cfg.lastAdjust, depense: cfg.depense, deficit: cfg.deficit, activity: cfg.activity });
+  await DB.set("nutri-cal-historique", l);
+}
 
 /* Mise à l'échelle du menu : les aliments « fix » (1 œuf, 1 galette) ne bougent pas, les autres sont rangés
    par macro dominante et chaque groupe reçoit un facteur. Les 3 facteurs résolvent le système exact ;
@@ -107,8 +143,8 @@ function planDuJour(dayType, alts) {
   return { meals, seance: dayType === "training" ? cr.seance : null };
 }
 /* Menu complet d'un jour : cible (−400 kcal au repos, + natation) et portions recalées */
-function menuDuJour(dayType, extra) {
-  const bt = objectifs(), plan = planDuJour(dayType, DB.get("repas-alts"));
+function menuDuJour(dayType, extra, cibleDuJour) {
+  const bt = cibleDuJour || objectifs(), plan = planDuJour(dayType, DB.get("repas-alts"));
   const base = bt.cal ? bt.cal.target : MACROS_DEFAUT.kcal, nage = Math.max(0, Math.round(extra || 0));
   const dayTgt = (dayType === "rest" ? Math.max(base - COUPE_REPOS, bt.cal ? bt.cal.bmr : 0) : base) + nage;
   const dayMacros = macrosPour(dayTgt, bt.cal ? bt.prot : MACROS_DEFAUT.p);
@@ -122,11 +158,13 @@ const kcalMacros = m => m.p * 4 + m.g * 4 + m.l * 9;
 const jourNutrition = memo(iso => {
   const nlog = DB.get("nutri-logs").find(l => l.dateISO === iso) || null;
   const prevu = seanceDuJour(iso, programmeEnCours()) ? "training" : "rest", dayType = nlog?.dayType || prevu;
-  const menu = menuDuJour(dayType, nageKcalDu(iso));
-  const coches = nlog?.meals || {}, echelles = nlog?.mealScale || {};
+  const menu = menuDuJour(dayType, nageKcalDu(iso), iso < aujourdhui() ? objectifsAu(iso) : null);
+  const coches = nlog?.meals || {}, echelles = nlog?.mealScale || {}, figes = nlog?.kcalRepas || {};
   const lignes = menu.meals.map((m, i) => {
-    const id = MEAL_ID[m.m], mm = menu.mealMacros[i], s = echelles[id] || 1;
-    return { id, m, i, kcal: Math.round(kcalMacros(mm) * s), macros: { p: mm.p * s, g: mm.g * s, l: mm.l * s }, fait: !!coches[id] };
+    const id = MEAL_ID[m.m], mm = menu.mealMacros[i], s = echelles[id] || 1, k = kcalMacros(mm) * s;
+    // Un repas coché garde les calories qu'il avait quand tu l'as coché
+    const f = coches[id] && figes[id] > 0 && k > 0 ? figes[id] / k : 1;
+    return { id, m, i, kcal: Math.round(k * f), macros: { p: mm.p * s * f, g: mm.g * s * f, l: mm.l * s * f }, facteur: s * f, fait: !!coches[id] };
   }).filter(r => r.id);
   const plats = (DB.get("food-log")[iso] || []);
   const horsMenu = plats.filter(f => !f.plan), planifies = plats.filter(f => f.plan);
@@ -164,7 +202,10 @@ function cocherRepas(iso, id) {
   const scale = { ...(n.nlog?.mealScale || {}) };
   if (meals[id] && n.facteurReste !== 1) scale[id] = arrondi(n.facteurReste, 2); else delete scale[id];
   const ok = ids.filter(x => meals[x]).length;
-  return ecrireJour(iso, { dayType: n.dayType, meals, mealScale: scale, mealsOk: ok, mealsTotal: ids.length, compliance: Math.round(ok / ids.length * 100) });
+  // Les calories du repas coché sont gardées telles qu'affichées : un changement de cible plus tard ne les réécrit pas
+  const figes = { ...(n.nlog?.kcalRepas || {}) }, l = n.lignes.find(r => r.id === id);
+  if (meals[id] && l) figes[id] = Math.round(l.kcal / (n.nlog?.mealScale?.[id] || 1) * (scale[id] || 1)); else delete figes[id];
+  return ecrireJour(iso, { dayType: n.dayType, meals, mealScale: scale, kcalRepas: figes, mealsOk: ok, mealsTotal: ids.length, compliance: Math.round(ok / ids.length * 100) });
 }
 function changerTypeJour(iso, dayType) {
   const n = jourNutrition(iso), meals = { ...(n.nlog?.meals || {}) };
@@ -213,7 +254,9 @@ const rythme = memo(() => {
   if (kg == null || !curW) return { kg, pct: null, curW };
   const pct = kg / curW * 100;
   const refroidi = cal?.lastAdjust && ecart(cal.lastAdjust, aujourdhui()) < DELAI_AJUSTEMENT;
-  const nouveau = !cal ? null : pct < RYTHME_MAX ? Math.max(0, cal.deficit - 150) : pct > RYTHME_LENT ? Math.min(1000, cal.deficit + 150) : null;
+  const max = objectifs().cal?.deficitMax ?? 1000;
+  let nouveau = !cal ? null : pct < RYTHME_MAX ? Math.max(0, cal.deficit - 150) : pct > RYTHME_LENT ? Math.min(1000, cal.deficit + 150, max) : null;
+  if (nouveau != null && nouveau === cal.deficit) nouveau = null;
   return { kg, pct, curW, nouveau: refroidi ? null : nouveau, refroidi, etat: pct < RYTHME_MAX ? "vite" : pct > RYTHME_LENT ? "lent" : pct > RYTHME_MIN ? "doux" : "ideal" };
 });
 /* DÉPENSE RÉELLE — ce que ton corps brûle vraiment, déduit de ce que tu manges et de la pente de ta tendance.

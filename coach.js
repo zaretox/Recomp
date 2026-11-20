@@ -105,7 +105,7 @@ function messagesCoach() {
   return msgs;
 }
 function appliquerDeficit(nouveau) {
-  return DB.set("nutri-cal-cfg", { ...(DB.get("nutri-cal-cfg") || {}), deficit: nouveau, lastAdjust: aujourdhui() });
+  return majCalories({ deficit: nouveau, lastAdjust: aujourdhui() });
 }
 
 /* Réponses du coach aux questions rapides */
@@ -230,7 +230,8 @@ function contexteCoach() {
     return [
       c.depense ? "Dépense de référence : " + entier(c.depense) + " kcal par jour (la dépense réelle mesurée a été adoptée à la place de la formule)."
         : "Dépense estimée par formule : métabolisme de base " + entier(bt.cal.bmr) + " kcal (Mifflin-St Jeor : poids, taille, âge) × activité hors séances « " + act + " » (" + nb(c.activity, 3) + ") = " + entier(bt.cal.tdee) + " kcal par jour. C'est une estimation de départ, souvent trop haute ou trop basse de plusieurs centaines de kcal.",
-      "Objectif choisi par l'utilisateur : " + (c.deficit >= 0 ? "−" + c.deficit : "+" + -c.deficit) + " kcal par jour sur cette dépense, d'où une cible de base de " + entier(bt.cal.target) + " kcal (adaptée selon les jours d'entraînement, de repos et de natation).",
+      "Objectif choisi par l'utilisateur : " + (c.deficit >= 0 ? "−" + c.deficit : "+" + -c.deficit) + " kcal par jour sur cette dépense, d'où une cible de base de " + entier(bt.cal.target) + " kcal les jours d'entraînement, " + entier(Math.max(bt.cal.target - COUPE_REPOS, bt.cal.bmr)) + " les jours de repos (la nage s'ajoute).",
+      bt.cal.clamped ? "Plancher atteint : la cible ne descend jamais sous le métabolisme de base (" + entier(bt.cal.bmr) + " kcal) ; avec cette dépense, un objectif au-delà de −" + entier(bt.cal.deficitMax) + " ne change plus rien." : null,
       dep.pret ? "Dépense réelle mesurée par l'application : " + entier(dep.kcal) + " kcal par jour (sur " + dep.notes + " jours complets, repas cochés en moyenne " + entier(dep.apports) + " kcal, tendance " + signe(dep.pente, 2) + " kg par semaine)." + (c.depense ? "" : " Écart avec la formule : " + signe(dep.kcal - bt.cal.tdee, 0) + " kcal. Elle peut être adoptée dans Repas → Ma cible.")
         : "Dépense réelle : pas encore assez de jours complets pour la mesurer.",
       ry.kg != null ? "Rythme de la tendance : " + signe(ry.kg, 2) + " kg par semaine (" + signe(ry.pct, 2) + " % du poids), soit un déficit réel d'environ " + entier(Math.max(0, -ry.kg) * KCAL_PAR_KG / 7) + " kcal par jour d'après la balance." : null];

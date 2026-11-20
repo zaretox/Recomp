@@ -20,11 +20,12 @@ const tonFacteur = v => v >= 75 ? "vert" : v >= 55 ? "jaune" : "rouge";
 function apportsPourScore(d, prog, nl, swl, sl, bt) {
   const nlog = nl.find(l => l.dateISO === d), foods = DB.get("food-log")[d] || [];
   const dayType = nlog?.dayType || (seanceDuJour(d, prog) ? "training" : "rest");
-  const nage = swl.filter(l => l.dateISO === d).reduce((a, l) => a + (l.kcal || 0), 0), menu = menuDuJour(dayType, nage);
+  // La cible de ce jour-là, et les calories figées des repas cochés (comme jourNutrition)
+  const nage = swl.filter(l => l.dateISO === d).reduce((a, l) => a + (l.kcal || 0), 0), menu = menuDuJour(dayType, nage, d < aujourdhui() ? objectifsAu(d) : null);
   let kc = 0, g = 0;
   menu.meals.forEach((m, i) => {
-    const id = MEAL_ID[m.m], mm = menu.mealMacros[i], s = nlog?.mealScale?.[id] || 1;
-    if (id && nlog?.meals?.[id]) { kc += kcalMacros(mm) * s; g += mm.g * s; }
+    const id = MEAL_ID[m.m], mm = menu.mealMacros[i], s = nlog?.mealScale?.[id] || 1, k = kcalMacros(mm) * s, fg = nlog?.kcalRepas?.[id];
+    if (id && nlog?.meals?.[id]) { const f = fg > 0 && k > 0 ? fg / k : 1; kc += k * f; g += mm.g * s * f; }
   });
   const pl = foods.filter(f => f.plan), ex = foods.filter(f => !f.plan), pk = pl.reduce((a, f) => a + (f.kcal || 0), 0);
   if (pk > kc) { kc = pk; g = pl.reduce((a, f) => a + (f.gl || 0), 0); }

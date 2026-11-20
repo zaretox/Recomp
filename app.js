@@ -95,6 +95,7 @@ function App() {
 (async () => {
   await DB.init();
   if (window.RECOMP_DEMO) await window.RECOMP_DEMO();
+  await assurerHistoriqueCibles().catch(() => {});
   codePolarDansAdresse();
   // Mode discret : montants cachés au démarrage, et de nouveau quand l'app passe en arrière-plan
   Discret.appliquer();
