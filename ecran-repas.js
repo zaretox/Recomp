@@ -163,7 +163,9 @@ const niveauPas = p => p < 5000 ? 1.2 : p < 7500 ? 1.375 : p < 10000 ? 1.55 : 1.
 function ActiviteMontre({ c, maj }) {
   const m = moyennePas(14, decale(aujourdhui(), -1));
   if (!m || m.jours < 5) return lienPolar()?.jeton ? h("p.note", "Avec 5 jours de pas comptés par ta montre, je te dirai quel niveau te correspond.") : null;
-  const niv = niveauPas(m.moy), nom = ACTIVITES.find(a => a[1] === niv)[0];
+  const niv = niveauPas(m.moy), nom = ACTIVITES.find(a => a[1] === niv)[0], dep = depenseReelle();
+  // Quand la dépense réelle est mesurée, elle vaut mieux que n'importe quel niveau d'activité deviné : on ne pousse plus la formule
+  if (dep.pret && !c.depense) return h("p.note", "Ta montre : " + entier(m.moy) + " pas par jour en moyenne. Mais ta dépense réelle est mesurée (" + entier(dep.kcal) + " kcal) : adopte-la plutôt, plus haut, elle est plus fiable que ce réglage.");
   return h(Fragment, null,
     h("p.note", "Ta montre : " + entier(m.moy) + " pas par jour en moyenne sur " + m.jours + " jours, ce qui correspond à « " + nom + " »." + (c.depense ? " Tant que ta dépense réelle est adoptée, ce réglage ne change pas ta cible." : "")),
     niv !== c.activity && !c.depense && h(Bouton, { cl: "contour", onClick: () => { maj({ activity: niv }); toast("Activité réglée sur « " + nom + " »"); } }, "Choisir « " + nom + " »"));
