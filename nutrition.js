@@ -185,15 +185,20 @@ function lisser(pts) {
 const tendancePoids = memo(() => lisser(pesees()));
 /* kg par semaine : pente de la tendance sur les 3 dernières semaines.
  * La tendance gomme l'eau ; les pesées brutes seules donnaient des rythmes faux (+0,01 kg alors que la courbe descend). */
-function rythmeHebdo(pts) {
-  const t = lisser(pts), fin = t[t.length - 1];
-  let p = fin ? t.filter(x => ecart(x.dateISO, fin.dateISO) <= 21) : [];
-  if (p.length < 3 || ecart(p[0].dateISO, fin.dateISO) < 7) p = t.slice(-8);
+// Pente de la tendance (kg par jour) : la droite qui passe au plus près de tous les points, pas seulement du premier et du dernier
+function penteTendance(p) {
   if (p.length < 2) return null;
   const xs = p.map(x => ecart(p[0].dateISO, x.dateISO)), ys = p.map(x => x.t), n = xs.length;
   const sx = xs.reduce((a, b) => a + b, 0), sy = ys.reduce((a, b) => a + b, 0), sxx = xs.reduce((a, b) => a + b * b, 0), sxy = xs.reduce((a, b, i) => a + b * ys[i], 0);
   const den = n * sxx - sx * sx;
-  return den === 0 ? null : arrondi((n * sxy - sx * sy) / den * 7, 2);
+  return den === 0 ? null : (n * sxy - sx * sy) / den;
+}
+function rythmeHebdo(pts) {
+  const t = lisser(pts), fin = t[t.length - 1];
+  let p = fin ? t.filter(x => ecart(x.dateISO, fin.dateISO) <= 21) : [];
+  if (p.length < 3 || ecart(p[0].dateISO, fin.dateISO) < 7) p = t.slice(-8);
+  const k = penteTendance(p);
+  return k == null ? null : arrondi(k * 7, 2);
 }
 function dateObjectif(actuel, rythme, cible) {
   if (rythme == null || rythme === 0) return null;
@@ -211,19 +216,28 @@ const rythme = memo(() => {
   const nouveau = !cal ? null : pct < RYTHME_MAX ? Math.max(0, cal.deficit - 150) : pct > RYTHME_LENT ? Math.min(1000, cal.deficit + 150) : null;
   return { kg, pct, curW, nouveau: refroidi ? null : nouveau, refroidi, etat: pct < RYTHME_MAX ? "vite" : pct > RYTHME_LENT ? "lent" : pct > RYTHME_MIN ? "doux" : "ideal" };
 });
-/* DÉPENSE RÉELLE — ce que ton corps brûle vraiment, déduit de ce que tu manges et de l'évolution de ta tendance.
- * Dépense = apports moyens − (variation de tendance × 7 700 / jours). Indépendant de ton respect du plan. */
+/* DÉPENSE RÉELLE — ce que ton corps brûle vraiment, déduit de ce que tu manges et de la pente de ta tendance.
+ * Dépense = apports moyens − pente de la tendance (kg par jour) × 7 700. Indépendant de ton respect du plan.
+ * Seuls les jours finis et complets comptent : ni aujourd'hui, ni un jour où des repas n'ont pas été cochés
+ * (ils feraient croire que tu manges moins, donc que tu dépenses moins). */
 const depenseReelle = memo(() => {
-  const t = tendancePoids(), fin = aujourdhui(), cal = objectifs().cal;
-  const fenetre = t.filter(x => ecart(x.dateISO, fin) <= 28);
+  const t = tendancePoids(), auj = aujourdhui(), cal = objectifs().cal;
+  const fenetre = t.filter(x => ecart(x.dateISO, auj) <= 28);
   if (fenetre.length < 4) return { pret: false, jours: fenetre.length };
   const debut = fenetre[0], der = fenetre[fenetre.length - 1], jours = ecart(debut.dateISO, der.dateISO);
   if (jours < 14) return { pret: false, jours };
   const notes = [];
-  for (let i = 0; i <= jours; i++) { const a = apportsDu(decale(debut.dateISO, i)); if (a) notes.push(a); }
-  if (notes.length < jours * .6) return { pret: false, jours: notes.length, manque: "repas" };
-  const apports = moyenne(notes), kcal = Math.round(apports - (der.t - debut.t) * KCAL_PAR_KG / jours);
-  return { pret: true, kcal: Math.round(kcal / 10) * 10, apports: Math.round(apports), jours, formule: cal?.tdee || null, ecart: cal ? Math.round(kcal - cal.tdee) : null };
+  for (let i = 0; i <= jours; i++) {
+    const d = decale(debut.dateISO, i);
+    if (d >= auj) continue;
+    const a = apportsDu(d), n = jourNutrition(d), complet = n.lignes.length > 0 && n.lignes.every(l => l.fait);
+    if (a && (complet || a >= n.menu.dayTgt * .85)) notes.push(a);
+  }
+  if (notes.length < jours * .5) return { pret: false, jours: notes.length, manque: "repas" };
+  const pente = penteTendance(fenetre);
+  if (pente == null) return { pret: false, jours };
+  const apports = moyenne(notes), kcal = Math.round(apports - pente * KCAL_PAR_KG);
+  return { pret: true, kcal: Math.round(kcal / 10) * 10, apports: Math.round(apports), jours, notes: notes.length, pente: arrondi(pente * 7, 2), formule: cal?.tdee || null, ecart: cal ? Math.round(kcal - cal.tdee) : null };
 });
 /* Composition d'après les mensurations */
 const composition = memo(() => {

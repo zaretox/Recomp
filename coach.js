@@ -221,8 +221,20 @@ function contexteCoach() {
       "Repas : " + n.lignes.map(l => l.m.h + " " + l.m.m + (l.fait ? " (coché)" : "")).join(", ") + ".",
       n.horsMenu.length ? "Hors menu : " + n.horsMenu.map(f => f.nom + " " + (f.kcal || 0) + " kcal").join(", ") + "." : null]; });
   part("Repas des 7 derniers jours", () => { const j = Array.from({ length: 7 }, (_, i) => decale(auj, i - 7)).map(d => ({ d, kc: apportsDu(d), c: jourNutrition(d).menu.dayTgt })).filter(x => x.kc);
-    const dep = depenseReelle();
-    return [j.length ? j.map(x => jourDe(x.d) + " " + entier(x.kc) + "/" + entier(x.c)).join(", ") + " (mangé/cible)." : "Aucun repas coché ces 7 jours.", dep.pret ? "Dépense réelle mesurée : " + entier(dep.kcal) + " kcal par jour sur " + dep.jours + " jours." : null]; });
+    return j.length ? j.map(x => jourDe(x.d) + " " + entier(x.kc) + "/" + entier(x.c)).join(", ") + " (mangé/cible)." : "Aucun repas coché ces 7 jours."; });
+  // Comment l'app calcule la cible : sans ça, le coach ne peut pas expliquer l'écart entre la formule et la réalité
+  part("Calories (calculs de l'application)", () => {
+    const c = cfgCalories(), bt = objectifs(), dep = depenseReelle(), ry = rythme();
+    if (!bt.cal || !c) return "Cible pas encore calculée (âge, taille ou pesée manquants).";
+    const act = (ACTIVITES.find(a => a[1] === c.activity) || ["?"])[0];
+    return [
+      c.depense ? "Dépense de référence : " + entier(c.depense) + " kcal par jour (la dépense réelle mesurée a été adoptée à la place de la formule)."
+        : "Dépense estimée par formule : métabolisme de base " + entier(bt.cal.bmr) + " kcal (Mifflin-St Jeor : poids, taille, âge) × activité hors séances « " + act + " » (" + nb(c.activity, 3) + ") = " + entier(bt.cal.tdee) + " kcal par jour. C'est une estimation de départ, souvent trop haute ou trop basse de plusieurs centaines de kcal.",
+      "Objectif choisi par l'utilisateur : " + (c.deficit >= 0 ? "−" + c.deficit : "+" + -c.deficit) + " kcal par jour sur cette dépense, d'où une cible de base de " + entier(bt.cal.target) + " kcal (adaptée selon les jours d'entraînement, de repos et de natation).",
+      dep.pret ? "Dépense réelle mesurée par l'application : " + entier(dep.kcal) + " kcal par jour (sur " + dep.notes + " jours complets, repas cochés en moyenne " + entier(dep.apports) + " kcal, tendance " + signe(dep.pente, 2) + " kg par semaine)." + (c.depense ? "" : " Écart avec la formule : " + signe(dep.kcal - bt.cal.tdee, 0) + " kcal. Elle peut être adoptée dans Repas → Ma cible.")
+        : "Dépense réelle : pas encore assez de jours complets pour la mesurer.",
+      ry.kg != null ? "Rythme de la tendance : " + signe(ry.kg, 2) + " kg par semaine (" + signe(ry.pct, 2) + " % du poids), soit un déficit réel d'environ " + entier(Math.max(0, -ry.kg) * KCAL_PAR_KG / 7) + " kcal par jour d'après la balance." : null];
+  });
   part("Musculation des 14 derniers jours", () => {
     const l = [...DB.get("sport-logs").map(x => ({ ...x, m: false })), ...DB.get("maison-logs").map(x => ({ ...x, m: true }))].filter(x => ecart(x.dateISO, auj) <= 13 && x.dateISO <= auj).sort((a, b) => a.dateISO.localeCompare(b.dateISO));
     if (!l.length) return "Aucune séance.";

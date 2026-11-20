@@ -142,7 +142,8 @@ function ContenuCalories({ milieu }) {
     milieu,
     h(Section, { titre: "Dépense réelle" }, dep.pret
       ? h(Fragment, null,
-        h("p.texte-p", "Sur " + dep.jours + " jours, tu as mangé " + entier(dep.apports) + " kcal par jour en moyenne et ta tendance de poids a bougé en conséquence : ton corps dépense environ ", h("b", entier(dep.kcal) + " kcal"), ", contre " + entier(dep.formule) + " d'après la formule."),
+        h("p.texte-p", "Sur " + dep.notes + " jours complets (repas tous cochés), tu as mangé " + entier(dep.apports) + " kcal par jour en moyenne, et ta tendance a bougé de " + signe(dep.pente, 2) + " kg par semaine. Ton corps dépense donc environ ", h("b", entier(dep.kcal) + " kcal"), ", contre " + entier(dep.formule) + " d'après la formule" + (c.depense ? " (ta dépense adoptée sert déjà de base)." : ".")),
+        h("p.note", "La formule est une estimation de départ ; cette mesure-ci vient de ta balance et de tes repas. Les jours où des repas ne sont pas cochés, et aujourd'hui, ne comptent pas : ils feraient croire que tu manges moins."),
         h(Bouton, { cl: c.depense === dep.kcal ? "contour" : "plein", onClick: () => { maj({ depense: dep.kcal, lastAdjust: aujourdhui() }); toast("Cible recalculée sur ta dépense réelle"); } }, c.depense === dep.kcal ? "Dépense réelle adoptée" : "Adopter " + entier(dep.kcal) + " kcal"),
         c.depense && h(Bouton, { cl: "contour", onClick: () => maj({ depense: null }) }, "Revenir à la formule"))
       : h(Vide, null, "Je mesure ta vraie dépense à partir de ce que tu manges et de ton poids. Il me faut 14 jours avec des pesées régulières et des repas cochés.")),
