@@ -202,7 +202,27 @@ async function importerSortiesPolar1() {
   await completerNages().catch(() => {});
   const dedans = new Set(DB.get("polar-seances").map(s => s.id)), vraies = neuves.filter(s => !dedans.has(s.id));
   if (vraies.length) await DB.set("polar-seances", [...DB.get("polar-seances"), ...vraies].sort((a, b) => (b.debut || "").localeCompare(a.debut || "")));
+  await ajouterNagesAuto().catch(() => {});
   return vraies.length;
+}
+/* Les nages de la montre rejoignent ta natation toutes seules : leurs calories s'ajoutent à ta cible du jour.
+ * Sauf si une nage est déjà notée ce jour-là (elle est alors reliée à celle de la montre).
+ * Seulement aujourd'hui et hier : plus ancienne, une nage changerait une journée déjà passée ; elle garde le bouton « Ajouter à ma natation ».
+ * Chaque nage n'est ajoutée qu'une fois (natAuto) : retirée de ta natation, elle ne revient pas. */
+async function ajouterNagesAuto() {
+  const auj = aujourdhui(), kg = moyenneRecente(pesees(), 7) || 100;
+  const a = sortiesPolar().filter(s => familleSortie(s) === "nage" && !s.natAuto && s.distance > 0 && s.duree > 0 && s.dateISO <= auj && ecart(s.dateISO, auj) <= 1 && !logDeSortie(s));
+  if (!a.length) return 0;
+  const nouveaux = a.map((s, i) => { const dist = Math.round(s.distance);
+    return { id: Date.now() + i, dateISO: s.dateISO, date: dateCourte(s.dateISO), modele: "Nage de la montre", distance: dist, duree: s.duree, rpe: 6, nage: "Crawl", pool: s.bassin || 25, note: "",
+      // Les calories de la montre (mesurées avec ton cardio), sinon l'estimation par l'allure
+      kcal: s.kcal > 0 ? Math.round(s.kcal) : nageKcal(dist, s.duree, 6, kg), polarId: s.id, auto: true }; });
+  await DB.set("natation-logs", [...DB.get("natation-logs"), ...nouveaux]);
+  const ids = new Set(a.map(s => s.id));
+  await DB.set("polar-seances", DB.get("polar-seances").map(s => ids.has(s.id) ? { ...s, natAuto: true } : s));
+  const k = nouveaux.reduce((x, l) => x + l.kcal, 0);
+  toast((a.length > 1 ? pluriel(a.length, "nage") + " de ta montre ajoutées" : entier(nouveaux[0].distance) + " m de ta montre ajoutés") + " à ta natation : +" + entier(k) + " kcal à manger");
+  return a.length;
 }
 // Retirer de RECOMP : on garde l'identifiant pour ne pas la réimporter
 const retirerSortie = id => avecAnnuler("polar-seances", DB.get("polar-seances").map(s => s.id === id ? { id, supprime: true } : s), "Séance retirée");
@@ -547,7 +567,8 @@ let synchroJourEnCours = null;
 function synchroPolarJour(force) {
   if (!lienPolar()?.jeton) return Promise.resolve(null);
   return synchroJourEnCours || (synchroJourEnCours = (async () => {
-    await Promise.allSettled([importerPasPolar(force), importerNuitsPolar(force)]);
+    let der = 0; try { der = +localStorage.getItem("recomp_polar_import") || 0; } catch (e) { /* facultatif */ }
+    await Promise.allSettled([importerPasPolar(force), importerNuitsPolar(force), (force || Date.now() - der > 30 * 60000) ? importerSortiesPolar() : null]);
     const e = await matinAuto();
     if (e) { const r = recuperation(aujourdhui()); toast("Ta nuit est arrivée de ta montre" + (r?.score != null ? " : forme " + r.score + "/100" : "")); }
     return e;

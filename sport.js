@@ -218,7 +218,10 @@ function FeuilleNatation({ iso }) {
     ]);
     if (!r || !r[0] || !r[1]) return;
     const kg = moyenneRecente(pesees(), 7) || 100;
-    await DB.set("natation-logs", [...logs, { id: Date.now(), dateISO: jour, date: dateCourte(jour), modele: m ? m.name : "Séance libre", distance: r[0], duree: r[1], rpe: r[2] || 6, nage: "Crawl", pool: m?.pool || 25, note: "", kcal: nageKcal(r[0], r[1], r[2] || 6, kg) }]);
+    const neuve = { id: Date.now(), dateISO: jour, date: dateCourte(jour), modele: m ? m.name : "Séance libre", distance: r[0], duree: r[1], rpe: r[2] || 6, nage: "Crawl", pool: m?.pool || 25, note: "", kcal: nageKcal(r[0], r[1], r[2] || 6, kg) };
+    // La montre l'a déjà ajoutée ce jour-là : on la corrige au lieu d'en compter une deuxième
+    const auto = logs.find(l => l.auto && l.dateISO === jour);
+    await DB.set("natation-logs", auto ? logs.map(l => l === auto ? { ...neuve, id: l.id, polarId: l.polarId } : l) : [...logs, neuve]);
     toast("Séance de " + entier(r[0]) + " m enregistrée" + (jour === auj ? ", ta cible du jour suit" : " le " + dateMini(jour)));
   };
   const faire = m => setVoir(m);
