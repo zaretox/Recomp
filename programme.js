@@ -72,7 +72,6 @@ const musclesPerso = memo(() => {
 const muscleDe = nom => MUSCLE_DE[nom] || musclesPerso()[nom] || _muscleLib[nom] || null;
 const JAMBES = ["Quadriceps", "Ischios", "Fessiers", "Mollets"], HAUT = ["Pecs", "Dos", "Épaules", "Biceps", "Triceps"];
 const regionDe = nom => { const m = muscleDe(nom); return JAMBES.includes(m) ? "legs" : HAUT.includes(m) ? "upper" : null; };
-const REGION_FR = { legs: "jambes", upper: "haut du corps", both: "corps entier" };
 /* Jambes, haut du corps ou les deux : d'après la répartition des séries prévues */
 function regionSeance(s) {
   if (!s) return null;

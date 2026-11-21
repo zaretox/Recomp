@@ -4,6 +4,9 @@
  *   --depuis <commit>   comparer à ce commit plutôt qu'à la version en ligne (origin/main)
  *   --sans-navigateur   seulement les vérifications du code
  *   --captures <dossier>  une capture de chaque écran (app remplie)
+ *   --tout              tout vérifier, pas seulement ce qui a changé : code en double ou jamais utilisé, carte des données,
+ *                       mêmes chiffres d'un onglet à l'autre, et l'app à 7 h 30, 13 h et 21 h 30
+ *   --textes <fichier>  le texte de chaque écran (app remplie), pour le relire
  * Ce fichier ne fait pas partie de l'app (ni dans index.html ni dans sw.js) et ne modifie rien :
  * il lit le code, puis ouvre l'app dans un navigateur de test, au format iPhone, avec des données inventées.
  * ✗ = bloquant (ne pas publier), ⚠ = à regarder et à expliquer. Code de sortie 1 s'il y a un ✗. */
@@ -11,7 +14,7 @@ const fs = require("fs"), path = require("path"), http = require("http"), { exec
 
 const RACINE = __dirname;
 const arg = n => { const i = process.argv.indexOf(n); return i < 0 ? null : process.argv[i + 1] || true; };
-const SANS_NAV = process.argv.includes("--sans-navigateur"), CAPTURES = arg("--captures");
+const SANS_NAV = process.argv.includes("--sans-navigateur"), CAPTURES = arg("--captures"), TOUT = process.argv.includes("--tout"), TEXTES = arg("--textes");
 const git = (...a) => { try { return execFileSync("git", a, { cwd: RACINE, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }); } catch (e) { return null; } };
 const lire = f => fs.readFileSync(path.join(RACINE, f), "utf8");
 
@@ -193,6 +196,46 @@ else {
   interdits.forEach(l => avert("Mot à relire (niveaux, défis, questionnaire : règle 7) : " + l.slice(0, 160)));
 }
 
+/* ---------- 3 bis. Tout le code (--tout) : doublons, code mort, carte des données ---------- */
+if (TOUT) {
+  titre("3 bis. Tout le code");
+  // Même code sous deux noms, ou presque le même : une ancienne version restée, ou un calcul fait deux fois de deux façons
+  const fonctions = DECLS.filter(d => /=>|function/.test(d.corps.split("\n")[0]));
+  const norm = d => sansCommentaires(d.corps).replace(new RegExp("\\b" + d.nom.replace(/\$/g, "\\$") + "\\b", "g"), "_").replace(/\s+/g, " ").trim();
+  const jetons = d => new Set(norm(d).match(/[A-Za-z_$][\w$]*|\d+|"[^"]*"|[^\s\w]/g) || []);
+  const corpsN = fonctions.map(d => ({ d, n: norm(d), j: jetons(d) })).filter(x => x.n.length >= 80);
+  const memes = {};
+  corpsN.forEach(x => (memes[x.n.replace(/^(?:async )?function _|^(?:const|let) _ =/, "")] = memes[x.n.replace(/^(?:async )?function _|^(?:const|let) _ =/, "")] || []).push(x.d));
+  const identiques = Object.values(memes).filter(l => l.length > 1);
+  identiques.forEach(l => avert("Même code sous plusieurs noms : " + l.map(d => d.nom + " (" + d.fichier + ")").join(", ")));
+  const proches = [];
+  for (let i = 0; i < corpsN.length; i++) for (let k = i + 1; k < corpsN.length; k++) {
+    const a = corpsN[i], b = corpsN[k];
+    if (a.n.length < 200 || b.n.length < 200 || Math.min(a.n.length, b.n.length) / Math.max(a.n.length, b.n.length) < .7) continue;
+    let c = 0; a.j.forEach(t => { if (b.j.has(t)) c++; });
+    const jac = c / (a.j.size + b.j.size - c);
+    if (jac >= .85 && !identiques.some(l => l.includes(a.d) && l.includes(b.d))) proches.push([jac, a.d, b.d]);
+  }
+  proches.sort((x, y) => y[0] - x[0]).slice(0, 12).forEach(([j, a, b]) => avert("Code presque identique (" + Math.round(j * 100) + " %) : " + a.nom + " (" + a.fichier + ") et " + b.nom + " (" + b.fichier + ")"));
+  if (!identiques.length && !proches.length) ok("Aucune fonction en double sous un autre nom");
+  // Jamais utilisé : du code resté d'une ancienne version, ou une fonction pas branchée
+  const tout = Object.values(SOURCES).join("\n") + lire("index.html");
+  const morts = DECLS.filter(d => !(UTILISATEURS.get(d.nom) || []).length && (tout.match(new RegExp("\\b" + d.nom.replace(/\$/g, "\\$") + "\\b", "g")) || []).length <= 1);
+  morts.length ? avert("Jamais utilisé (" + morts.length + ") : " + morts.map(d => d.nom + " (" + d.fichier + ")").join(", ")) : ok("Tout le code déclaré sert quelque part");
+  // Carte des données : où chaque clé de stockage se voit
+  const cles = [...(SOURCES["base.js"].match(/const DEFAUTS = \{([\s\S]*?)\n\};/) || [, ""])[1].matchAll(/"([\w-]+)"\s*:/g)].map(m => m[1]);
+  const exclus = new Set(["DEFAUTS", "HORS_SAUVEGARDE", "CLES_SAUVEGARDE"]);
+  // Fonctions retirées à la demande d'Aurélien (ARBITRAGES.md) : leur clé reste, sans écran (règle 3)
+  const CLES_RETIREES = ["bilans"];
+  info("Carte des données (où chaque clé se voit) :");
+  cles.forEach(k => {
+    const lecteurs = DECLS.filter(d => !exclus.has(d.nom) && d.corps.includes('"' + k + '"')), e = ouSeVoit(lecteurs);
+    const lieux = ORDRE_ONGLETS.filter(o => e.has(o));
+    info("  " + k.padEnd(22) + " " + (lieux.join(", ") || "—"));
+    if (!lieux.length && !CLES_RETIREES.includes(k)) avert("Donnée « " + k + " » gardée mais affichée nulle part");
+  });
+}
+
 /* ---------- 4. À l'écran : chaque onglet, rubrique, réglage et feuille, au format iPhone ---------- */
 async function navigateur() {
   titre("4. À l'écran, au format iPhone (375 × 812)");
@@ -218,6 +261,8 @@ async function navigateur() {
   const SORTIES = [
     { id: "N1", start_time: jourIso(0) + "T07:10:00", duration: "PT43M10S", distance: 1300, calories: 520, sport: "SWIMMING", detailed_sport_info: "POOL_SWIMMING", heart_rate: { average: 128, maximum: 151 } },
     { id: "R1", start_time: jourIso(1) + "T18:00:00", duration: "PT32M", distance: 5200, calories: 410, sport: "RUNNING", detailed_sport_info: "RUNNING", heart_rate: { average: 149, maximum: 168 } },
+    { id: "M1", start_time: jourIso(1) + "T12:02:00", duration: "PT1H03M", calories: 380, sport: "STRENGTH_TRAINING", detailed_sport_info: "STRENGTH_TRAINING", heart_rate: { average: 112, maximum: 150 } },
+    { id: "M2", start_time: jourIso(2) + "T18:30:00", duration: "PT25M", calories: 210, sport: "CIRCUIT_TRAINING", detailed_sport_info: "CIRCUIT_TRAINING", heart_rate: { average: 125, maximum: 160 } },
   ];
   async function imiter(p) {
     await p.route("**/.netlify/functions/polar**", r => {
@@ -255,12 +300,17 @@ async function navigateur() {
         exercices: def.exercices.slice(0, 4).map(e => ({ nom: e.nom, weight: 20 + i, reps: 10, sets: 3, setsDetail: [{ w: 20 + i, r: 10 }, { w: 20 + i, r: 9 }, { w: 20 + i, r: 8 }], rpe: 8 })) });
     }
     await DB.set("sport-logs", logs);
+    await DB.set("maison-logs", [{ id: 3501, date: dateCourte(d(2)), dateISO: d(2), seance: MAISON[0].code, exercices: [] }]);
+    await DB.set("food-log", { [auj]: [{ id: 3601, nom: "Pomme", grams: 150, kcal: 80, p: 0, g: 20, l: 0 }] });
+    await DB.set("notes-exos", { "DC haltères": "Banc à 30°, coudes serrés" });
+    await DB.set("fin-fixes", [{ id: "loyer", label: "Loyer", montant: 412, cat: "Logement", jour: 10 }, { id: "tel", label: "Forfait", montant: 13.99, cat: "Abonnements", jour: 9 }]);
+    for (const l of jourNutrition(auj).lignes.slice(0, 2)) await cocherRepas(auj, l.id);
     await DB.set("natation-logs", [{ id: 4001, dateISO: d(3), date: dateCourte(d(3)), modele: "Technique", distance: 1500, duree: 2700, rpe: 6, nage: "Crawl", pool: 25, note: "", kcal: 480 }]);
     await DB.set("mensurations", [{ id: 5001, dateISO: d(20), date: dateCourte(d(20)), vals: { taille: 112 } }, { id: 5002, dateISO: d(2), date: dateCourte(d(2)), vals: { taille: 110 } }]);
     await DB.set("douleur-logs", [{ id: 6001, dateISO: d(1), date: dateCourte(d(1)), zone: "Genou gauche", intensite: 3, note: "en bas du squat" }]);
     await DB.set("bilans", [{ id: 7001, dateISO: d(40), nom: "Ferritine", valeur: 80, unite: "ng/mL" }]);
     await DB.set("fin-income", [{ id: 8001, dateISO: d(10), montant: 2156, source: "Paye", paye: true }]);
-    await DB.set("fin-expenses", [{ id: 8101, dateISO: d(9), montant: 412, cat: "Logement", label: "Loyer" }, { id: 8102, dateISO: d(5), montant: 80, cat: "Courses", label: "Supermarché" }, { id: 8103, dateISO: d(2), montant: 25, cat: "Sorties", label: "Cinéma" }]);
+    await DB.set("fin-expenses", [{ id: 8101, dateISO: d(9), montant: 412, cat: "Logement", label: "Loyer", fixId: "loyer" }, { id: 8102, dateISO: d(5), montant: 80, cat: "Courses", label: "Supermarché" }, { id: 8103, dateISO: d(2), montant: 25, cat: "Sorties", label: "Cinéma" }]);
     await DB.set("epargne", { ...EPARGNE_VIDE, cagnottes: [{ id: "securite", nom: "Épargne de sécurité", cible: 2000 }], versements: [{ id: 8201, dateISO: d(9), montant: 300, source: "paye" }] });
     await DB.set("polar-lien", { jeton: "TEST", utilisateur: 1, depuis: d(30) });
     await DB.set("coach-lien", { code: "test", actif: true });
@@ -296,9 +346,11 @@ async function navigateur() {
   }
 
   const vues = [], erreursPage = [];
-  async function passage(nomPassage, rempli) {
+  const textes = [], chiffres = [];
+  async function passage(nomPassage, rempli, heure) {
     const ctx = await b.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, serviceWorkers: "block" });
     const p = await ctx.newPage();
+    if (heure) { const [hh, mm] = heure.split(":").map(Number), t = new Date(); t.setHours(hh, mm, 0, 0); await p.clock.install({ time: t }); }
     p.on("pageerror", e => erreursPage.push(nomPassage + " : " + e.message));
     p.on("console", m => { if (m.type() === "error" && /^RECOMP/.test(m.text())) erreursPage.push(nomPassage + " : écran planté (" + m.text().replace(/^RECOMP\s*/, "").split("\n")[0].slice(0, 120) + ")"); });
     await imiter(p);
@@ -312,6 +364,15 @@ async function navigateur() {
       await p.waitForTimeout(300);
       const r = await p.evaluate(examiner).catch(e => ({ plante: true, err: e.message }));
       vues.push({ passage: nomPassage, lieu, ...r, rate: rubrique && !r.plante && r.rubrique !== rubrique, erreurs: erreursPage.slice(avant) });
+      // Le texte de l'écran tel qu'on le lit (les compteurs qui défilent remplacés par leur valeur)
+      if (rempli) textes.push({ passage: nomPassage, lieu, t: await p.evaluate(() => {
+        const pl = document.querySelectorAll(".pile-f"), z = pl.length ? pl[pl.length - 1] : document.querySelector("main.scene");
+        if (!z) return "";
+        const c = z.cloneNode(true);
+        c.querySelectorAll(".odo").forEach(o => o.replaceWith(document.createTextNode(o.getAttribute("aria-label") || "")));
+        c.style.position = "fixed"; c.style.left = "-10000px"; c.style.width = "375px"; document.body.appendChild(c);
+        const t = c.innerText.replace(/\n{2,}/g, "\n"); c.remove(); return t;
+      }).catch(() => "") });
       if (CAPTURES && rempli) await p.screenshot({ path: path.join(CAPTURES, lieu.replace(/[^\wÀ-ÿ-]+/g, "_") + ".png") }).catch(() => {});
     };
     // Les onglets et leurs rubriques
@@ -351,18 +412,44 @@ async function navigateur() {
         unique("natation-logs", l => l.polarId, "la même nage de la montre ajoutée deux fois");
         unique("sport-logs", l => l.dateISO + " " + l.seance, "la même séance notée deux fois");
         unique("polar-seances", l => l.id, "la même séance de la montre importée deux fois");
+        // Une séance de la montre et une séance notée le même jour, de la même famille, mais pas reliées : deux lignes dans l'Historique
+        for (const s of DB.get("polar-seances")) {
+          const f = familleSortie(s);
+          if ((f !== "muscu" && f !== "nage") || logDeSortie(s)) continue;
+          const notees = f === "nage" ? DB.get("natation-logs").filter(l => l.dateISO === s.dateISO) : [...DB.get("sport-logs"), ...DB.get("maison-logs")].filter(l => l.dateISO === s.dateISO);
+          if (notees.length) pb.push("polar-seances : la séance de la montre du " + s.dateISO + " (" + f + ") n'est pas reliée à celle notée le même jour : elle compte deux fois");
+        }
         return { pb, nages: DB.get("natation-logs").length, sorties: DB.get("polar-seances").length };
       });
-      d.pb.length ? d.pb.forEach(x => ko("Doublon dans les données : " + x)) : ok("Aucun doublon dans les données, même en relisant la montre deux fois (" + d.sorties + " séances de la montre, " + d.nages + " nages)");
+      d.pb.length ? d.pb.forEach(x => ko(nomPassage + " — doublon dans les données : " + x)) : ok(nomPassage + " : aucun doublon dans les données, même en relisant la montre deux fois (" + d.sorties + " séances de la montre, " + d.nages + " nages)");
+      // Les mêmes chiffres d'un onglet à l'autre : chaque chiffre clé, et les écrans où il apparaît
+      if (TOUT) chiffres.push({ passage: nomPassage, l: await p.evaluate(() => {
+        const auj = aujourdhui(), n = jourNutrition(auj), r = recuperation(auj), t = tendancePoids().slice(-1)[0], c = derniereCharge(), pas = pasDu(auj);
+        return [["Reste à manger (kcal)", entier(Math.abs(n.reste)), "Repas"], ["Cible du jour (kcal)", entier(n.menu.dayTgt), "Repas"], ["Score de forme", r?.score != null ? String(r.score) : null, "Corps"],
+          ["Poids, tendance (kg)", t ? nb1(t.t) : null, "Corps"], ["Pas aujourd'hui", pas != null ? entier(pas) : null, "Sport"], ["Fatigue de la montre", c?.effort != null ? String(Math.round(c.effort)) : null, "Corps"]];
+      }) });
     }
     await ctx.close();
   }
 
-  try { await passage("app vide", false); await passage("app remplie", true); }
+  const PASSAGES = TOUT ? [["app vide", false, "13:00"], ["app remplie à 7 h 30", true, "07:30"], ["app remplie à 13 h", true, "13:00"], ["app remplie à 21 h 30", true, "21:30"]] : [["app vide", false], ["app remplie", true]];
+  try { for (const [n, r, hh] of PASSAGES) await passage(n, r, hh); }
   finally { await b.close(); serveur.close(); }
 
+  if (TEXTES) fs.writeFileSync(TEXTES, textes.map(x => "=== " + x.passage + " — " + x.lieu + "\n" + x.t).join("\n\n"));
+  chiffres.forEach(({ passage: n, l }) => {
+    info(n + " — où se voient les chiffres clés :");
+    l.forEach(([quoi, v, maison]) => {
+      if (v == null) return info("  " + quoi + " : pas de valeur");
+      const re = new RegExp("(?<!\\d|\\d,)" + v.replace(/[\s\u00a0\u202f]/g, "[\\s\\u00a0\\u202f]") + "(?!\\d|,\\d)");
+      const ou = textes.filter(x => x.passage === n && re.test(x.t)).map(x => x.lieu);
+      info("  " + quoi + " = " + v + " → " + (ou.join(", ") || "nulle part"));
+      if (!ou.some(x => x.startsWith(maison))) avert(n + " : « " + quoi + " » (" + v + ") n'apparaît pas dans " + maison);
+    });
+  });
+
   const parPassage = n => vues.filter(v => v.passage === n);
-  ["app vide", "app remplie"].forEach(n => {
+  PASSAGES.map(x => x[0]).forEach(n => {
     const v = parPassage(n), plantes = v.filter(x => x.plante || x.erreurs.length);
     plantes.length ? plantes.forEach(x => ko(n + " — " + x.lieu + " : " + (x.erreurs[0] || x.err || "l'écran a planté").replace(n + " : ", ""))) : ok(n + " : " + v.length + " écrans ouverts, aucun ne plante");
   });

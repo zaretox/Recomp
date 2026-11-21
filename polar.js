@@ -242,7 +242,13 @@ function sortieDeNage(log) {
 // La séance RECOMP qui correspond à une séance de la montre, s'il y en a une
 function logDeSortie(s) {
   const f = familleSortie(s);
-  if (f === "muscu") { const l = DB.get("sport-logs").find(x => x.dateISO === s.dateISO && sortieDeMuscu(x)?.id === s.id); return l ? { t: "s", log: l } : null; }
+  if (f === "muscu") {
+    const l = DB.get("sport-logs").find(x => x.dateISO === s.dateISO && sortieDeMuscu(x)?.id === s.id);
+    if (l) return { t: "s", log: l };
+    // Un circuit à la maison fait avec la montre : la même séance, pas une deuxième
+    const m = DB.get("maison-logs").find(x => x.dateISO === s.dateISO && sortieDeMuscu(x)?.id === s.id);
+    return m ? { t: "m", log: m } : null;
+  }
   if (f === "nage") { const l = DB.get("natation-logs").find(x => sortieDeNage(x)?.id === s.id); return l ? { t: "n", log: l } : null; }
   return null;
 }

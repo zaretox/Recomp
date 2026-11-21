@@ -233,5 +233,4 @@ const SUBSTITUTIONS = {
   "Hip thrust": ["Pont fessier","Abduction hanche","RDL léger"]
 };
 
-const ETIREMENTS = ["Ischios assis","Quadriceps debout","Fente basse","Mollet mur (priorité droite)","Posture enfant","Torsion allongée","Cercles chevilles (pied droit)"];
 const REGLES = ["Genou droit : ne jamais dépasser la pointe du pied.","Zéro saut les 4 premières semaines.","Douleur piquante = arrêt immédiat.","Bas du corps : progression plus lente (genou + pied droit).","Hydratation +++ et 7-8 h de sommeil."];

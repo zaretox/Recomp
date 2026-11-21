@@ -188,7 +188,7 @@ function BlocEpargne() {
         : h(Fragment, null,
           h("ol.etapes",
             h("li", "Dans l'appli de ta banque, ouvre un ", h("b", "Livret A"), " (rubrique épargne) si tu n'en as pas."),
-            h("li", "Dans les virements, crée un ", h("b", "virement permanent"), " : de ton compte courant vers ton Livret A, ", h("b", eurosD(montant)), ", chaque mois, le ", h("b", String(jourVirement())), " (le lendemain de ta paye)."),
+            h("li", "Dans les virements, crée un ", h("b", "virement permanent"), " : de ton compte courant vers ton Livret A, ", montant > 0 ? h("b", eurosD(montant)) : "du montant choisi plus bas (« À chaque paye »)", ", chaque mois, le ", h("b", String(jourVirement())), " (le lendemain de ta paye)."),
             h("li", "Reviens ici et touche « C'est en place ».")),
           h("p.note", "Les noms des menus peuvent changer selon la version de l'appli."),
           h(Bouton, { cl: "plein", onClick: () => majEpargne(x => ({ ...x, virement: true })) }, "C'est en place"))),

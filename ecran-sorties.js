@@ -147,17 +147,6 @@ function PasSemaine() {
     h("p.note", err && relie ? "Polar n'a pas donné tes pas (" + err + "). Réessaie plus tard, ou envoie-moi ce message." : "Comptés par ta montre jusqu'à sa dernière synchronisation avec Polar Flow" + (lu ? ", relus à " + new Date(lu).toTimeString().slice(0, 5) : "") + ". Le trait est ton objectif."));
 }
 
-/* Bloc de l'onglet Sport */
-function SectionSorties() {
-  useDB();
-  const imp = useImportPolar(), l = sortiesPolar();
-  if (!imp.relie && !l.length) return null;
-  return h(Section, { titre: "Sorties de ta montre", droite: l.length > 3 ? h(Lien, { onClick: () => Nav.sheet("sorties") }, "Tout voir") : null },
-    l.length ? h("div.liste", l.slice(0, 3).map(s => h(LigneSortie, { key: s.id, s })))
-      : h(Vide, null, "Tes séances Polar apparaîtront ici : parcours, kilomètres, fréquence cardiaque. Seules celles synchronisées après la liaison sont disponibles."),
-    imp.relie && h(Bouton, { cl: "contour" + (imp.charge ? " occupe" : ""), ico: "trace", disabled: imp.charge, onClick: () => imp.lancer(false) }, imp.charge ? "Lecture de ta montre…" : "Récupérer mes séances Polar"));
-}
-
 function FeuilleSorties() {
   useDB();
   const imp = useImportPolar(), l = sortiesPolar();
@@ -262,6 +251,7 @@ function FeuilleSortie({ id }) {
   return h(Feuille, { titre: nomSortie(s), ton: "sport" },
     h("p.sous-t", dateLongue(s.dateISO) + (s.debut ? " à " + s.debut.slice(11, 16) : "") + (s.appareil ? " · " + s.appareil : "")),
     lie?.t === "s" && h(Rangee, { ico: "sport", titre: "Ta séance " + lie.log.seance, sous: "Charges et séries notées dans Ensō", onClick: () => Nav.sheet("seanceDetail", { id: lie.log.id }) }),
+    lie?.t === "m" && h(Rangee, { ico: "sport", titre: "Ta séance Maison " + lie.log.seance, sous: "Circuit noté dans Ensō", onClick: () => ouvrirSeance(lie.log.dateISO, { prog: "maison", code: lie.log.seance }) }),
     lie?.t === "n" && h(Rangee, { ico: "nage", titre: "Dans ta natation", sous: entier(lie.log.distance) + " m notés le " + dateMini(lie.log.dateISO) + ", touche pour corriger", onClick: () => Nav.sheet("nage", { id: lie.log.id }) }),
     h(BlocMontre, { s }),
     f === "nage" && !lie && s.distance > 0 && h(Bouton, { cl: "plein", ico: "nage", onClick: () => ajouterANatation(s) }, "Ajouter à ma natation"),

@@ -213,7 +213,7 @@ function ChargePolar() {
   if (!c || ecart(c.date, auj) > 3) return null;
   const st = statutCharge(c.statut), d = DB.get("polar-charge") || {};
   const jours = Array.from({ length: 14 }, (_, i) => decale(auj, i - 13));
-  return h(Section, { titre: "Charge d'entraînement", droite: h("span.compte", c.date === auj ? "selon ta montre" : "montre, " + dateMini(c.date)) },
+  return h(Section, { titre: "Charge cardio", droite: h("span.compte", c.date === auj ? "selon ta montre" : "montre, " + dateMini(c.date)) },
     st && h("div.charge-p", { "data-ton": st.ton }, h("b", st.t.replace(/^./, x => x.toUpperCase())),
       h("span", st.t === "surcharge" ? "Tu en fais plus que ce que ton corps encaisse d'habitude : allège quelques jours." : st.t === "productive" ? "Tu progresses : l'effort est un peu au-dessus de ton habitude, c'est ce qu'il faut."
         : st.t === "maintien" ? "Tu entretiens ta forme : effort proche de ton habitude." : "Tu en fais moins que d'habitude : ta forme physique va baisser si ça dure.")),

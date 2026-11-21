@@ -106,7 +106,7 @@ function SportSemaine() {
       })(),
       // La charge vue par la montre, en une ligne ; le détail est dans Corps → Forme
       (() => { const c = derniereCharge(), st = c && ecart(c.date, auj) <= 3 && statutCharge(c.statut);
-        return st && h("button.ligne", { onClick: () => allerRubrique("corps", "forme") }, h("span", h("b", "Charge d'entraînement : " + st.t), h("small", "selon ta montre, le détail dans Corps → Forme")), h(Icone, { n: "fleche", t: 16 })); })()),
+        return st && h("button.ligne", { onClick: () => allerRubrique("corps", "forme") }, h("span", h("b", "Charge cardio : " + st.t), h("small", "selon ta montre, le détail dans Corps → Forme")), h(Icone, { n: "fleche", t: 16 })); })()),
     h(PasSemaine),
     h(Section, { titre: "Séries par muscle", droite: h("span.compte", "7 derniers jours") }, h(VolumeMuscles), h("p.note", "La bande claire est ta zone utile. Dessous, le muscle ne progresse pas assez ; au-dessus, tu récupères moins bien.")),
     h(Section, { titre: "Réglages de la semaine" },
@@ -150,7 +150,9 @@ function SportHistorique() {
   const titreSem = k => { const e = Math.round(ecart(k, lundiDe(auj)) / 7); return e === 0 ? "Cette semaine" : e === 1 ? "Semaine dernière" : "Semaine du " + dateMini(k); };
   const ouvrir = l => l._t === "s" ? Nav.sheet("seanceDetail", { id: l.id }) : l._t === "n" ? (sortieDeNage(l) ? Nav.sheet("sortie", { id: sortieDeNage(l).id }) : Nav.sheet("nage", { id: l.id })) : l._t === "p" ? Nav.sheet("sortie", { id: l.id }) : ouvrirSeance(l.dateISO, { prog: "maison", code: l.seance });
   const nom = l => l._t === "s" ? l.seance : l._t === "m" ? "Maison " + l.seance : l._t === "p" ? nomSortie(l) : "Natation";
-  const valeur = l => l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" + fcDe(sortieDeMuscu(l)) : l._t === "n" ? entier(l.distance) + " m" + fcDe(sortieDeNage(l)) : l._t === "p" ? (l.distance > 0 ? distanceSortie(l) : chrono(l.duree)) : "";
+  const valeur = l => l._t === "s" ? nb(volumeSeance(l) / 1000) + " t" + fcDe(sortieDeMuscu(l)) : l._t === "n" ? entier(l.distance) + " m" + fcDe(sortieDeNage(l)) : l._t === "p" ? (l.distance > 0 ? distanceSortie(l) : chrono(l.duree)) : montreMaison(l);
+  // Un circuit maison fait avec la montre : sa durée et son cardio
+  const montreMaison = l => { const s = sortieDeMuscu(l); return s && logDeSortie(s)?.log.id === l.id ? chrono(s.duree) + fcDe(s) : ""; };
   return h(Fragment, null,
     imp.relie && h("div.synchro", h("span", "Polar · tes séances arrivent seules après chaque synchronisation de ta montre."),
       h("button.mini", { disabled: imp.charge, onClick: () => imp.lancer(false) }, imp.charge ? "Lecture…" : "Actualiser")),

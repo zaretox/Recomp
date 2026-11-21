@@ -169,7 +169,7 @@ function SectionPolar() {
 }
 
 /* Ce que ta montre donne : une ligne par donnée, pour savoir ce que ta Polar fournit vraiment */
-const DONNEES_POLAR = [["sorties", "Séances"], ["pas", "Pas"], ["nuits", "Sommeil"], ["recharge", "Recharge nocturne"], ["charge", "Charge d'entraînement"], ["coucher", "Heure de coucher (SleepWise)"], ["physique", "Repères (FC de repos, seuils)"]];
+const DONNEES_POLAR = [["sorties", "Séances"], ["pas", "Pas"], ["nuits", "Sommeil"], ["recharge", "Recharge nocturne"], ["charge", "Charge cardio (fatigue, tolérance)"], ["coucher", "Heure de coucher (SleepWise)"], ["physique", "Repères (FC de repos, seuils)"]];
 function EtatPolar() {
   useDB();
   const [charge, setCharge] = useState(false), [, maj] = useState(0), e = etatPolar(), pas = DB.get("polar-pas") || {};
@@ -209,9 +209,9 @@ function SectionCoachIA() {
   const code = h(Fragment, null, h("div.valeur-c", l.code), h("div.deux-b", h(Bouton, { cl: "contour", onClick: copier }, "Copier mon code"), l.actif && h(Bouton, { cl: "contour", onClick: changerCode }, "Nouveau code")));
   return h(Fragment, null,
     h(Section, null,
-      h("p.texte-p", l.actif ? h(Fragment, null, h("b", "Coach IA activé. "), "Chaque matin, il t'écrit un mot dans l'écran Jour, et tu peux lui poser tes questions juste en dessous.")
+      h("p.texte-p", l.actif ? h(Fragment, null, h("b", "Coach IA activé. "), "Chaque matin, il t'écrit un mot (en haut de Jour et dans l'onglet Coach), et tu lui parles dans l'onglet Coach, au clavier ou au micro.")
         : "Le coach IA, c'est Claude qui lit le résumé de tes données et te conseille comme un vrai coach. Suis ces étapes une seule fois, depuis ton téléphone."),
-      l.actif && h("div.interrupteurs", h(Interrupteur, { actif: true, titre: "Coach IA", sous: "Désactivé, le coach habituel reste là", onClick: () => maj({ actif: false }) }))),
+      l.actif && h("div.interrupteurs", h(Interrupteur, { actif: true, titre: "Coach IA", sous: "Touche pour le couper : le coach habituel reste là", onClick: () => maj({ actif: false }) }))),
     !l.actif && h(Section, { titre: "Mise en place" },
       h("ol.etapes",
         h("li", "Sur ", h("b", "platform.claude.com"), ", crée ton compte. Dans ", h("b", "Billing"), ", ajoute ta carte et un peu de crédit (5 $ suffisent pour commencer). Dans ", h("b", "Spend limits"), ", fixe un plafond mensuel, par exemple 10 $ : tu ne paieras jamais plus."),

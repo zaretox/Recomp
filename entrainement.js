@@ -24,8 +24,9 @@ const fmtSeries = e => e.setsDetail?.length ? e.setsDetail.map(s => nb(s.w) + "�
 const repsLimitantes = e => e.setsDetail?.length ? Math.min(...e.setsDetail.filter(s => s.w === e.weight).map(s => s.r)) : e.reps;
 const difficulteMoyenne = exs => { const v = exs.filter(e => e.rpe > 0).map(e => e.rpe); return v.length ? arrondi(moyenne(v)) : null; };
 
+// idSeance = null : toutes séances confondues
 function dernierExo(logs, idSeance, nom) {
-  const l = (logs || []).filter(x => !x.deload && x.seance === idSeance && (x.exercices || []).some(e => e.nom === nom && e.weight > 0))
+  const l = (logs || []).filter(x => !x.deload && (idSeance === null || x.seance === idSeance) && (x.exercices || []).some(e => e.nom === nom && e.weight > 0))
     .sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
   return l ? { ...l.exercices.find(e => e.nom === nom), date: l.date, dateISO: l.dateISO } : null;
 }
@@ -58,15 +59,6 @@ function progression(idSeance, e, recup, logs) {
   return { action: "reps", weight: e.weight, reps: reps + 1, range: cur, txt: "garde " + nb(e.weight) + " kg, vise " + (reps + 1) + " reps (" + fmtFourchette(cur) + ")" };
 }
 const repsImposees = (cfg, cle) => cfg?.repOverrides?.[cle] || null;
-/* Fourchette en cours si elle diffère du programme */
-function fourchetteEnCours(logs, cfg, idSeance, nom) {
-  const ro = repsImposees(cfg, idSeance + ":" + nom), ov = cfg?.weightOverrides?.[idSeance + ":" + nom];
-  const r = fourchetteProgramme(idSeance, nom), der = dernierExo(logs, idSeance, nom);
-  if (ro && !(der && ov && der.weight >= ov)) return { range: ro, src: "science" };
-  if (!r || !der) return null;
-  const p = progression(idSeance, der, false, logs);
-  return p.range && fmtFourchette(p.range) !== fmtFourchette(r) ? { range: p.range, src: "auto" } : null;
-}
 /* Sous 50 le matin (ou réglage manuel) : aucune hausse de charge ce jour-là */
 const modeRecup = cfg => {
   if (cfg?.recovery) return true;

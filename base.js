@@ -125,7 +125,6 @@ const ORDRE_JOURS = [1, 2, 3, 4, 5, 6, 0];
 const MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 const moisDe = iso => String(iso || "").slice(0, 7);
 const moisPrec = ym => { const [a, m] = ym.split("-").map(Number); const d = new Date(a, m - 2, 1); return d.getFullYear() + "-" + pad2(d.getMonth() + 1); };
-const moisSuiv = ym => { const [a, m] = ym.split("-").map(Number); const d = new Date(a, m, 1); return d.getFullYear() + "-" + pad2(d.getMonth() + 1); };
 const nomMois = ym => { const [a, m] = ym.split("-").map(Number); return MOIS[m - 1] + (a === new Date().getFullYear() ? "" : " " + a); };
 const joursDuMois = ym => { const [a, m] = ym.split("-").map(Number); return new Date(a, m, 0).getDate(); };
 

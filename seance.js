@@ -27,10 +27,7 @@ function modifSeance(iso, code, fn) {
 const estAssiste = nom => /assist[ée]/i.test(nom || "");
 const poidsDuCorps = () => { const t = tendancePoids(); return t.length ? arrondi(t[t.length - 1].t, 1) : null; };
 /* Dernière fois qu'un exercice a été fait, toutes séances confondues */
-function dernierPartout(logs, nom) {
-  const l = (logs || []).filter(x => !x.deload && (x.exercices || []).some(e => e.nom === nom && e.weight > 0)).sort((a, b) => b.dateISO.localeCompare(a.dateISO))[0];
-  return l ? l.exercices.find(e => e.nom === nom) : null;
-}
+const dernierPartout = (logs, nom) => dernierExo(logs, null, nom);
 function majSeance(iso, code, fn) {
   const logs = DB.get("sport-logs"), log = logs.find(l => l.dateISO === iso && l.seance === code), cfg = reglages(), k = cleAjouts(iso, code);
   const suivant = fn(versLog(iso, code, cfg, log));

@@ -43,6 +43,7 @@ Lis `LISEZMOI.md` avant de modifier quoi que ce soit : il contient la carte des 
    - doit-elle y apparaître, et y apparaît-elle juste (bonne heure, bons chiffres) ?
    - y est-elle en double : deux fois sur un écran, deux fois dans les données, ou en doublon d'une fonction qui existait déjà ?
    Ouvre les écrans concernés avec des données qui déclenchent la nouveauté, et regarde-les.
+   Pour tout revérifier (à sa demande, ou après un gros changement) : `node verifier.cjs --tout --textes <fichier>`. Ce mode ajoute le code en double ou jamais utilisé, la carte des données, les mêmes chiffres d'un onglet à l'autre, et l'app à 7 h 30, 13 h et 21 h 30. Relis ensuite le texte de chaque écran pour repérer les doublons et les textes dépassés.
 3. **Mets à jour `LISEZMOI.md` et `ARBITRAGES.md`** si la nouveauté change une clé, un fichier ou un choix.
 4. **Donne le résultat à Aurélien avant « Je publie ? »**, en quelques lignes simples : ce que le vérificateur a trouvé, les onglets où la nouveauté se voit, les doublons cherchés et trouvés (ou aucun), ce qui a été corrigé, et ce qui n'a pas pu être vérifié (sa vraie montre, son vrai téléphone).
 
