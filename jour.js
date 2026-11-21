@@ -73,7 +73,9 @@ function itemsDuJour(iso) {
     if (faite || !autres.length) items.push({ cle: "seance", h: seanceCreneau(), t: sess.label, s: faite ? "faite" : sess.titre, fait: faite, ouvre: () => ouvrirSeance(iso, sess), ton: "sport", fort: !faite });
   }
   autres.forEach(l => items.push({ cle: "en-plus-" + l.prog + l.id, h: seanceCreneau(), t: l.prog === "maison" ? "Maison " + l.seance : l.seance, s: "faite", fait: true, ouvre: () => ouvrirSeance(iso, { prog: l.prog, code: l.seance }), ton: "sport" }));
-  if (nage || nages.length) items.push({ cle: "nage", h: "17h30", t: "Natation", s: nages.length ? entier(nages.reduce((a, l) => a + l.distance, 0)) + " m" : entier(nageDistance(nage)) + " m prévus", fait: nages.length > 0, ouvre: () => Nav.sheet("natation", { iso }), ton: "sport" });
+  // Une nage venue de la montre se place à l'heure où tu l'as faite
+  const debutNage = nages.map(l => l.polarId && sortiesPolar().find(s => s.id === l.polarId)?.debut).find(Boolean);
+  if (nage || nages.length) items.push({ cle: "nage", h: heurePolar(debutNage) || "17h30", t: "Natation", s: nages.length ? entier(nages.reduce((a, l) => a + l.distance, 0)) + " m" : entier(nageDistance(nage)) + " m prévus", fait: nages.length > 0, ouvre: () => Nav.sheet("natation", { iso }), ton: "sport" });
   // Les pas comptés par la montre, à atteindre avant le coucher : la ligne se coche seule à l'objectif
   const auj = aujourdhui(), pas = pasDu(iso), obj = objectifPas();
   if (iso <= auj && (pas != null || (iso === auj && lienPolar()?.jeton)))

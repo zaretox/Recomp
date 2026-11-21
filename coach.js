@@ -251,7 +251,7 @@ function contexteCoach(avecHeure = true) {
       Object.keys(maux).length ? "Douleurs récentes : " + Object.entries(maux).map(([z, x]) => z + " " + x.i + "/10").join(", ") + "." : null];
   });
   part("Natation", () => { const l = [...DB.get("natation-logs")].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).slice(-6);
-    return l.length ? l.map(x => jourDe(x.dateISO) + " : " + entier(x.distance) + " m en " + dureeS(x.duree) + (allure(x.distance, x.duree) ? ", " + mmss(Math.round(allure(x.distance, x.duree))) + " aux 100 m" : "") + (x.rpe ? ", effort " + x.rpe + "/10" : "")) : "Aucune nage notée."; });
+    return l.length ? l.map(x => jourDe(x.dateISO) + " : " + entier(x.distance) + " m en " + dureeS(x.duree) + (allure(x.distance, x.duree) ? ", " + mmss(Math.round(allure(x.distance, x.duree))) + " aux 100 m" : "") + (x.auto ? ", ajoutée par sa montre (effort pas noté)" : x.rpe ? ", effort " + x.rpe + "/10" : "") + (x.kcal ? ", " + entier(x.kcal) + " kcal" : "")) : "Aucune nage notée."; });
   part("Cardio de la montre (10 jours)", () => sortiesPolar().filter(x => ecart(x.dateISO, auj) <= 9 && !logDeSortie(x)).map(x => jourDe(x.dateISO) + " : " + nomSortie(x) + ", " + chrono(x.duree) + (x.distance > 0 ? ", " + kmDe(x.distance) + " km" : "") + (x.fcMoy ? ", FC moy. " + x.fcMoy : "")));
   part("Pas", () => { const m = moyennePas(7, decale(auj, -1)), p = pasDu(auj); return p == null && !m ? null : "Aujourd'hui " + (p != null ? entier(p) : "—") + " pas, moyenne 7 jours " + (m ? entier(m.moy) : "—") + ", objectif " + entier(objectifPas()) + "."; });
   // Le budget reste sur le téléphone : aucun montant, aucune dépense, aucune épargne ne part chez le coach IA

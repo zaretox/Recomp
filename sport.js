@@ -254,9 +254,13 @@ function FeuilleNage({ id }) {
   const [l, setL] = useState(l0 ? { ...l0 } : null);
   if (!l) return h(Feuille, { titre: "Nage" }, h(Vide, null, "Nage supprimée."));
   const maj = o => setL(x => ({ ...x, ...o }));
+  // Les calories mesurées par la montre restent tant que la distance et la durée ne changent pas
+  const montre = l0?.polarId ? sortiesPolar().find(s => s.id === l0.polarId) : null;
+  const kcalMontre = montre?.kcal > 0 && l.distance === l0.distance && l.duree === l0.duree ? Math.round(montre.kcal) : null;
   const enregistrer = async () => {
     const kg = moyenneRecente(pesees(), 7) || 100;
-    const n = { ...l, date: dateCourte(l.dateISO), kcal: nageKcal(l.distance, l.duree, l.rpe || 6, kg) };
+    // Corrigée par toi : ce n'est plus une nage « ajoutée seule » (une autre nage notée le même jour s'ajoutera)
+    const n = { ...l, date: dateCourte(l.dateISO), kcal: kcalMontre ?? nageKcal(l.distance, l.duree, l.rpe || 6, kg), auto: false };
     await DB.set("natation-logs", DB.get("natation-logs").map(x => x.id === id ? n : x));
     Nav.fermer();
     toast("Nage corrigée");
@@ -271,7 +275,7 @@ function FeuilleNage({ id }) {
       h(Champ, { etiquette: "Distance", valeur: l.distance, mode: "ent", unite: "m", pas: [50, 100], min: 0, onChange: v => maj({ distance: v }) }),
       h(Champ, { etiquette: "Durée", valeur: l.duree, texte: dureeS(l.duree), mode: "ms", unite: "min:s", pas: [30, 60], min: 0, onChange: v => maj({ duree: v }) })),
     h(Champ, { etiquette: "Difficulté ressentie", valeur: l.rpe || 6, mode: "ent", unite: "/10", pas: [1], min: 1, max: 10, onChange: v => maj({ rpe: v }) }),
-    l.distance > 0 && l.duree > 0 && h("p.note", "Allure : " + mmss(Math.round(allure(l.distance, l.duree))) + " aux 100 m. Les calories de la nage sont recalculées."),
+    l.distance > 0 && l.duree > 0 && h("p.note", "Allure : " + mmss(Math.round(allure(l.distance, l.duree))) + " aux 100 m. " + (kcalMontre ? "Calories de ta montre gardées : " + entier(kcalMontre) + " kcal." : "Les calories de la nage sont recalculées.")),
     h(Bouton, { cl: "plein grand", onClick: enregistrer }, "Enregistrer"),
     h(Bouton, { cl: "contour danger-t", onClick: suppr }, "Supprimer"));
 }
