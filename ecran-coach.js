@@ -4,7 +4,7 @@
  * Jour n'en montre qu'un aperçu. Sans coach IA, l'onglet garde les messages et les réponses toutes faites. */
 
 // Ce qui est en cours (une réponse qui arrive, une erreur), partagé entre l'aperçu de Jour et l'onglet Coach
-const EtatCoach = { occupe: null, flux: null, err: null, abonnes: new Set() };
+const EtatCoach = { occupe: null, flux: null, err: null, lecture: false, abonnes: new Set() };
 const majCoach = p => { Object.assign(EtatCoach, p); EtatCoach.abonnes.forEach(f => f()); };
 function useEtatCoach() {
   const [, r] = useState(0);
@@ -21,6 +21,7 @@ async function lancerMotDuJour() {
   if (EtatCoach.occupe) return;
   majCoach({ occupe: "matin", err: null, flux: null }); essaiMatinIA = Date.now();
   try {
+    await relireMontre();
     const r = await demanderCoach({ mode: "matin", contexte: contexteCoach(), onTexte: t => majCoach({ flux: { cle: "matin", texte: t } }) });
     await ecrireCoachIA({ matin: { jour: aujourdhui(), texte: r.texte, coupe: r.coupe } });
   } catch (e) { majCoach({ err: { cle: "matin", t: e.message } }); }
@@ -32,23 +33,28 @@ function useMotAuto() {
   useEffect(() => { if (actif && !m && !EtatCoach.occupe && (nuitLa || new Date().getHours() >= 10) && Date.now() - essaiMatinIA > 15 * 60000) lancerMotDuJour(); }, [actif, !!m, nuitLa]);
 }
 
-/* Une question. La conversation du jour garde le même résumé de données (le coach s'y retrouve, et c'est moins cher).
+/* Une question. La montre est relue d'abord (si tu viens de la synchroniser), puis le résumé de tes données est refait :
+ * le coach a toujours tes derniers chiffres. Chaque question porte son heure ; le résumé, lui, ne change que si tes données
+ * changent, et la suite de la conversation reste alors moins chère (cache).
  * Avec « argent », la question emporte le résumé de l'argent en pourcentages, pour cette conversation seulement. */
 const QUESTION_ARGENT = "Comment je m'en sors avec mon argent sur cette paye ?";
 async function envoyerCoach(q, argent) {
   q = String(q || "").trim();
   if (!q || EtatCoach.occupe) return null;
-  majCoach({ occupe: "fil", err: null, flux: null });
-  const f = filDuJour() || { jour: aujourdhui(), contexte: contexteCoach(), messages: [] };
-  const m = argent ? { role: "user", content: q + "\n\nMon argent, en pourcentages et sans montants :\n" + argentEnPourcentages(), affiche: q, argent: true } : { role: "user", content: q };
-  const messages = [...f.messages, m];
-  await ecrireCoachIA({ fil: { ...f, messages } });
+  majCoach({ occupe: "fil", err: null, flux: null, lecture: !!lienPolar()?.jeton });
+  const f0 = filDuJour() || { jour: aujourdhui(), messages: [] }, heure = new Date().toTimeString().slice(0, 5);
+  const m = { role: "user", content: "[" + heure + "] " + q + (argent ? "\n\nMon argent, en pourcentages et sans montants :\n" + argentEnPourcentages() : ""), affiche: q, ...(argent ? { argent: true } : {}) };
+  const messages = [...f0.messages, m];
+  await ecrireCoachIA({ fil: { ...f0, messages } });
+  await relireMontre();
+  majCoach({ lecture: false });
+  const f = { ...f0, contexte: contexteCoach(false) };
   try {
     const r = await demanderCoach({ mode: "question", contexte: f.contexte, messages: messages.map(x => ({ role: x.role, content: x.content })), onTexte: t => majCoach({ flux: { cle: "fil", texte: t } }) });
     await ecrireCoachIA({ fil: { ...f, messages: [...messages, { role: "assistant", content: r.texte + (r.coupe ? "\n\n(réponse coupée en route)" : "") }] } });
     return null;
   } catch (e) { majCoach({ err: { cle: "fil", t: e.message } }); await ecrireCoachIA({ fil: f }); return q; }
-  finally { majCoach({ occupe: null, flux: null }); }
+  finally { majCoach({ occupe: null, flux: null, lecture: false }); }
 }
 // Depuis un autre écran (bouton « En parler au coach » de l'onglet Argent)
 let demandeCoach = null;
@@ -88,7 +94,7 @@ function MotCoachIA({ e, m }) {
   const enCours = e.flux?.cle === "matin" ? e.flux.texte : null, t = enCours || m?.texte, err = e.err?.cle === "matin" ? e.err.t : null;
   return h("div.msg.ia",
     h("span.ia-e", "Le mot du coach"),
-    t ? h(Paragraphes, { t }) : h("p.ia-attente", err ? "Le coach n'a pas pu écrire : " + err + "." : e.occupe === "matin" ? "Le coach lit tes données…" : "Ton mot du jour arrive dès que ta nuit est là."),
+    t ? h(Paragraphes, { t }) : h("p.ia-attente", err ? "Le coach n'a pas pu écrire : " + err + "." : e.occupe === "matin" ? "Le coach relit ta montre et tes données…" : "Ton mot du jour arrive dès que ta nuit est là."),
     !enCours && t && h(ActionsCoach, { t }),
     e.occupe !== "matin" && h("div.ia-pied", m?.coupe && h("small", "Réponse coupée en route."), h("button", { disabled: !!e.occupe, onClick: lancerMotDuJour }, t ? "Réécrire" : err ? "Réessayer" : "L'écrire maintenant")));
 }
@@ -99,7 +105,7 @@ function FilCoachIA({ e, fil }) {
     m.map((x, i) => x.role === "user"
       ? h("div.msg.rep", { key: i }, h("p", x.affiche || x.content), x.argent && h("small.cadenas", h(Icone, { n: "oeil-barre", t: 13 }), "Argent partagé en pourcentages, sans montants"))
       : h("div.msg.ia", { key: i }, h(Paragraphes, { t: x.content }), i === m.length - 1 && h(ActionsCoach, { t: x.content }))),
-    e.occupe === "fil" && h("div.msg.ia", enCours ? h(Paragraphes, { t: enCours }) : h("p.ia-attente", "Le coach réfléchit…")),
+    e.occupe === "fil" && h("div.msg.ia", enCours ? h(Paragraphes, { t: enCours }) : h("p.ia-attente", e.lecture ? "Le coach relit ta montre…" : "Le coach réfléchit…")),
     err && h("p.note", "Pas de réponse : " + err + ". Ta question est restée dans le champ."));
 }
 const InviteIA = () => h("div.msg.ia",

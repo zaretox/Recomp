@@ -183,7 +183,7 @@ function BilanIA() {
   useEffect(() => {
     if (fait) return;
     let parti = false;
-    demanderCoach({ mode: "bilan", contexte: contexteCoach(), onTexte: t => { if (!parti) setFlux(t); } })
+    relireMontre().then(() => demanderCoach({ mode: "bilan", contexte: contexteCoach(), onTexte: t => { if (!parti) setFlux(t); } }))
       .then(r => DB.set("coach-ia", { ...(DB.get("coach-ia") || {}), bilan: { semaine: sem, texte: r.texte } }))
       .catch(e => { if (!parti) setErr(e.message); })
       .finally(() => { if (!parti) setFlux(null); });
@@ -213,13 +213,13 @@ function ChargePolar() {
   if (!c || ecart(c.date, auj) > 3) return null;
   const st = statutCharge(c.statut), d = DB.get("polar-charge") || {};
   const jours = Array.from({ length: 14 }, (_, i) => decale(auj, i - 13));
-  return h(Section, { titre: "Charge d'entraînement", droite: h("span.compte", "selon ta montre") },
+  return h(Section, { titre: "Charge d'entraînement", droite: h("span.compte", c.date === auj ? "selon ta montre" : "montre, " + dateMini(c.date)) },
     st && h("div.charge-p", { "data-ton": st.ton }, h("b", st.t.replace(/^./, x => x.toUpperCase())),
       h("span", st.t === "surcharge" ? "Tu en fais plus que ce que ton corps encaisse d'habitude : allège quelques jours." : st.t === "productive" ? "Tu progresses : l'effort est un peu au-dessus de ton habitude, c'est ce qu'il faut."
         : st.t === "maintien" ? "Tu entretiens ta forme : effort proche de ton habitude." : "Tu en fais moins que d'habitude : ta forme physique va baisser si ça dure.")),
     h("div.tuiles",
-      h(Tuile, { v: c.effort != null ? Math.round(c.effort) : "—", l: "effort, 7 derniers jours" }),
-      h(Tuile, { v: c.tolerance != null ? Math.round(c.tolerance) : "—", l: "ce que tu encaisses d'habitude" })),
+      h(Tuile, { v: c.effort != null ? Math.round(c.effort) : "—", l: "fatigue : ton effort des 7 derniers jours" }),
+      h(Tuile, { v: c.tolerance != null ? Math.round(c.tolerance) : "—", l: "tolérance : ce que tu encaisses d'habitude" })),
     jours.some(j => d[j]?.charge > 0) && h(Barres, { pts: jours.map(j => ({ l: JOURS_L[(jourSem(j) + 6) % 7], v: Math.round(d[j]?.charge || 0) })), ton: "corps", haut: 90 }),
     h("p.note", "Calculée par Polar à partir du cardio de toutes tes séances. Elle ne change pas ton score de forme, qui compte déjà tes séances."));
 }

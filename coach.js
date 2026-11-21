@@ -173,7 +173,8 @@ const regularite = memo(semaines => {
 
 /* COACH IA — Claude, appelé par la fonction Netlify « coach » qui garde la clé.
  * « coach-lien » = { code, actif } : le code d'accès (jamais dans la sauvegarde) et le coach activé. Le budget n'est jamais envoyé.
- * « coach-ia » = { matin: { jour, texte }, bilan: { semaine, texte }, fil: { jour, contexte, messages: [{ role, content }] } }.
+ * « coach-ia » = { matin: { jour, texte }, bilan: { semaine, texte }, fil: { jour, contexte, messages: [{ role, content, affiche }] } }.
+ * content d'une question : « [HH:MM] » puis la question (affiche = la question seule, montrée à l'écran).
  * Il propose seulement : ses actions deviennent des boutons, rien ne change sans toi. */
 const COACH_FN = "/.netlify/functions/coach";
 const lienCoach = () => DB.get("coach-lien");
@@ -182,13 +183,15 @@ const nouveauCodeCoach = () => { const a = "abcdefghjkmnpqrstuvwxyz23456789", b 
 
 const MESSAGES_ARGENT = ["epargne", "epargneReste", "epargnePalier", "rythme", "banque", "enveloppe"];
 /* Le résumé envoyé à chaque demande : forme, nuits, séances, repas, poids, pas. Jamais rien du budget. */
-function contexteCoach() {
+// avecHeure : l'heure du moment dans le résumé (mot du jour, bilan). Pour une question, elle est en tête du message :
+// le résumé ne change alors que si tes données changent, et la conversation profite du cache.
+function contexteCoach(avecHeure = true) {
   const auj = aujourdhui(), L = [], pr = profil();
   const part = (titre, f) => { try { const t = [].concat(f()).filter(Boolean); if (t.length) L.push("## " + titre + "\n" + t.join("\n")); } catch (e) { /* une partie illisible n'empêche pas le reste */ } };
   const jourDe = d => JOURS[jourSem(d)] + " " + dateMini(d);
   part("Aujourd'hui", () => {
     const sess = seanceDuJour(auj, programmeEnCours()), faite = seanceFaite(auj), cfg = reglages(), nage = nagePrevue(auj);
-    return [dateLongue(auj) + ", " + new Date().toTimeString().slice(0, 5) + ".",
+    return [dateLongue(auj) + (avecHeure ? ", " + new Date().toTimeString().slice(0, 5) : "") + ".",
       "Programme : " + infoProgramme(programmeEnCours()).label + ", séances vers " + hhmm(seanceCreneau()) + ", réveil " + hhmm(pr.reveil) + ".",
       sess ? "Séance prévue : " + sess.label + (faite ? " (faite)" : "") + "." : faite ? "Une séance a été faite aujourd'hui." : "Pas de muscu prévue aujourd'hui.",
       nage ? "Natation prévue : " + nage.name + ", " + entier(nageDistance(nage)) + " m." : null,
@@ -210,7 +213,9 @@ function contexteCoach() {
     return "Nuit du " + jourDe(n.date) + " : endormi " + (heurePolar(n.debut) || "—") + ", réveillé " + (heurePolar(n.fin) || "—") + ", score Polar " + (n.score ?? "—") + ", profond " + hm(n.profond) + ", paradoxal " + hm(n.paradoxal) + ", léger " + hm(n.leger) + ", réveils " + (n.interruptions != null ? Math.round(n.interruptions / 60) + " min" : "—") + (n.recharge ? ", Recharge nocturne " + STATUTS_RECHARGE[n.recharge] : "") + (n.respiration ? ", respiration " + nb(n.respiration) + "/min" : "") + "."; });
   part("Charge d'entraînement (montre)", () => { const c = derniereCharge(); if (!c || ecart(c.date, auj) > 3) return null; const st = statutCharge(c.statut), d = DB.get("polar-charge") || {};
     const j = Array.from({ length: 14 }, (_, i) => decale(auj, i - 13)).filter(x => d[x]?.charge > 0).map(x => jourDe(x) + " " + Math.round(d[x].charge));
-    return ["État : " + (st ? st.t : "inconnu") + ", effort 7 jours " + (c.effort != null ? Math.round(c.effort) : "—") + ", tolérance habituelle " + (c.tolerance != null ? Math.round(c.tolerance) : "—") + ".", j.length ? "Charge par jour : " + j.join(", ") + "." : null]; });
+    return [c.date === auj ? "Chiffres d'aujourd'hui, lus chez Polar." : "Derniers chiffres de Polar : ceux du " + jourDe(c.date) + " (rien encore pour aujourd'hui).",
+      "État : " + (st ? st.t : "inconnu") + ", fatigue " + (c.effort != null ? Math.round(c.effort) : "—") + " (l'effort des 7 derniers jours), tolérance " + (c.tolerance != null ? Math.round(c.tolerance) : "—") + " (ce que son corps encaisse d'habitude, sur 28 jours). La montre affiche les mêmes mots.",
+      j.length ? "Charge par jour : " + j.join(", ") + "." : null]; });
   part("Poids", () => { const t = tendancePoids(), der = t[t.length - 1], ry = rythme(), cp = composition(), cl = cp[cp.length - 1];
     if (!der) return null;
     return ["Tendance " + nb1(der.t) + " kg" + (ry.kg != null ? ", rythme " + signe(ry.kg, 2) + " kg par semaine" : "") + ".",

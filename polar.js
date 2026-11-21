@@ -451,6 +451,8 @@ const pasDu = iso => { const j = (DB.get("polar-pas") || {})[iso]; return j && i
 // Moyenne des jours où la montre a compté quelque chose, sur n jours finissant à « fin »
 const moyennePas = (n, fin) => { const v = Array.from({ length: n }, (_, i) => pasDu(decale(fin, -i))).filter(x => x > 0); return v.length ? { moy: Math.round(moyenne(v)), jours: v.length } : null; };
 const luPasA = () => { try { return +localStorage.getItem("recomp_polar_pas") || 0; } catch (e) { return 0; } };
+// Relire ou pas : force = true (toujours), un délai en ms (si la dernière lecture est plus vieille), sinon 5 minutes
+const aRelire = (lu, force) => force === true || Date.now() - (lu || 0) >= (typeof force === "number" ? force : 5 * 60000);
 // Le jour d'un résumé : sa date, sinon son heure de début (locale si Polar ne donne pas de fuseau)
 const jourActivite = x => {
   const d = champPolar(x, "date");
@@ -462,7 +464,7 @@ const jourActivite = x => {
 let pasEnCours = null;
 function importerPasPolar(force) {
   if (!lienPolar()?.jeton) return Promise.resolve(0);
-  if (!force && Date.now() - luPasA() < 15 * 60000) return Promise.resolve(0);
+  if (!aRelire(luPasA(), force)) return Promise.resolve(0);
   return pasEnCours || (pasEnCours = (async () => {
     const auj = aujourdhui(), premier = !Object.keys(DB.get("polar-pas") || {}).length;
     let l;
@@ -506,7 +508,7 @@ const noterEtatPolar = (k, v) => { try { localStorage.setItem(ETAT_POLAR, JSON.s
 let nuitsEnCours = null;
 function importerNuitsPolar(force) {
   if (!lienPolar()?.jeton) return Promise.resolve(0);
-  if (!force && Date.now() - (etatPolar().nuits?.lu || 0) < 15 * 60000) return Promise.resolve(0);
+  if (!aRelire(etatPolar().nuits?.lu, force)) return Promise.resolve(0);
   return nuitsEnCours || (nuitsEnCours = (async () => {
     const [s, rc, ch] = await Promise.allSettled([polarLire("/v3/users/sleep"), polarLire("/v3/users/nightly-recharge"), polarLire("/v3/users/cardio-load")]);
     const nuits = { ...(DB.get("polar-nuits") || {}) }, lu = Date.now();
@@ -562,17 +564,30 @@ async function matinAuto() {
   return ex ? null : e;
 }
 
-/* Tout ce qui se relit en ouvrant l'app : pas, nuits, charge, puis la forme du matin */
+/* Tout ce qui se relit en ouvrant l'app (au plus toutes les 5 minutes) : pas, nuits, charge, puis la forme du matin.
+ * Les séances, plus longues à lire, au plus toutes les 30 minutes. force : voir aRelire. */
 let synchroJourEnCours = null;
 function synchroPolarJour(force) {
   if (!lienPolar()?.jeton) return Promise.resolve(null);
   return synchroJourEnCours || (synchroJourEnCours = (async () => {
     let der = 0; try { der = +localStorage.getItem("recomp_polar_import") || 0; } catch (e) { /* facultatif */ }
-    await Promise.allSettled([importerPasPolar(force), importerNuitsPolar(force), (force || Date.now() - der > 30 * 60000) ? importerSortiesPolar() : null]);
+    await Promise.allSettled([importerPasPolar(force), importerNuitsPolar(force), aRelire(der, force === false || force == null ? 30 * 60000 : force) ? importerSortiesPolar() : null]);
     const e = await matinAuto();
     if (e) { const r = recuperation(aujourdhui()); toast("Ta nuit est arrivée de ta montre" + (r?.score != null ? " : forme " + r.score + "/100" : "")); }
     return e;
   })().catch(() => null).finally(() => { synchroJourEnCours = null; }));
+}
+
+/* Juste avant que le coach IA écrive : la montre relue si la dernière lecture a plus d'une minute,
+ * pour qu'il ait les chiffres de la synchro que tu viens de faire (fatigue, tolérance, nuit, pas, séances).
+ * On ne l'attend pas plus de « attente » ms : sans réseau ou si Polar traîne, le coach part avec ce qu'il a. */
+async function relireMontre(attente = 8000) {
+  if (!lienPolar()?.jeton) return;
+  const lecture = (async () => {
+    if (synchroJourEnCours) await synchroJourEnCours;  // une lecture lancée à l'ouverture a pu sauter des données récentes
+    await synchroPolarJour(60000);
+  })().catch(() => null);
+  await Promise.race([lecture, new Promise(r => setTimeout(r, attente))]);
 }
 
 /* Les dernières nuits et la charge, pour l'écran Forme et le coach */
