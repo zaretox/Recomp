@@ -270,17 +270,23 @@ async function navigateur() {
   // Ce qu'on regarde sur chaque écran (exécuté dans la page)
   function examiner() {
     const W = innerWidth, piles = document.querySelectorAll(".pile-f"), zone = piles.length ? piles[piles.length - 1] : document.querySelector("main.scene") || document.body;
-    const r = { plante: /Un écran a planté/.test(document.body.innerText), debord: document.documentElement.scrollWidth > W + 1, depasse: [], coupes: [], titres: [], textes: [],
+    const r = { plante: !!document.querySelector(".filet") || /un écran a planté/i.test(document.body.innerText), debord: document.documentElement.scrollWidth > W + 1, depasse: [], coupes: [], titres: [], textes: [],
       rubrique: piles.length ? null : (document.querySelector("main.scene .sous-onglets .actif")?.innerText || "").trim() || null };
     const nom = el => el.tagName.toLowerCase() + (el.className && typeof el.className === "string" ? "." + el.className.trim().split(/\s+/).join(".") : "") + " « " + (el.innerText || "").trim().replace(/\s+/g, " ").slice(0, 40) + " »";
-    const coupeParent = el => { for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o !== "visible") return true; } return false; };
+    // Qui retient ce qui sort de l'écran : une bande qu'on fait glisser (voulu), un cadre qui le coupe (texte rogné), ou rien (la page déborde)
+    const retenu = el => { let cadre = null; for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) { const o = getComputedStyle(p).overflowX; if (o === "auto" || o === "scroll") return "glisse"; if (o !== "visible" && !cadre) cadre = p; } return cadre ? "coupe" : null; };
     const signales = [];
     for (const el of zone.querySelectorAll("*")) {
       const st = getComputedStyle(el);
       if (st.visibility === "hidden" || st.display === "none") continue;
       const x = el.getBoundingClientRect();
       if (!x.width || !x.height) continue;
-      if ((x.right > W + 1 || x.left < -1) && !coupeParent(el) && !signales.some(s => s.contains(el))) { signales.push(el); r.depasse.push(nom(el)); }
+      if ((x.right > W + 1 || x.left < -1) && !signales.some(s => s.contains(el))) {
+        const t = retenu(el);
+        // Un élément entièrement hors de l'écran dans un cadre (diapositive suivante, panneau replié) est voulu
+        if (t === "glisse" || (t === "coupe" && (x.left >= W - 1 || x.right <= 1))) continue;
+        signales.push(el); (t === "coupe" ? r.coupes : r.depasse).push(nom(el));
+      }
       if (el.children.length === 0 && (el.innerText || "").trim() && el.scrollWidth > el.clientWidth + 2 && st.overflowX !== "visible" && st.textOverflow !== "ellipsis") r.coupes.push(nom(el));
     }
     const compter = (sel, min) => { const n = {}; zone.querySelectorAll(sel).forEach(el => { if (el.closest("[aria-hidden=true]")) return; const t = (el.innerText || "").trim().replace(/\s+/g, " "); if (t.length >= min) n[t] = (n[t] || 0) + 1; }); return Object.entries(n).filter(([, k]) => k > 1).map(([t, k]) => k + " × « " + t.slice(0, 70) + " »"); };
@@ -294,15 +300,18 @@ async function navigateur() {
     const ctx = await b.newContext({ viewport: { width: 375, height: 812 }, deviceScaleFactor: 1, serviceWorkers: "block" });
     const p = await ctx.newPage();
     p.on("pageerror", e => erreursPage.push(nomPassage + " : " + e.message));
+    p.on("console", m => { if (m.type() === "error" && /^RECOMP/.test(m.text())) erreursPage.push(nomPassage + " : écran planté (" + m.text().replace(/^RECOMP\s*/, "").split("\n")[0].slice(0, 120) + ")"); });
     await imiter(p);
     await p.goto(URL_APP); await p.waitForTimeout(800);
+    const demarre = () => p.evaluate(() => typeof ONGLETS !== "undefined" && !!document.querySelector("main.scene")).catch(() => false);
+    if (!(await demarre())) { ko(nomPassage + " : l'app ne démarre pas — " + (erreursPage.find(e => e.startsWith(nomPassage)) || "écran blanc")); erreursPage.length = 0; await ctx.close(); return; }
     if (rempli) { await p.evaluate(remplir); await p.reload(); await p.waitForTimeout(2500); }
     const voir = async (lieu, ouvrir, rubrique) => {
       const avant = erreursPage.length;
       try { await p.evaluate(ouvrir.f, ouvrir.a); } catch (e) { erreursPage.push(nomPassage + " / " + lieu + " : " + e.message.split("\n")[0]); }
       await p.waitForTimeout(300);
       const r = await p.evaluate(examiner).catch(e => ({ plante: true, err: e.message }));
-      vues.push({ passage: nomPassage, lieu, ...r, rate: rubrique && r.rubrique !== rubrique, erreurs: erreursPage.slice(avant) });
+      vues.push({ passage: nomPassage, lieu, ...r, rate: rubrique && !r.plante && r.rubrique !== rubrique, erreurs: erreursPage.slice(avant) });
       if (CAPTURES && rempli) await p.screenshot({ path: path.join(CAPTURES, lieu.replace(/[^\wÀ-ÿ-]+/g, "_") + ".png") }).catch(() => {});
     };
     // Les onglets et leurs rubriques
@@ -335,7 +344,7 @@ async function navigateur() {
           const ids = v.map(x => x && x.id).filter(x => x != null), dbl = ids.filter((x, i) => ids.indexOf(x) !== i);
           if (dbl.length) pb.push(k + " : identifiant en double (" + [...new Set(dbl)].slice(0, 3).join(", ") + ")");
         }
-        const unique = (k, cle, quoi) => { const v = (DB.get(k) || []).map(cle).filter(x => x != null && x !== ""), dbl = v.filter((x, i) => v.indexOf(x) !== i); if (dbl.length) pb.push(k + " : " + quoi + " en double (" + [...new Set(dbl)].slice(0, 3).join(", ") + ")"); };
+        const unique = (k, cle, quoi) => { const v = (DB.get(k) || []).map(cle).filter(x => x != null && x !== ""), dbl = v.filter((x, i) => v.indexOf(x) !== i); if (dbl.length) pb.push(k + " : " + quoi + " (" + [...new Set(dbl)].slice(0, 3).join(", ") + ")"); };
         unique("recup-logs", l => l.dateISO, "deux formes du matin le même jour");
         unique("nutri-logs", l => l.dateISO, "deux journées repas le même jour");
         unique("mensurations", l => l.dateISO, "deux mesures le même jour");
@@ -355,13 +364,13 @@ async function navigateur() {
   const parPassage = n => vues.filter(v => v.passage === n);
   ["app vide", "app remplie"].forEach(n => {
     const v = parPassage(n), plantes = v.filter(x => x.plante || x.erreurs.length);
-    plantes.length ? plantes.forEach(x => ko(n + " — " + x.lieu + " : " + (x.erreurs[0] || x.err || "l'écran a planté"))) : ok(n + " : " + v.length + " écrans ouverts, aucun ne plante");
+    plantes.length ? plantes.forEach(x => ko(n + " — " + x.lieu + " : " + (x.erreurs[0] || x.err || "l'écran a planté").replace(n + " : ", ""))) : ok(n + " : " + v.length + " écrans ouverts, aucun ne plante");
   });
   vues.filter(v => v.rate).forEach(v => ko(v.passage + " — " + v.lieu + " : la rubrique n'a pas pu être ouverte (vérification incomplète)"));
   const debords = vues.filter(v => v.debord || v.depasse.length);
   debords.length ? debords.forEach(v => avert(v.passage + " — " + v.lieu + " : dépasse sur le côté " + (v.depasse.slice(0, 2).join(" ; ") || "(page plus large que l'écran)"))) : ok("Rien ne dépasse sur le côté");
   const coupes = vues.filter(v => v.coupes.length);
-  coupes.forEach(v => avert(v.passage + " — " + v.lieu + " : texte coupé net " + v.coupes.slice(0, 2).join(" ; ")));
+  coupes.length ? coupes.forEach(v => avert(v.passage + " — " + v.lieu + " : coupé sur le bord (rogné) " + v.coupes.slice(0, 2).join(" ; "))) : ok("Rien de rogné sur le bord");
   const dbl = vues.filter(v => v.titres.length || v.textes.length);
   dbl.length ? dbl.forEach(v => avert(v.passage + " — " + v.lieu + " : en double à l'écran " + [...v.titres, ...v.textes].slice(0, 3).join(" ; "))) : ok("Aucun titre ni texte en double sur un même écran");
   const autres = erreursPage.filter(e => !vues.some(v => v.erreurs.includes(e)));
