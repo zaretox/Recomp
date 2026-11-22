@@ -62,6 +62,13 @@ Les scripts sont chargés dans l'ordre par `index.html` et partagent la même po
 - `programme.js` : programme actif, séance d'un jour, import de texte (`lireProgramme`).
 - `entrainement.js` : `progression()` décide de la prochaine charge, `proposition()` ajoute les réglages et la semaine légère. Natation à la fin du fichier.
 - `nutrition.js` : `objectifs()` (poids → masse maigre → cible → macros), `menuDuJour()`, `jourNutrition()`, `tendancePoids()`, `depenseReelle()`.
+  **Calcul par séance** (depuis le 22 novembre 2026, champ `seances: true` dans `nutri-cal-cfg` et dans l'historique `nutri-cal-historique`) :
+  cible du jour = dépense sans séances + calories des séances du jour − objectif, jamais sous le métabolisme de base. La dépense sans séances
+  est la formule (activité hors séances), ou la dépense mesurée adoptée moins `seancesDepense` (kcal de séances par jour contenues dedans,
+  `seancesMoyennes`). `seancesDu(iso)` liste les séances du jour : muscu (salle, maison, ou séance de force de la montre ; kcal de la montre
+  reliée, sinon `kcalMuscuEstimee`), nage (`natation-logs`), course et vélo de la montre ; la marche non (elle est dans les pas). Une muscu
+  prévue (jour d'entraînement) ou une nage prévue comptent dès le matin, estimées, jusqu'à ce que la vraie séance arrive. Les jours d'avant
+  le passage gardent l'ancien calcul (−400 kcal au repos, nage ajoutée) : ce qui a été mangé ne se réécrit pas.
 - `recuperation.js` : `recuperation(iso)` calcule le score, `sommeil()` la dette, `influences()` ce qui joue sur la forme.
 - `argent.js` : `periodes()` (d'une paye à la suivante), `bilanPeriode()` et `bilanCourant()` (reste à vivre), `listeCourses()`.
 - `coach.js` : `messagesCoach()`, `repondre()`, `bilanSemaine()`, `regularite()`.

@@ -208,7 +208,8 @@ const listeCourses = memo((debut, jours) => {
   const ajoute = (id, g) => { grammes[id] = (grammes[id] || 0) + g; };
   for (let i = 0; i < jours; i++) {
     const iso = decale(debut, i), type = seanceDuJour(iso, programmeEnCours()) ? "training" : "rest";
-    const menu = parType[type] || (parType[type] = menuDuJour(type, 0));
+    // Un jour d'entraînement compte ta séance de muscu estimée (calcul par séance)
+    const menu = parType[type] || (parType[type] = menuDuJour(type, type === "training" && objectifs().cal?.seances ? kcalMuscuEstimee() : 0));
     menu.meals.forEach(m => m.items.forEach(it => {
       if (it.t) { if (RE_LEGUMES.test(it.t)) ajoute("legumes", PORTION_LEGUMES); return; }
       const id = INGREDIENTS[it.n];

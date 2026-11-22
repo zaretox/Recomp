@@ -21,7 +21,8 @@ function apportsPourScore(d, prog, nl, swl, sl, bt) {
   const nlog = nl.find(l => l.dateISO === d), foods = DB.get("food-log")[d] || [];
   const dayType = nlog?.dayType || (seanceDuJour(d, prog) ? "training" : "rest");
   // La cible de ce jour-là, et les calories figées des repas cochés (comme jourNutrition)
-  const nage = swl.filter(l => l.dateISO === d).reduce((a, l) => a + (l.kcal || 0), 0), menu = menuDuJour(dayType, nage, d < aujourdhui() ? objectifsAu(d) : null);
+  const nage = swl.filter(l => l.dateISO === d).reduce((a, l) => a + (l.kcal || 0), 0);
+  const btJ = d < aujourdhui() ? objectifsAu(d) : null, menu = menuDuJour(dayType, extraDuJour(d, dayType, btJ), btJ);
   let kc = 0, g = 0;
   menu.meals.forEach((m, i) => {
     const id = MEAL_ID[m.m], mm = menu.mealMacros[i], s = nlog?.mealScale?.[id] || 1, k = kcalMacros(mm) * s, fg = nlog?.kcalRepas?.[id];

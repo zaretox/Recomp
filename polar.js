@@ -217,11 +217,13 @@ async function ajouterNagesAuto() {
     return { id: Date.now() + i, dateISO: s.dateISO, date: dateCourte(s.dateISO), modele: "Nage de la montre", distance: dist, duree: s.duree, rpe: 6, nage: "Crawl", pool: s.bassin || 25, note: "",
       // Les calories de la montre (mesurées avec ton cardio), sinon l'estimation par l'allure
       kcal: s.kcal > 0 ? Math.round(s.kcal) : nageKcal(dist, s.duree, 6, kg), polarId: s.id, auto: true }; });
+  // Ce que la cible prend vraiment (une nage prévue déjà estimée, ou le plancher, peuvent en prendre une partie)
+  const jours = [...new Set(nouveaux.map(l => l.dateISO))], avant = jours.map(d => jourNutrition(d).menu.dayTgt);
   await DB.set("natation-logs", [...DB.get("natation-logs"), ...nouveaux]);
+  const plus = jours.reduce((x, d, i) => x + jourNutrition(d).menu.dayTgt - avant[i], 0);
   const ids = new Set(a.map(s => s.id));
   await DB.set("polar-seances", DB.get("polar-seances").map(s => ids.has(s.id) ? { ...s, natAuto: true } : s));
-  const k = nouveaux.reduce((x, l) => x + l.kcal, 0);
-  toast((a.length > 1 ? pluriel(a.length, "nage") + " de ta montre ajoutées" : entier(nouveaux[0].distance) + " m de ta montre ajoutés") + " à ta natation : +" + entier(k) + " kcal à manger");
+  toast((a.length > 1 ? pluriel(a.length, "nage") + " de ta montre ajoutées" : entier(nouveaux[0].distance) + " m de ta montre ajoutés") + " à ta natation" + (plus > 0 ? " : +" + entier(plus) + " kcal à manger" : ""));
   return a.length;
 }
 // Retirer de RECOMP : on garde l'identifiant pour ne pas la réimporter

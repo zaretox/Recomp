@@ -15,7 +15,7 @@ function EcranRepas() {
     h("header.hero", { "data-ton": "repas" },
       h("span.affiche-e", n.reste >= 0 ? "Reste à manger" : "Au-dessus de ta cible"),
       h("div.affiche-g", h(Geant, null, h(Compteur, { v: entier(Math.abs(n.reste)) })), h("em", "kcal")),
-      h("p", entier(n.mange.kcal) + " mangées sur " + entier(n.menu.dayTgt) + (n.menu.swimExtra ? ", dont " + entier(n.menu.swimExtra) + " pour ta nage" : "")),
+      h("p", entier(n.mange.kcal) + " mangées sur " + entier(n.menu.dayTgt) + (n.menu.swimExtra ? ", dont " + entier(n.menu.swimExtra) + " pour ta nage" : n.seances.length ? ", séances comprises" : "")),
       h("div.macros", h(LigneMacro, { l: "Protéines", v: n.mange.p, t: n.menu.dayMacros.p }), h(LigneMacro, { l: "Glucides", v: n.mange.g, t: n.menu.dayMacros.g }), h(LigneMacro, { l: "Lipides", v: n.mange.l, t: n.menu.dayMacros.l }))),
     h("div.corps-p.avec-rubriques",
       h("div", { id: "ancre-repas", className: "ancre-r" }),
@@ -25,6 +25,7 @@ function EcranRepas() {
           h(Puces, null,
             h(Puce, { actif: n.dayType === "training", onClick: () => changerTypeJour(iso, "training") }, "Jour d'entraînement"),
             h(Puce, { actif: n.dayType === "rest", onClick: () => changerTypeJour(iso, "rest") }, "Jour de repos")),
+          h(CalculDuJour, { n }),
           n.facteurReste !== 1 && h("p.note.fort", (n.facteurReste < 1 ? "Portions restantes réduites de " : "Portions restantes augmentées de ") + Math.round(Math.abs(1 - n.facteurReste) * 100) + " % pour tomber juste."),
           h("div.journee", n.lignes.map(l => h(LigneJour, { key: l.id, it: { cle: l.id, h: l.m.h, t: l.m.m, s: (l.m.altLabel ? l.m.altLabel + ", " : "") + (l.fait ? l.kcal : Math.round(l.kcal * n.facteurReste)) + " kcal", fait: l.fait, coche: () => cocherRepas(iso, l.id), ouvre: () => Nav.sheet("repas", { iso, id: l.id }), ton: "repas" } })))),
         h(Section, { titre: "Hors menu", droite: h("span.compte", entier(n.horsMenu.reduce((a, f) => a + (f.kcal || 0), 0)) + " kcal") },
@@ -34,6 +35,17 @@ function EcranRepas() {
             extrasHier.length > 0 && h(Bouton, { cl: "contour", onClick: () => { const log = DB.get("food-log"); DB.set("food-log", { ...log, [iso]: [...(log[iso] || []), ...extrasHier.map((f, k) => ({ ...f, id: Date.now() + k }))] }); toast("Hors-menu d'hier copié"); } }, "Comme hier"))))
       : rub === "cible" ? h(ContenuCalories, { milieu: h(TenueCible) })
       : h(ContenuCourses)));
+}
+
+/* La cible du jour en une ligne : ta dépense sans séances, plus chaque séance, moins ton objectif */
+function CalculDuJour({ n }) {
+  const c = (n.iso < aujourdhui() ? objectifsAu(n.iso) : objectifs()).cal;
+  if (!c?.seances) return null;
+  const brut = c.sansSeances - c.deficit + n.menu.seancesKcal;
+  return h("p.note", "Ta cible : " + entier(c.sansSeances) + " (ta dépense sans séances)"
+    + n.seances.map(x => " + " + entier(x.kcal) + " " + x.nom + (x.prevue ? " prévue" : x.estime ? " estimée" : "")).join("")
+    + (c.deficit ? (c.deficit > 0 ? " − " : " + ") + entier(Math.abs(c.deficit)) : "") + " = " + entier(brut)
+    + (brut < c.bmr ? ", remontée à ton plancher de " + entier(c.bmr) : "") + " kcal.");
 }
 
 /* Comment tu tiens ta cible : les 7 jours d'avant aujourd'hui, ce qui compte plus qu'une seule journée */
@@ -135,42 +147,50 @@ function ContenuCalories({ milieu }) {
   const bt = objectifs(), dep = depenseReelle(), cm = parseFloat(DB.get("taille-corps")) || 0, cal = bt.cal;
   const maj = p => majCalories({ sex: c.sex, age: c.age || null, activity: c.activity, deficit: c.deficit, protMode: c.protMode, ...p });
   const nomAct = (ACTIVITES.find(a => a[1] === c.activity) || ["?"])[0], repos = cal ? Math.max(cal.target - COUPE_REPOS, cal.bmr) : null;
+  // Calcul par séance : on part de la dépense sans séances ; une séance de muscu ajoute ce qu'elle brûle
+  const dep0 = cal ? (cal.seances ? cal.sansSeances : cal.tdee) : 0, muscu = cal?.seances ? kcalMuscuEstimee() : 0, nbMuscu = cal?.seances ? joursProgramme(programmeEnCours()).length : 0, avecMuscu = cal ? Math.max(dep0 - (c.deficit || 0) + muscu, cal.bmr) : null;
   const ecartMesure = dep.pret && c.depense ? dep.kcal - c.depense : null;
   return h(Fragment, null,
     // 1. La cible, et d'où elle vient : un seul endroit, un seul calcul
     cal ? h("div.cible-c",
       h("span.affiche-e", "Ta cible"),
-      h("div.cible-g", h("b", entier(cal.target)), h("em", "kcal par jour")),
-      h("p", "Ta dépense " + (c.depense ? "mesurée " : "estimée ") + entier(cal.tdee) + (c.deficit > 0 ? " − ton objectif " + entier(c.deficit) : c.deficit < 0 ? " + " + entier(-c.deficit) : "") + (cal.clamped ? ", arrêtée au plancher." : ".")),
-      cal.clamped && h("p.cible-alerte", "Plancher : ta cible ne descend jamais sous ton métabolisme de base (" + entier(cal.bmr) + " kcal). Avec cette dépense, un objectif au-delà de −" + entier(cal.deficitMax) + " ne change plus rien."),
+      h("div.cible-g", h("b", entier(cal.target)), h("em", cal.seances ? "kcal un jour sans séance" : "kcal par jour")),
+      h("p", (cal.seances ? "Ta dépense sans séances " + entier(cal.sansSeances) : "Ta dépense " + (c.depense ? "mesurée " : "estimée ") + entier(cal.tdee)) + (c.deficit > 0 ? " − ton objectif " + entier(c.deficit) : c.deficit < 0 ? " + " + entier(-c.deficit) : "") + (cal.clamped ? ", arrêtée au plancher." : ".")),
+      cal.clamped && h("p.cible-alerte", "Plancher : ta cible ne descend jamais sous ton métabolisme de base (" + entier(cal.bmr) + " kcal). " + (cal.seances
+        ? "Un jour sans séance, un objectif au-delà de −" + entier(cal.deficitMax) + " ne change donc rien ; un jour de séance, la séance remplit d'abord l'écart jusqu'au plancher."
+        : "Avec cette dépense, un objectif au-delà de −" + entier(cal.deficitMax) + " ne change plus rien.")),
       h("div.cible-j",
-        h("span", h("small", "Jours d'entraînement"), h("b", entier(cal.target))),
-        h("span", h("small", "Jours de repos"), h("b", entier(repos))),
+        cal.seances ? h("span", h("small", "Sans séance"), h("b", entier(cal.target))) : h("span", h("small", "Jours d'entraînement"), h("b", entier(cal.target))),
+        cal.seances ? h("span", h("small", "Avec ta muscu"), h("b", "≈ " + entier(avecMuscu))) : h("span", h("small", "Jours de repos"), h("b", entier(repos))),
         h("span", h("small", "Protéines"), h("b", bt.macros.p + " g"))),
-      h("p.note", "Les jours de natation, ta nage s'ajoute. Changer un réglage ne touche pas aux repas déjà cochés."))
+      h("p.note", cal.seances
+        ? "Chaque séance s'ajoute le jour où tu la fais, la muscu comme la nage, la course ou le vélo : ce qu'elle brûle selon ta montre (une muscu sans montre compte ≈ " + entier(muscu) + " kcal). La marche est déjà dans tes pas. Changer un réglage ne touche pas aux repas déjà cochés."
+        : "Les jours de natation, ta nage s'ajoute. Changer un réglage ne touche pas aux repas déjà cochés."))
       : h(Vide, null, "Il manque ton âge, ta taille ou une pesée pour calculer ta cible."),
     h(CiblePassee),
     milieu,
     // 2. Ta dépense : la formule ou la mesure, et l'on voit laquelle sert
     cal && h(Section, { titre: "Ta dépense" },
       h("div.choix-v",
-        h("button.choix-l", { className: !c.depense ? "actif" : "", onClick: () => { if (c.depense) { maj({ depense: null }); toast("Ta cible repart de la formule"); } } },
-          h("span", h("b", "Formule : " + entier(cal.formule) + " kcal"), h("small", "Métabolisme de base " + entier(cal.bmr) + " × activité « " + nomAct + " ». Une estimation de départ.")), !c.depense && h(Icone, { n: "check", t: 20 })),
-        h("button.choix-l", { className: c.depense ? "actif" : "", disabled: !dep.pret && !c.depense, onClick: () => { if (dep.pret && !c.depense) { maj({ depense: dep.kcal, lastAdjust: aujourdhui() }); toast("Ta cible part maintenant de ta dépense mesurée"); } } },
+        h("button.choix-l", { className: !c.depense ? "actif" : "", onClick: () => { if (c.depense) { maj({ depense: null, seancesDepense: null }); toast("Ta cible repart de la formule"); } } },
+          h("span", h("b", "Formule : " + entier(cal.formule) + " kcal"), h("small", "Métabolisme de base " + entier(cal.bmr) + " × activité « " + nomAct + " »" + (cal.seances ? ", sans tes séances" : "") + ". Une estimation de départ.")), !c.depense && h(Icone, { n: "check", t: 20 })),
+        h("button.choix-l", { className: c.depense ? "actif" : "", disabled: !dep.pret && !c.depense, onClick: () => { if (dep.pret && !c.depense) { maj({ depense: dep.kcal, seancesDepense: dep.seances || null, lastAdjust: aujourdhui() }); toast("Ta cible part maintenant de ta dépense mesurée"); } } },
           h("span", h("b", "Mesurée : " + (c.depense ? entier(c.depense) : dep.pret ? entier(dep.kcal) : "pas encore") + (c.depense || dep.pret ? " kcal" : "")),
-            h("small", !dep.pret ? (c.depense ? "Adoptée le " + dateMini(c.lastAdjust || aujourdhui()) + ". Pas assez de jours complets pour la remesurer." : "Il faut 14 jours avec des pesées et des repas tous cochés.")
-              : (ecartMesure != null && Math.abs(ecartMesure) >= 100 ? "Dernière mesure : " + entier(dep.kcal) + " kcal. " : "") + "Sur " + dep.notes + " jours complets : " + entier(dep.apports) + " kcal mangées par jour, tendance " + signe(dep.pente, 2) + " kg par semaine.")),
+            h("small", (c.depense && cal.seances && c.seancesDepense ? "Dont ≈ " + entier(c.seancesDepense) + " par jour de séances, comptées à part le jour où tu les fais : " + entier(cal.sansSeances) + " sans séances. " : "") + (!dep.pret ? (c.depense ? "Adoptée le " + dateMini(c.lastAdjust || aujourdhui()) + ". Pas assez de jours complets pour la remesurer." : "Il faut 14 jours avec des pesées et des repas tous cochés.")
+              : (ecartMesure != null && Math.abs(ecartMesure) >= 100 ? "Dernière mesure : " + entier(dep.kcal) + " kcal. " : "") + "Sur " + dep.notes + " jours complets : " + entier(dep.apports) + " kcal mangées par jour, tendance " + signe(dep.pente, 2) + " kg par semaine."))),
           c.depense && h(Icone, { n: "check", t: 20 }))),
-      ecartMesure != null && Math.abs(ecartMesure) >= 100 && h(Bouton, { cl: "contour", onClick: () => { maj({ depense: dep.kcal, lastAdjust: aujourdhui() }); toast("Dépense mise à jour : " + entier(dep.kcal) + " kcal"); } }, "Mettre à jour : dernière mesure " + entier(dep.kcal) + " kcal"),
+      ecartMesure != null && Math.abs(ecartMesure) >= 100 && h(Bouton, { cl: "contour", onClick: () => { maj({ depense: dep.kcal, seancesDepense: dep.seances || null, lastAdjust: aujourdhui() }); toast("Dépense mise à jour : " + entier(dep.kcal) + " kcal"); } }, "Mettre à jour : dernière mesure " + entier(dep.kcal) + " kcal"),
       h("p.note", "Touche celle qui doit servir de base. La mesurée vient de ta balance et de tes repas cochés : plus fiable que la formule si tu coches tout ce que tu manges. Elle se recalcule chaque jour ; je te proposerai de la mettre à jour seulement si elle bouge de plus de 100 kcal.")),
     // 3. L'objectif : ce que chaque choix donne vraiment
     cal && h(Section, { titre: "Ton objectif" },
       h("div.objectifs", OBJECTIFS.map(([l, v]) => {
-        const cible = Math.max(cal.tdee - v, cal.bmr), bloque = v > 0 && cal.tdee - v < cal.bmr, eff = cal.tdee - cible;
+        // Calcul par séance : la cible d'un jour de muscu, et les kilos sur une semaine type (jours de muscu et jours sans séance)
+        const s = nbMuscu ? muscu : 0, cible = Math.max(dep0 + s - v, cal.bmr), bloque = v > 0 && dep0 + s - v < cal.bmr;
+        const effJ = x => dep0 + x - Math.max(dep0 + x - v, cal.bmr), eff = cal.seances ? (effJ(muscu) * nbMuscu + effJ(0) * (7 - nbMuscu)) / 7 : effJ(0);
         return h("button", { key: v, className: (c.deficit === v ? "actif " : "") + (bloque ? "bloque" : ""), onClick: () => maj({ deficit: v }) },
           h("b", l), h("span", entier(cible)), h("small", v === 0 ? "maintien" : v < 0 ? "prise" : bloque ? "plancher" : "≈ −" + nb(eff * 7 / KCAL_PAR_KG, 1) + " kg/sem"));
       })),
-      h("p.note", "Kilos par semaine estimés si ta dépense est juste ; ta balance tranchera en deux à trois semaines.")),
+      h("p.note", (nbMuscu ? "Chiffres d'un jour de muscu ; un jour sans séance, jamais sous " + entier(cal.bmr) + ". " : "") + "Kilos par semaine estimés si ta dépense est juste ; ta balance tranchera en deux à trois semaines.")),
     // 4. Les réglages qui servent au calcul
     h(Section, { titre: "Toi" },
       h("div.quatre",

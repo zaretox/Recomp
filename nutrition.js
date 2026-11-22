@@ -2,7 +2,7 @@
 /* NUTRITION — du poids à l'assiette :
  * poids moyen 7 j → masse maigre (méthode Navy) → cible calorique → macros → menu recalé pile sur la cible. */
 const KCAL_PAR_KG = 7700;
-const COUPE_REPOS = 400;   // kcal de moins les jours de repos
+const COUPE_REPOS = 400;   // ancien calcul (jours d'avant le calcul par séance) : kcal de moins les jours de repos
 const RYTHME_MAX = -1.0, RYTHME_MIN = -.5, RYTHME_LENT = -.25, DELAI_AJUSTEMENT = 10;
 
 const pesees = memo(() => DB.get("nutri-logs").filter(l => l.weight > 0).sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(l => ({ dateISO: l.dateISO, date: l.date, kg: l.weight })));
@@ -22,7 +22,9 @@ const moyenneRecente = (pts, n) => {
 function cfgCalories() {
   const c = DB.get("nutri-cal-cfg");
   if (!c) return null;
-  return { sex: c.sex || "H", age: c.age != null ? c.age : "", activity: c.activity || 1.55, deficit: (c.deficit > 0 && c.deficit <= 40) ? 700 : (c.deficit != null ? c.deficit : 700), protMode: c.protMode || "lean", lastAdjust: c.lastAdjust || null, depense: c.depense || null };
+  return { sex: c.sex || "H", age: c.age != null ? c.age : "", activity: c.activity || 1.55, deficit: (c.deficit > 0 && c.deficit <= 40) ? 700 : (c.deficit != null ? c.deficit : 700), protMode: c.protMode || "lean", lastAdjust: c.lastAdjust || null, depense: c.depense || null,
+    // Calcul par séance (depuis novembre 2026) ; seancesDepense : kcal de séances par jour contenues dans la dépense mesurée adoptée
+    seances: !!c.seances, seancesDepense: c.seancesDepense > 0 ? c.seancesDepense : null };
 }
 function masseGrasseNavy(taille, cou, cm) {
   if (!taille || !cou || !cm || taille <= cou) return null;
@@ -60,9 +62,12 @@ const objectifs = memo(() => {
 // La cible : dépense (mesurée si tu l'as adoptée, sinon formule) moins ton objectif, jamais sous le métabolisme de base
 function calculCible(cfg, curW, cm, age) {
   const bmr = metabolisme(curW, cm, age, cfg.sex), formule = Math.round(bmr * cfg.activity);
-  const tdee = cfg.depense || formule;
-  const t = tdee - (cfg.deficit || 0), target = Math.max(t, bmr);
-  return { bmr, tdee, formule, target, clamped: target !== t, deficitMax: Math.max(0, tdee - bmr) };
+  const tdee = cfg.depense || formule, deficit = cfg.deficit || 0;
+  // Calcul par séance : on part de la dépense sans séances (la formule l'est déjà ; la mesurée contient les séances
+  // de l'époque, retirées ici), puis chaque séance du jour s'ajoute. target = un jour sans séance.
+  const seances = !!cfg.seances, sansSeances = seances ? (cfg.depense ? cfg.depense - (cfg.seancesDepense || 0) : formule) : tdee;
+  const t = sansSeances - deficit, target = Math.max(t, bmr);
+  return { bmr, tdee, formule, seances, sansSeances, deficit, target, clamped: target !== t, deficitMax: Math.max(0, sansSeances - bmr) };
 }
 
 /* HISTORIQUE DES RÉGLAGES — « nutri-cal-historique » = [{ depuis, depense, deficit, activity, devine? }].
@@ -73,8 +78,8 @@ const configAu = iso => { const l = historiqueCibles().filter(x => x.depuis <= i
 const objectifsAu = memo(iso => {
   const bt = objectifs(), h = configAu(iso), cfg = cfgCalories();
   if (!h || !bt.ready || !cfg) return bt;
-  const c = { ...cfg, depense: h.depense || null, deficit: h.deficit ?? cfg.deficit, activity: h.activity || cfg.activity };
-  if (!h.cible && (c.depense || null) === (cfg.depense || null) && c.deficit === cfg.deficit && c.activity === cfg.activity) return bt;
+  const c = { ...cfg, depense: h.depense || null, deficit: h.deficit ?? cfg.deficit, activity: h.activity || cfg.activity, seances: !!h.seances, seancesDepense: h.seancesDepense || null };
+  if (!h.cible && (c.depense || null) === (cfg.depense || null) && c.deficit === cfg.deficit && c.activity === cfg.activity && c.seances === cfg.seances && c.seancesDepense === cfg.seancesDepense) return bt;
   let cal = calculCible(c, bt.curW, parseFloat(DB.get("taille-corps")) || 0, bt.age);
   // Une cible donnée telle quelle (« Autre chiffre » dans Ma cible) remplace le calcul pour ces jours-là
   if (h.cible > 0) cal = { ...cal, target: Math.max(h.cible, cal.bmr), clamped: false };
@@ -82,22 +87,34 @@ const objectifsAu = memo(iso => {
 });
 // Seule façon de changer les réglages de la cible : l'historique suit
 async function majCalories(p) {
-  const brut = DB.get("nutri-cal-cfg") || {}, avant = cfgCalories(), neuf = { ...brut, ...p };
+  // Une première configuration part directement sur le calcul par séance
+  const brut = DB.get("nutri-cal-cfg") || { seances: true }, avant = cfgCalories(), neuf = { ...brut, ...p };
   await DB.set("nutri-cal-cfg", neuf);
   const apres = cfgCalories();
-  if (!apres || (avant && (avant.depense || null) === (apres.depense || null) && avant.deficit === apres.deficit && avant.activity === apres.activity)) return;
+  if (!apres || (avant && (avant.depense || null) === (apres.depense || null) && avant.deficit === apres.deficit && avant.activity === apres.activity
+    && avant.seances === apres.seances && avant.seancesDepense === apres.seancesDepense)) return;
   const auj = aujourdhui(), l = historiqueCibles().filter(x => x.depuis !== auj);
-  await DB.set("nutri-cal-historique", [...l, { depuis: auj, depense: apres.depense || null, deficit: apres.deficit, activity: apres.activity }]);
+  await DB.set("nutri-cal-historique", [...l, { depuis: auj, depense: apres.depense || null, deficit: apres.deficit, activity: apres.activity,
+    ...(apres.seances ? { seances: true, seancesDepense: apres.seancesDepense } : {}) }]);
 }
 // Première fois : l'historique part des réglages actuels. Une dépense adoptée dans les 4 dernières semaines n'existait pas avant ;
 // l'objectif d'avant est deviné (le même qu'aujourd'hui) et Ma cible propose de le corriger une fois.
 async function assurerHistoriqueCibles() {
   const cfg = cfgCalories();
-  if (!cfg || historiqueCibles().length) return;
-  const recente = cfg.depense && cfg.lastAdjust && ecart(cfg.lastAdjust, aujourdhui()) <= 28;
-  const l = [{ depuis: "2000-01-01", depense: recente ? null : cfg.depense || null, deficit: cfg.deficit, activity: cfg.activity, devine: true }];
-  if (recente) l.push({ depuis: cfg.lastAdjust, depense: cfg.depense, deficit: cfg.deficit, activity: cfg.activity });
-  await DB.set("nutri-cal-historique", l);
+  if (!cfg) return;
+  if (!historiqueCibles().length) {
+    const recente = cfg.depense && cfg.lastAdjust && ecart(cfg.lastAdjust, aujourdhui()) <= 28;
+    const l = [{ depuis: "2000-01-01", depense: recente ? null : cfg.depense || null, deficit: cfg.deficit, activity: cfg.activity, devine: true }];
+    if (recente) l.push({ depuis: cfg.lastAdjust, depense: cfg.depense, deficit: cfg.deficit, activity: cfg.activity });
+    await DB.set("nutri-cal-historique", l);
+  }
+  // Passage au calcul par séance, une seule fois, à partir d'aujourd'hui (les jours d'avant gardent l'ancien).
+  // Une dépense mesurée déjà adoptée contient les séances des 4 semaines où elle a été mesurée : on les compte.
+  if (!cfg.seances) {
+    const h = [...historiqueCibles()].reverse().find(x => cfg.depense && x.depense === cfg.depense && x.depuis > "2000-01-01");
+    const fin = h?.depuis || cfg.lastAdjust || aujourdhui();
+    await majCalories({ seances: true, seancesDepense: cfg.depense ? seancesMoyennes(decale(fin, -28), fin) || null : null });
+  }
 }
 
 /* Mise à l'échelle du menu : les aliments « fix » (1 œuf, 1 galette) ne bougent pas, les autres sont rangés
@@ -142,23 +159,68 @@ function planDuJour(dayType, alts) {
   }).sort((a, b) => hEnMin(a.h) - hEnMin(b.h));
   return { meals, seance: dayType === "training" ? cr.seance : null };
 }
-/* Menu complet d'un jour : cible (−400 kcal au repos, + natation) et portions recalées */
+/* SÉANCES — chaque séance ajoute ce qu'elle brûle, la muscu comme la nage : les calories de ta montre, sinon une estimation.
+ * Muscu (salle, maison, ou séance de force de la montre), nage, course et vélo. La marche n'y est pas : elle est dans tes pas. */
+const FAMILLES_SEANCE = ["muscu", "nage", "course", "velo"];
+const kcalMontreMuscu = l => { const s = sortieDeMuscu(l); return s && s.kcal > 0 && logDeSortie(s)?.log.id === l.id ? Math.round(s.kcal) : null; };
+// Une séance de muscu sans montre : la moyenne de tes 10 dernières vues par la montre, sinon 3 kcal par kilo
+const kcalMuscuEstimee = memo(() => {
+  const v = [...DB.get("sport-logs"), ...DB.get("maison-logs")].sort((a, b) => a.dateISO.localeCompare(b.dateISO)).map(kcalMontreMuscu).filter(x => x > 0).slice(-10);
+  return v.length ? Math.round(moyenne(v)) : Math.round(3 * (objectifs().curW || 90));
+});
+// Une nage prévue : sa distance à ton allure habituelle (2:30 aux 100 m sans historique)
+const kcalNageEstimee = m => {
+  const d = nageDistance(m), l = DB.get("natation-logs").filter(x => x.distance > 0 && x.duree > 0).slice(-10), al = l.length ? moyenne(l.map(x => allure(x.distance, x.duree))) : 150;
+  return d > 0 ? Math.round(nageKcal(d, d / 100 * al, 6, objectifs().curW || 90)) : 0;
+};
+// Les séances d'un jour. prevues : la muscu (jour d'entraînement) et la nage prévues, pas encore faites, comptent estimées
+function seancesDu(iso, dayType, prevues) {
+  const l = [], muscu = [...DB.get("sport-logs").map(x => ({ ...x, maison: false })), ...DB.get("maison-logs").map(x => ({ ...x, maison: true }))].filter(x => x.dateISO === iso);
+  muscu.forEach(x => { const k = kcalMontreMuscu(x); l.push({ t: "muscu", nom: "muscu", kcal: k || kcalMuscuEstimee(), estime: !k }); });
+  const nages = DB.get("natation-logs").filter(x => x.dateISO === iso);
+  nages.forEach(x => l.push({ t: "nage", nom: "nage", kcal: Math.round(x.kcal || 0) }));
+  // Les séances de la montre qui ne sont reliées à rien de noté
+  sortiesPolar().filter(s => s.dateISO === iso && s.kcal > 0 && FAMILLES_SEANCE.includes(familleSortie(s)) && !logDeSortie(s))
+    .forEach(s => l.push({ t: familleSortie(s), nom: COURT_SORTIE[familleSortie(s)].toLowerCase(), kcal: Math.round(s.kcal) }));
+  if (prevues && dayType === "training" && !l.some(x => x.t === "muscu")) l.push({ t: "muscu", nom: "muscu", kcal: kcalMuscuEstimee(), estime: true, prevue: true });
+  const np = prevues && !l.some(x => x.t === "nage") ? nagePrevue(iso) : null, kn = np ? kcalNageEstimee(np) : 0;
+  if (kn > 0) l.push({ t: "nage", nom: "nage", kcal: kn, estime: true, prevue: true });
+  return l.filter(x => x.kcal > 0);
+}
+// Moyenne par jour des séances faites entre debut (compris) et fin (exclue)
+const seancesMoyennes = (debut, fin) => {
+  const n = ecart(debut, fin);
+  if (n <= 0) return 0;
+  let t = 0;
+  for (let i = 0; i < n; i++) t += seancesDu(decale(debut, i), null, false).reduce((a, x) => a + x.kcal, 0);
+  return Math.round(t / n);
+};
+
+/* Menu complet d'un jour : la cible et les portions recalées.
+ * Calcul par séance : dépense sans séances + séances du jour (extra) − objectif, jamais sous le métabolisme de base.
+ * Ancien calcul (jours d'avant) : −400 kcal au repos, et la nage (extra) ajoutée. */
 function menuDuJour(dayType, extra, cibleDuJour) {
-  const bt = cibleDuJour || objectifs(), plan = planDuJour(dayType, DB.get("repas-alts"));
-  const base = bt.cal ? bt.cal.target : MACROS_DEFAUT.kcal, nage = Math.max(0, Math.round(extra || 0));
-  const dayTgt = (dayType === "rest" ? Math.max(base - COUPE_REPOS, bt.cal ? bt.cal.bmr : 0) : base) + nage;
+  const bt = cibleDuJour || objectifs(), plan = planDuJour(dayType, DB.get("repas-alts")), c = bt.cal;
+  const plus = Math.max(0, Math.round(extra || 0));
+  const dayTgt = !c ? MACROS_DEFAUT.kcal + plus : c.seances ? Math.max(c.sansSeances - c.deficit + plus, c.bmr)
+    : (dayType === "rest" ? Math.max(c.target - COUPE_REPOS, c.bmr) : c.target) + plus;
   const dayMacros = macrosPour(dayTgt, bt.cal ? bt.prot : MACROS_DEFAUT.p);
   const { itemF } = echelleMenu(plan.meals, { ...dayMacros, kcal: dayTgt });
   const mealMacros = plan.meals.map(r => r.items.reduce((a, it) => it.t ? a : { p: a.p + it.p * itemF(it), g: a.g + it.g * itemF(it), l: a.l + it.l * itemF(it) }, { p: 0, g: 0, l: 0 }));
-  return { ...plan, dayTgt, swimExtra: nage, dayMacros, itemF, mealMacros };
+  return { ...plan, dayTgt, swimExtra: c?.seances ? 0 : plus, seancesKcal: c?.seances ? plus : 0, dayMacros, itemF, mealMacros };
 }
 const kcalMacros = m => m.p * 4 + m.g * 4 + m.l * 9;
+
+/* Ce qui s'ajoute à la cible d'un jour : toutes ses séances (calcul par séance), ou seulement la nage (ancien calcul) */
+const seancesPourCible = (iso, dayType, bt) => (bt || objectifs()).cal?.seances ? seancesDu(iso, dayType, iso >= aujourdhui()) : [];
+const extraDuJour = (iso, dayType, bt, seances) => (bt || objectifs()).cal?.seances ? (seances || seancesPourCible(iso, dayType, bt)).reduce((a, x) => a + x.kcal, 0) : nageKcalDu(iso);
 
 /* Tout ce qui décrit un jour côté assiette */
 const jourNutrition = memo(iso => {
   const nlog = DB.get("nutri-logs").find(l => l.dateISO === iso) || null;
   const prevu = seanceDuJour(iso, programmeEnCours()) ? "training" : "rest", dayType = nlog?.dayType || prevu;
-  const menu = menuDuJour(dayType, nageKcalDu(iso), iso < aujourdhui() ? objectifsAu(iso) : null);
+  const bt = iso < aujourdhui() ? objectifsAu(iso) : null, seances = seancesPourCible(iso, dayType, bt);
+  const menu = menuDuJour(dayType, extraDuJour(iso, dayType, bt, seances), bt);
   const coches = nlog?.meals || {}, echelles = nlog?.mealScale || {}, figes = nlog?.kcalRepas || {};
   const lignes = menu.meals.map((m, i) => {
     const id = MEAL_ID[m.m], mm = menu.mealMacros[i], s = echelles[id] || 1, k = kcalMacros(mm) * s;
@@ -181,7 +243,7 @@ const jourNutrition = memo(iso => {
   const restants = lignes.filter(r => !r.fait), prevuRestant = sum(restants, "kcal");
   const reste = menu.dayTgt - mange.kcal;
   const facteurReste = prevuRestant > 0 ? borne(reste / prevuRestant, .6, 1.2) : 1;
-  return { iso, nlog, dayType, prevu, menu, lignes, horsMenu, planifies, mange, reste, facteurReste: Math.abs(facteurReste - 1) < .04 ? 1 : facteurReste };
+  return { iso, nlog, dayType, prevu, menu, seances, lignes, horsMenu, planifies, mange, reste, facteurReste: Math.abs(facteurReste - 1) < .04 ? 1 : facteurReste };
 });
 /* Calories réellement consommées un jour (null si rien de noté) */
 const apportsDu = memo(iso => {
@@ -254,8 +316,11 @@ const rythme = memo(() => {
   if (kg == null || !curW) return { kg, pct: null, curW };
   const pct = kg / curW * 100;
   const refroidi = cal?.lastAdjust && ecart(cal.lastAdjust, aujourdhui()) < DELAI_AJUSTEMENT;
-  const max = objectifs().cal?.deficitMax ?? 1000;
-  let nouveau = !cal ? null : pct < RYTHME_MAX ? Math.max(0, cal.deficit - 150) : pct > RYTHME_LENT ? Math.min(1000, cal.deficit + 150, max) : null;
+  // Au-delà de ce déficit, le plancher bloque tout ; en calcul par séance, il compte encore les jours de muscu
+  const c0 = objectifs().cal, max = c0 ? c0.deficitMax + (c0.seances ? kcalMuscuEstimee() : 0) : 1000;
+  // Trop lent : on n'augmente que si c'est possible (jamais une « hausse » qui baisserait ton objectif)
+  const plus = cal ? Math.min(1000, cal.deficit + 150, max) : null;
+  let nouveau = !cal ? null : pct < RYTHME_MAX ? Math.max(0, cal.deficit - 150) : pct > RYTHME_LENT ? (plus > cal.deficit ? plus : null) : null;
   if (nouveau != null && nouveau === cal.deficit) nouveau = null;
   return { kg, pct, curW, nouveau: refroidi ? null : nouveau, refroidi, etat: pct < RYTHME_MAX ? "vite" : pct > RYTHME_LENT ? "lent" : pct > RYTHME_MIN ? "doux" : "ideal" };
 });
@@ -280,7 +345,10 @@ const depenseReelle = memo(() => {
   const pente = penteTendance(fenetre);
   if (pente == null) return { pret: false, jours };
   const apports = moyenne(notes), kcal = Math.round(apports - pente * KCAL_PAR_KG);
-  return { pret: true, kcal: Math.round(kcal / 10) * 10, apports: Math.round(apports), jours, notes: notes.length, pente: arrondi(pente * 7, 2), formule: cal?.tdee || null, ecart: cal ? Math.round(kcal - cal.tdee) : null };
+  // Ce que tes séances ont brûlé, en moyenne par jour, pendant ces semaines : la cible les ajoute à part, jour par jour
+  const seances = seancesMoyennes(debut.dateISO, der.dateISO);
+  return { pret: true, kcal: Math.round(kcal / 10) * 10, apports: Math.round(apports), jours, notes: notes.length, pente: arrondi(pente * 7, 2), formule: cal?.tdee || null, ecart: cal ? Math.round(kcal - cal.tdee) : null,
+    seances, sansSeances: Math.round((kcal - seances) / 10) * 10 };
 });
 /* Composition d'après les mensurations */
 const composition = memo(() => {
