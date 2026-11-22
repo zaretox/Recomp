@@ -173,7 +173,9 @@ const kcalNageEstimee = m => {
   const d = nageDistance(m), l = DB.get("natation-logs").filter(x => x.distance > 0 && x.duree > 0).slice(-10), al = l.length ? moyenne(l.map(x => allure(x.distance, x.duree))) : 150;
   return d > 0 ? Math.round(nageKcal(d, d / 100 * al, 6, objectifs().curW || 90)) : 0;
 };
-// Les séances d'un jour. prevues : la muscu (jour d'entraînement) et la nage prévues, pas encore faites, comptent estimées
+// Les séances d'un jour. prevues : tant qu'aucune vraie séance n'est arrivée, UNE séance prévue compte, estimée :
+// la nage si une nage est prévue ce jour-là (sans muscu au programme), sinon la muscu un jour d'entraînement.
+// Dès qu'une vraie séance arrive (muscu, nage, course, vélo), elle remplace l'estimation. Deux vraies séances comptent toutes les deux.
 function seancesDu(iso, dayType, prevues) {
   const l = [], muscu = [...DB.get("sport-logs").map(x => ({ ...x, maison: false })), ...DB.get("maison-logs").map(x => ({ ...x, maison: true }))].filter(x => x.dateISO === iso);
   muscu.forEach(x => { const k = kcalMontreMuscu(x); l.push({ t: "muscu", nom: "muscu", kcal: k || kcalMuscuEstimee(), estime: !k }); });
@@ -182,9 +184,11 @@ function seancesDu(iso, dayType, prevues) {
   // Les séances de la montre qui ne sont reliées à rien de noté
   sortiesPolar().filter(s => s.dateISO === iso && s.kcal > 0 && FAMILLES_SEANCE.includes(familleSortie(s)) && !logDeSortie(s))
     .forEach(s => l.push({ t: familleSortie(s), nom: COURT_SORTIE[familleSortie(s)].toLowerCase(), kcal: Math.round(s.kcal) }));
-  if (prevues && dayType === "training" && !l.some(x => x.t === "muscu")) l.push({ t: "muscu", nom: "muscu", kcal: kcalMuscuEstimee(), estime: true, prevue: true });
-  const np = prevues && !l.some(x => x.t === "nage") ? nagePrevue(iso) : null, kn = np ? kcalNageEstimee(np) : 0;
-  if (kn > 0) l.push({ t: "nage", nom: "nage", kcal: kn, estime: true, prevue: true });
+  if (prevues && !l.some(x => x.kcal > 0)) {
+    const np = nagePrevue(iso), kn = np ? kcalNageEstimee(np) : 0, muscuAuProgramme = !!seanceDuJour(iso, programmeEnCours());
+    if (dayType === "training" && (muscuAuProgramme || !kn)) l.push({ t: "muscu", nom: "muscu", kcal: kcalMuscuEstimee(), estime: true, prevue: true });
+    else if (kn > 0) l.push({ t: "nage", nom: "nage", kcal: kn, estime: true, prevue: true });
+  }
   return l.filter(x => x.kcal > 0);
 }
 // Moyenne par jour des séances faites entre debut (compris) et fin (exclue)
@@ -212,14 +216,15 @@ function menuDuJour(dayType, extra, cibleDuJour) {
 const kcalMacros = m => m.p * 4 + m.g * 4 + m.l * 9;
 
 /* Ce qui s'ajoute à la cible d'un jour : toutes ses séances (calcul par séance), ou seulement la nage (ancien calcul) */
-const seancesPourCible = (iso, dayType, bt) => (bt || objectifs()).cal?.seances ? seancesDu(iso, dayType, iso >= aujourdhui()) : [];
+// reposChoisi : « Jour de repos » touché à la main, aucune séance prévue ne compte
+const seancesPourCible = (iso, dayType, bt, reposChoisi) => (bt || objectifs()).cal?.seances ? seancesDu(iso, dayType, iso >= aujourdhui() && !reposChoisi) : [];
 const extraDuJour = (iso, dayType, bt, seances) => (bt || objectifs()).cal?.seances ? (seances || seancesPourCible(iso, dayType, bt)).reduce((a, x) => a + x.kcal, 0) : nageKcalDu(iso);
 
 /* Tout ce qui décrit un jour côté assiette */
 const jourNutrition = memo(iso => {
   const nlog = DB.get("nutri-logs").find(l => l.dateISO === iso) || null;
   const prevu = seanceDuJour(iso, programmeEnCours()) ? "training" : "rest", dayType = nlog?.dayType || prevu;
-  const bt = iso < aujourdhui() ? objectifsAu(iso) : null, seances = seancesPourCible(iso, dayType, bt);
+  const bt = iso < aujourdhui() ? objectifsAu(iso) : null, seances = seancesPourCible(iso, dayType, bt, nlog?.dayType === "rest");
   const menu = menuDuJour(dayType, extraDuJour(iso, dayType, bt, seances), bt);
   const coches = nlog?.meals || {}, echelles = nlog?.mealScale || {}, figes = nlog?.kcalRepas || {};
   const lignes = menu.meals.map((m, i) => {

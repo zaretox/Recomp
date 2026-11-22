@@ -164,7 +164,7 @@ function ContenuCalories({ milieu }) {
         cal.seances ? h("span", h("small", "Avec ta muscu"), h("b", "≈ " + entier(avecMuscu))) : h("span", h("small", "Jours de repos"), h("b", entier(repos))),
         h("span", h("small", "Protéines"), h("b", bt.macros.p + " g"))),
       h("p.note", cal.seances
-        ? "Chaque séance s'ajoute le jour où tu la fais, la muscu comme la nage, la course ou le vélo : ce qu'elle brûle selon ta montre (une muscu sans montre compte ≈ " + entier(muscu) + " kcal). La marche est déjà dans tes pas. Changer un réglage ne touche pas aux repas déjà cochés."
+        ? "Chaque séance s'ajoute le jour où tu la fais, la muscu comme la nage, la course ou le vélo : ce qu'elle brûle selon ta montre (une muscu sans montre compte ≈ " + entier(muscu) + " kcal). Un jour d'entraînement compte une séance, estimée jusqu'à ce que la vraie arrive. La marche est déjà dans tes pas. Changer un réglage ne touche pas aux repas déjà cochés."
         : "Les jours de natation, ta nage s'ajoute. Changer un réglage ne touche pas aux repas déjà cochés."))
       : h(Vide, null, "Il manque ton âge, ta taille ou une pesée pour calculer ta cible."),
     h(CiblePassee),
