@@ -243,7 +243,9 @@ const jourNutrition = memo(iso => {
   const restants = lignes.filter(r => !r.fait), prevuRestant = sum(restants, "kcal");
   const reste = menu.dayTgt - mange.kcal;
   const facteurReste = prevuRestant > 0 ? borne(reste / prevuRestant, .6, 1.2) : 1;
-  return { iso, nlog, dayType, prevu, menu, seances, lignes, horsMenu, planifies, mange, reste, facteurReste: Math.abs(facteurReste - 1) < .04 ? 1 : facteurReste };
+  // Calcul par séance : la cible du jour est remontée au plancher (métabolisme de base), séances comprises ou non
+  const c = (bt || objectifs()).cal, auPlancher = !!(c?.seances && menu.dayTgt <= c.bmr);
+  return { iso, nlog, dayType, prevu, menu, seances, auPlancher, lignes, horsMenu, planifies, mange, reste, facteurReste: Math.abs(facteurReste - 1) < .04 ? 1 : facteurReste };
 });
 /* Calories réellement consommées un jour (null si rien de noté) */
 const apportsDu = memo(iso => {

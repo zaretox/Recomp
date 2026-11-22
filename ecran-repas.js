@@ -15,7 +15,7 @@ function EcranRepas() {
     h("header.hero", { "data-ton": "repas" },
       h("span.affiche-e", n.reste >= 0 ? "Reste à manger" : "Au-dessus de ta cible"),
       h("div.affiche-g", h(Geant, null, h(Compteur, { v: entier(Math.abs(n.reste)) })), h("em", "kcal")),
-      h("p", entier(n.mange.kcal) + " mangées sur " + entier(n.menu.dayTgt) + (n.menu.swimExtra ? ", dont " + entier(n.menu.swimExtra) + " pour ta nage" : n.seances.length ? ", séances comprises" : "")),
+      h("p", entier(n.mange.kcal) + " mangées sur " + entier(n.menu.dayTgt) + (n.menu.swimExtra ? ", dont " + entier(n.menu.swimExtra) + " pour ta nage" : n.auPlancher ? ", ton plancher" : n.seances.length ? ", séances comprises" : "")),
       h("div.macros", h(LigneMacro, { l: "Protéines", v: n.mange.p, t: n.menu.dayMacros.p }), h(LigneMacro, { l: "Glucides", v: n.mange.g, t: n.menu.dayMacros.g }), h(LigneMacro, { l: "Lipides", v: n.mange.l, t: n.menu.dayMacros.l }))),
     h("div.corps-p.avec-rubriques",
       h("div", { id: "ancre-repas", className: "ancre-r" }),

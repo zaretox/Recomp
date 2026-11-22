@@ -221,7 +221,7 @@ function contexteCoach(avecHeure = true) {
     return ["Tendance " + nb1(der.t) + " kg" + (ry.kg != null ? ", rythme " + signe(ry.kg, 2) + " kg par semaine" : "") + ".",
       "Pesées récentes : " + pesees().slice(-10).map(p => jourDe(p.dateISO) + " " + nb1(p.kg)).join(", ") + ".", cl?.bf != null ? "Masse grasse estimée : " + nb(cl.bf) + " % (" + dateMini(cl.dateISO) + ")." : null]; });
   part("Repas aujourd'hui", () => { const n = jourNutrition(auj), m = n.menu.dayMacros;
-    return ["Cible " + entier(n.menu.dayTgt) + " kcal (jour " + (n.dayType === "training" ? "d'entraînement" : "de repos") + "), mangé " + entier(n.mange.kcal) + " kcal, reste " + entier(n.reste) + ".",
+    return ["Cible " + entier(n.menu.dayTgt) + " kcal (jour " + (n.dayType === "training" ? "d'entraînement" : "de repos") + (n.auPlancher ? ", au plancher : le métabolisme de base ; les séances du jour sont absorbées par l'objectif" : "") + "), mangé " + entier(n.mange.kcal) + " kcal, reste " + entier(n.reste) + ".",
       n.seances.length ? "Séances comptées dans cette cible : " + n.seances.map(x => x.nom + " " + entier(x.kcal) + " kcal" + (x.prevue ? " (prévue, estimée)" : x.estime ? " (estimée, sans montre)" : " (montre)")).join(", ") + "." : null,
       "Macros mangées / visées : protéines " + Math.round(n.mange.p) + "/" + m.p + " g, glucides " + Math.round(n.mange.g) + "/" + m.g + " g, lipides " + Math.round(n.mange.l) + "/" + m.l + " g.",
       "Repas : " + n.lignes.map(l => l.m.h + " " + l.m.m + (l.fait ? " (coché)" : "")).join(", ") + ".",
